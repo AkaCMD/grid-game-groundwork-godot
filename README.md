@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A Godot addon for making 3D grid puzzles. Paint levels, playtest, and build mechanics with GDScript. Includes Sokoban and pipe-connection examples.
+A Godot addon for making 3D grid puzzles. Paint levels, playtest, and build mechanics with GDScript. Includes Sokoban, pipe-connection and QUACK!!! on ICE examples.
 
 **Godot 4.6+ Standard · Compatibility renderer · Tested with 4.7.2**
 
@@ -12,11 +12,13 @@ A Godot addon for making 3D grid puzzles. Paint levels, playtest, and build mech
 
 1. Import `project.godot` in Godot.
 2. Open **Grid Levels** in the top toolbar. If missing, enable **Grid Game Groundwork** under **Project → Project Settings → Plugins**.
-3. Click **Open…** and choose `examples/levels/sokoban.tres` or `pipes.tres` in the same folder.
+3. Click **Open…** and choose `examples/levels/sokoban.tres` or `pipes.tres` / `quack.tres` in the same folder.
 4. Use **1 / 2 / 3** for Paint / Erase / Select. In Select, drag an XYZ arrow or plane handle to move by whole cells; press **End** to snap down.
 5. Click **Save**, then **Playtest ▶**.
 
 Press **F5** to play Sokoban directly, or open `examples/pipes.tscn` and press **F6** for pipes. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
+
+Play the 3D duck puzzle with `examples/quack.tscn` (F6). Click a duck, then slide with WASD/arrows. See the [seven-move walkthrough](docs/quack-example.md).
 
 ![Paint and erase, select an entity, drag its XYZ handles with grid snapping, press End to snap down, and undo/redo the whole move](docs/media/authoring.gif)
 

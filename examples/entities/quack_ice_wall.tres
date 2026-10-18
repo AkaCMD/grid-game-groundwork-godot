@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_ho676"]
+[ext_resource type="PackedScene" path="res://examples/visuals/quack.tscn" id="2_jk6id"]
+
+[resource]
+script = ExtResource("1_ho676")
+definition_id = &"ice_wall"
+display_name = "Ice Wall"
+movable = false
+affected_by_gravity = false
+visual_scene = ExtResource("2_jk6id")
+properties = {
+"sprite": "wall"
+}

@@ -30,7 +30,7 @@ def main():
     if not executable:
         raise SystemExit("Godot was not found. Pass --godot /path/to/godot or set GODOT.")
     run([executable, "--headless", "--editor", "--import", "--path", str(ROOT), "--quit"])
-    for script in ["test_session.gd", "test_authoring.gd", "test_runtime.gd"]:
+    for script in ["test_session.gd", "test_authoring.gd", "test_quack.gd", "test_runtime.gd"]:
         output = run([executable, "--headless", "--path", str(ROOT), "--script",
                       "tests/" + script, "--quit-after", "1200"])
         if "0 failures" not in output:

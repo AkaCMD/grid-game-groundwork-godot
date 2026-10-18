@@ -9,7 +9,7 @@ python3 tools/check.py --godot /path/to/godot
 python3 tools/check.py --godot /path/to/godot --editor-smoke
 ```
 
-The first command imports/typechecks scripts, runs simulation and authoring/save-load checks, and smoke-tests both runtime scenes. The optional editor check uses a disposable project to exercise painting, shape edits, saving/reopening, and playtest launch. To capture the actual editor on a machine with a display, add `--screenshot artifacts/editor.png`.
+The first command imports/typechecks scripts, runs simulation and authoring/save-load checks, and checks all three runtime scenes. The optional editor check uses a disposable project to exercise painting, shape edits, saving/reopening, and playtest launch. To capture the actual editor on a machine with a display, add `--screenshot artifacts/editor.png`.
 
 ## Export
 

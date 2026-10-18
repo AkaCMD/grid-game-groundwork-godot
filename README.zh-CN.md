@@ -83,3 +83,7 @@
 - [领域术语](CONTEXT.md) · [设计决策](docs/adr)
 
 灵感来自 Corey Martin 的 [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork)。参见[第三方许可声明](THIRD_PARTY_NOTICES.md)。
+
+## QUACK!!! on ICE 三维案例
+
+打开 `examples/quack.tscn` 按 F6，或在 Grid Levels 中打开 `examples/levels/quack.tres` 编辑、保存和试玩。鼠标点击选鸭，WASD／方向键按固定棋盘方向滑行，Z／Y／R 撤销、重做和重新开始。方块底色为白色，选中鸭子的底色为黑色。上层落到下层后继续滑行，每只鸭只能吃一块面包，吃饱后仍可充当挡块。完整七步解法与测试说明见 [QUACK 案例](docs/quack-example.md)。

@@ -73,3 +73,13 @@ Level resources carry `schema_version=1`. Definitions can be external shared `.t
 Use Standard GDScript and the Compatibility renderer for desktop and browser builds. Editor code is excluded by the provided export presets. Web uses single-threaded export and must be served over HTTP. Rebuild the example resources with `godot --headless --path . --script tools/create_examples.gd` only when intentionally replacing their authored content.
 
 The accepted design is recorded in `docs/adr/`. Before adding mechanics, add behavior checks through `GGSession`; before changing storage or editing semantics, use `GGLevelAuthoring` and a real save/reload round trip. `python3 tools/check.py` runs both boundaries and runtime checks.
+
+## Actor selection and composed movement
+
+`session.select_actor(entity_id)` accepts an existing entity with the `player` property. `session.player_id()` returns the selected actor, falling back to the first remaining player. Selection lives outside snapshots: undo, redo and restart preserve it while that entity exists; starting a new level clears it. Runtime left click picks the nearest occupied cell under the cursor, so foreground terrain occludes actors. Click selection is disabled during action animation. There is no Tab cycling.
+
+Override `GGGameRule.resolve_move(session, actor_id, direction)` to compose movement. The default calls `session.step(...)` once, preserving the existing Sokoban/pipe behavior. `step` resolves one cardinal XZ step, its push plan and gravity, and appends presentation stages; it creates no history and does not call `after_action`. Only call it within a resolver. Return true if a complete action occurred; false restores the state and preceding stages without adding history or clearing redo. The outer `move` records one before-state, calls `after_action` once, then appends the final stage. Never call `move` recursively from a resolver or `after_action`.
+
+Resolvers must terminate, even with malformed edited layouts, and keep mutable state in session dictionaries. The QUACK example composes steps into a straight slide, stopping at a collision, food or failure. It rejects an unbounded slide atomically if an edited gravity-disabled level has no stopping obstacle within the authored board's span.
+
+Custom visuals may implement `apply_entity_selection(selected: bool)` as a presentation hook. `GGBoardView.set_selected(id)` applies it to existing visuals and reapplies it after state restoration; the editor uses the same hook. `select_actor(id)` also supplies the runtime's generic selection ring.

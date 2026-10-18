@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_tx6w5"]
+[ext_resource type="PackedScene" path="res://examples/visuals/quack.tscn" id="2_xcgwc"]
+
+[resource]
+script = ExtResource("1_tx6w5")
+definition_id = &"duck"
+display_name = "Duck"
+visual_scene = ExtResource("2_xcgwc")
+properties = {
+"player": true,
+"sprite": "duck"
+}

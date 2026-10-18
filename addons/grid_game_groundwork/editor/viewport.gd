@@ -175,6 +175,7 @@ func hide_ghost() -> void:
 		_ghost.visible = false
 
 func select_entity(id: StringName) -> void:
+	board.set_selected(id)
 	cancel_move()
 	_selection_id = id
 	_move_gizmo.hide()

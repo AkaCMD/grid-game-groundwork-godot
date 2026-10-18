@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/runtime/game.gd" id="1"]
+[ext_resource type="Resource" path="res://examples/levels/quack.tres" id="2"]
+
+[node name="Quack" type="Node3D"]
+script = ExtResource("1")
+level = ExtResource("2")

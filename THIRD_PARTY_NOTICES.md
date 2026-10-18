@@ -28,3 +28,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ```
+
+## QUACK!!! on ICE sprites
+
+`examples/assets/quack/{duck,stuffed_duck,bread,ice,wall}.png` come from
+Minda Chen (AkaCMD)'s [QUACK!!! on ICE](https://github.com/AkaCMD/Bevy_Jam_4),
+commit `1b017d7a87e4a9828c3bd5a955f01f5872ea36a6`.
+The upstream project offers MIT / Apache-2.0 licensing; these sprites are
+redistributed under its MIT option, reproduced in
+[examples/assets/quack/LICENSE-MIT](examples/assets/quack/LICENSE-MIT).
+No audio assets from the original game are bundled.

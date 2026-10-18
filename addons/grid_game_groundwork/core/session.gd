@@ -7,6 +7,8 @@ var mechanic_state: Dictionary = {}
 var status: StringName = &"playing"
 var stages: Array[Dictionary] = []
 var initial_entities: Dictionary = {}
+# Selection is UI state and deliberately excluded from action snapshots.
+var selected_actor: StringName = &""
 var _level: GGLevel
 var _rule: GGGameRule
 var _initial: Dictionary
@@ -19,6 +21,7 @@ func start(level: GGLevel) -> PackedStringArray:
 		return errors
 	_level = level
 	_rule = level.game_rule if level.game_rule else GGGameRule.new()
+	selected_actor = &""
 	entities.clear()
 	mechanic_state.clear()
 	status = &"playing"
@@ -60,18 +63,34 @@ func move(actor_id: StringName, direction: Vector3i) -> bool:
 		return false
 	if direction.y != 0 or absi(direction.x) + absi(direction.z) != 1:
 		return false
+	var before = snapshot()
+	var previous_stages = stages
+	stages = []
+	if not _rule.resolve_move(self, actor_id, direction):
+		restore(before)
+		stages = previous_stages
+		return false
+	_history.append(before)
+	_future.clear()
+	_rule.after_action(self)
+	stages.append(snapshot())
+	return true
+
+func step(actor_id: StringName, direction: Vector3i) -> bool:
+	## Resolver primitive: one grid step and gravity, without creating history.
+	if status != &"playing" or not entities.has(actor_id):
+		return false
+	if direction.y != 0 or absi(direction.x) + absi(direction.z) != 1:
+		return false
 	var moving = {}
 	if not _plan(actor_id, direction, moving):
 		return false
 	if not _rule.allows_push(self, actor_id, moving.keys(), direction):
 		return false
-	_begin_action()
 	for id in moving:
 		entities[id].cell += direction
 	stages.append(snapshot())
 	_settle()
-	_rule.after_action(self)
-	stages.append(snapshot())
 	return true
 
 func _plan(id: StringName, direction: Vector3i, moving: Dictionary) -> bool:
@@ -146,7 +165,15 @@ func restart() -> void:
 	restore(_initial)
 	stages = [snapshot()]
 
+func select_actor(entity_id: StringName) -> bool:
+	if not entities.has(entity_id) or not entities[entity_id].properties.get("player", false):
+		return false
+	selected_actor = entity_id
+	return true
+
 func player_id() -> StringName:
+	if entities.has(selected_actor) and entities[selected_actor].properties.get("player", false):
+		return selected_actor
 	for id in entities:
 		if entities[id].properties.get("player", false):
 			return id

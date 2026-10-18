@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_ju20e"]
+[ext_resource type="PackedScene" path="res://examples/visuals/quack.tscn" id="2_f7cgb"]
+
+[resource]
+script = ExtResource("1_ju20e")
+definition_id = &"ice"
+display_name = "Ice"
+movable = false
+affected_by_gravity = false
+visual_scene = ExtResource("2_f7cgb")
+properties = {
+"ground": true,
+"sprite": "ice"
+}

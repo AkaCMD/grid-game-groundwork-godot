@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_1ldd1"]
+[ext_resource type="PackedScene" path="res://examples/visuals/quack.tscn" id="2_grn8t"]
+
+[resource]
+script = ExtResource("1_1ldd1")
+definition_id = &"bread"
+display_name = "Bread"
+solid = false
+movable = false
+affected_by_gravity = false
+visual_scene = ExtResource("2_grn8t")
+properties = {
+"bread": true,
+"sprite": "bread"
+}

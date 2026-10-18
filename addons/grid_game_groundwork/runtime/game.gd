@@ -36,6 +36,7 @@ func _ready() -> void:
 	add_child(_view)
 	_view.configure(level)
 	_view.show_state(session.snapshot())
+	_view.select_actor(session.player_id())
 	_build_camera()
 	_build_hud()
 	_update_status()
@@ -64,6 +65,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _camera:
 		return
 	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not _busy:
+			var picked = _view.pick_entity(_camera, event.position, session.snapshot())
+			if session.select_actor(picked):
+				_move_queue.clear()
+				_view.select_actor(session.player_id())
+				get_viewport().set_input_as_handled()
 		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			if event.pressed:
 				_camera_zoom = clampf(_camera_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 2, 100)
@@ -86,6 +93,7 @@ func _build_camera() -> void:
 	add_child(_camera)
 	_frame_camera()
 	_camera.current = true
+	_build_direction_markers()
 	var light = DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-55, -30, 0)
 	light.light_energy = 1.5
@@ -98,6 +106,18 @@ func _build_camera() -> void:
 	environment.environment.ambient_light_color = Color("b9d6e6")
 	environment.environment.ambient_light_energy = 0.55
 	add_child(environment)
+
+func _build_direction_markers() -> void:
+	var radius = _camera_zoom * 0.42
+	for entry in [[Vector3.LEFT, "A / ←  −X"], [Vector3.RIGHT, "D / →  +X"], [Vector3.FORWARD, "W / ↑  −Z"], [Vector3.BACK, "S / ↓  +Z"]]:
+		var marker = Label3D.new()
+		marker.text = entry[1]
+		marker.font_size = 28
+		marker.pixel_size = 0.009
+		marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		marker.no_depth_test = true
+		marker.position = _camera_pivot + entry[0] * radius * (0.62 if entry[0].z != 0 else 1.0)
+		add_child(marker)
 
 func _build_hud() -> void:
 	var canvas = CanvasLayer.new()
@@ -113,12 +133,12 @@ func _build_hud() -> void:
 	margin.add_child(column)
 	var title_label = Label.new()
 	title_label.text = level.title
-	title_label.add_theme_font_size_override("font_size", 24)
+	title_label.add_theme_font_size_override("font_size", 20)
 	column.add_child(title_label)
 	_label = Label.new()
 	column.add_child(_label)
 	var controls = Label.new()
-	controls.text = "WASD / arrows · Move    Z · Undo    Y · Redo    R · Restart"
+	controls.text = "Click · Select actor    WASD / arrows · Move    Z · Undo    Y · Redo    R · Restart"
 	column.add_child(controls)
 	var camera_controls = Label.new()
 	camera_controls.text = "Wheel · Zoom    Middle drag · Orbit    Shift + middle drag · Pan    F · Frame"
@@ -195,6 +215,7 @@ func _animate(accelerated: bool = false) -> void:
 	_busy = false
 	if session.status != &"playing":
 		_move_queue.clear()
+	_view.select_actor(session.player_id())
 	_update_status()
 	if not _pending_history.is_empty():
 		var action = _pending_history
@@ -211,7 +232,7 @@ func _update_status() -> void:
 	match session.status:
 		&"won": _label.text = "Level complete! Undo to keep experimenting."
 		&"failed": _label.text = "You fell out. Undo or restart to try again."
-		_: _label.text = "Explore, push, and solve. Every action can be undone."
+		_: _label.text = "Move, experiment, and solve. Every action can be undone."
 	if _status != session.status:
 		if session.status == &"won": level_completed.emit()
 		if session.status == &"failed": level_failed.emit()

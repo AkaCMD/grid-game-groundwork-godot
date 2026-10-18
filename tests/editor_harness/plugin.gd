@@ -86,6 +86,7 @@ func run() -> void:
 		for frame in range(5): await get_tree().process_frame
 		var image = EditorInterface.get_base_control().get_viewport().get_texture().get_image()
 		image.save_png(OS.get_environment("GGG_EDITOR_SCREENSHOT"))
+	await check_quack(panel)
 	print("EDITOR_SMOKE: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
 
@@ -423,3 +424,24 @@ func check_end_snap(panel: GGEditorPanel) -> void:
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
 	panel._set_mode(0)
+
+func check_quack(panel: GGEditorPanel) -> void:
+	panel.request_open(load("res://examples/levels/quack.tres"))
+	await get_tree().process_frame
+	check(panel.authoring.level.title.begins_with("QUACK"), "QUACK opens in Grid Levels")
+	panel._set_mode(2)
+	panel._select(&"duck_b")
+	var board = panel.viewport.board
+	var duck = board.roots[&"duck_b"].get_child(0)
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK, "Editor selection uses the shared black duck background")
+	panel._select(&"duck_c")
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE, "Editor deselection restores white background")
+	check(panel._save_to("res://quack_editor_smoke.tres"), "QUACK saves through Grid Levels")
+	panel._new_level()
+	panel.request_open(load("res://quack_editor_smoke.tres"))
+	check(panel.authoring.level.validate().is_empty(), "Saved QUACK reopens in Grid Levels")
+	panel._playtest()
+	for frame in range(60): await get_tree().process_frame
+	check(EditorInterface.is_playing_scene(), "QUACK launches through editor playtest")
+	EditorInterface.stop_playing_scene()
+	check(not panel.authoring.level.entities[panel.authoring.level.entities.size() - 1].overrides.has("fed"), "QUACK playtest does not write runtime state into authoring")

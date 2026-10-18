@@ -5,6 +5,51 @@ extends Node3D
 
 var roots: Dictionary = {}
 var _definitions: Dictionary = {}
+var _selection: MeshInstance3D
+var _selected: StringName = &""
+
+func select_actor(actor_id: StringName) -> void:
+	set_selected(actor_id)
+	if not _selection:
+		var ring = TorusMesh.new()
+		ring.inner_radius = 0.57
+		ring.outer_radius = 0.66
+		_selection = mesh_node(ring, Color("ffe568"))
+		_selection.scale.y = 0.2
+		add_child(_selection)
+	_update_selection()
+
+func set_selected(entity_id: StringName) -> void:
+	_selected = entity_id
+	for id in roots:
+		for visual in roots[id].get_children():
+			if visual.has_method("apply_entity_selection"):
+				visual.call("apply_entity_selection", id == _selected)
+
+func _process(_delta: float) -> void:
+	_update_selection()
+
+func _update_selection() -> void:
+	if _selection:
+		_selection.visible = roots.has(_selected)
+		if _selection.visible:
+			_selection.position = roots[_selected].position + Vector3(0, 0.51, 0)
+
+func pick_entity(camera: Camera3D, screen_position: Vector2, state: Dictionary) -> StringName:
+	var origin = camera.project_ray_origin(screen_position)
+	var direction = camera.project_ray_normal(screen_position)
+	var nearest = INF
+	var picked: StringName = &""
+	for id in state.entities:
+		for cell in GGGrid.cells(state.entities[id]):
+			var hit = AABB(Vector3(cell) - Vector3.ONE * 0.48, Vector3.ONE * 0.96).intersects_ray(origin, direction)
+			if hit != null:
+				var distance = origin.distance_squared_to(hit)
+				if distance < nearest:
+					nearest = distance
+					picked = id
+	return picked
+
 
 func configure(level: GGLevel) -> void:
 	_definitions.clear()
@@ -38,6 +83,8 @@ func show_state(state: Dictionary, duration: float = 0.0) -> Tween:
 		for visual in root.get_children():
 			if visual.has_method("apply_entity_state"):
 				visual.call("apply_entity_state", entity.get("state", {}))
+	set_selected(_selected)
+	_update_selection()
 	return tween
 
 func rebuild(level: GGLevel) -> void:
@@ -45,6 +92,7 @@ func rebuild(level: GGLevel) -> void:
 		remove_child(child)
 		child.queue_free()
 	roots.clear()
+	_selection = null
 	configure(level)
 	var entities = {}
 	for entity in level.entities:
