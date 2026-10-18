@@ -14,6 +14,8 @@ Requires **Godot 4.6+ Standard**, using the Compatibility renderer. Verified wit
 
 Press **F5** to play Sokoban directly. Open `examples/pipes.tscn` and press **F6** to play the pipe example. These are independent levels, with no campaign or menu system.
 
+Levels default to a high-angle perspective view in both the editor and gameplay, matching the original project's demo: visible block sides, no diagonal board rotation, and north (negative Z) toward the top of the screen. Middle-drag in the editor to inspect stacking from another angle.
+
 For a blank level, click **New level**. Select **Ground**, set **Height** to **-1**, choose a floor width/depth, and click **Fill ground at current height**. Then set height to **0** and paint a player, crates, and goals. Choose a game rule in the right panel to give the level its win conditions; the example rules are available as `GGSokobanRule` and `GGPipeRule` resources.
 
 See the [designer guide](docs/designer-guide.md) for the complete workflow and the [extension guide](docs/extending.md) for creating a game.

@@ -41,10 +41,14 @@ func _build_camera() -> void:
 				bounds = bounds.expand(Vector3(cell) + Vector3.ONE).expand(Vector3(cell))
 	center = bounds.get_center() - Vector3.ONE * 0.5
 	var camera = Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	# Match the original demo's high, nearly overhead perspective.
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = 45.5
 	camera.size = maxf(8.0, maxf(bounds.size.x, bounds.size.z) * 1.25 + bounds.size.y * 0.5)
 	add_child(camera)
-	camera.position = center + Vector3(9, 13, 14)
+	var pitch = deg_to_rad(75.2)
+	var distance = camera.size / (2.0 * tan(deg_to_rad(camera.fov) * 0.5))
+	camera.position = center + Vector3(0, sin(pitch), cos(pitch)) * distance
 	camera.look_at(center)
 	camera.current = true
 	var light = DirectionalLight3D.new()

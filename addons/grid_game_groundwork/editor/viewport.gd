@@ -16,8 +16,8 @@ var _grid: MeshInstance3D
 var _ghost: Node3D
 var _selected: Node3D
 var _pivot = Vector3(3, 0, 3)
-var _yaw = 0.55
-var _pitch = 0.85
+var _yaw = 0.0
+var _pitch = deg_to_rad(75.2)
 var _zoom = 12.0
 var _last_cell = Vector3i(99999, 99999, 99999)
 var _drawing = false
@@ -37,7 +37,8 @@ func _ready() -> void:
 	board = GGBoardView.new()
 	world.add_child(board)
 	camera = Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = 45.5
 	camera.far = 1000.0
 	world.add_child(camera)
 	camera.current = true
@@ -102,8 +103,10 @@ func set_layer(value: int) -> void:
 
 func _camera_position() -> void:
 	camera.size = _zoom
-	camera.position = _pivot + Vector3(sin(_yaw) * cos(_pitch), sin(_pitch), cos(_yaw) * cos(_pitch)) * 60.0
-	camera.look_at(_pivot)
+	var distance = _zoom / (2.0 * tan(deg_to_rad(camera.fov) * 0.5))
+	camera.position = _pivot + Vector3(sin(_yaw) * cos(_pitch), sin(_pitch), cos(_yaw) * cos(_pitch)) * distance
+	# Euler rotation remains well-defined when looking straight down.
+	camera.rotation = Vector3(-_pitch, _yaw, 0)
 
 func cell_at(point: Vector2) -> Variant:
 	var hit = Plane(Vector3.UP, layer).intersects_ray(camera.project_ray_origin(point), camera.project_ray_normal(point))
@@ -199,7 +202,7 @@ func _input_on_view(event: InputEvent) -> void:
 				_pivot += (-camera.global_basis.x * event.relative.x + camera.global_basis.y * event.relative.y) * _zoom / maxf(1.0, size.y)
 			else:
 				_yaw -= event.relative.x * 0.009
-				_pitch = clampf(_pitch + event.relative.y * 0.009, 0.15, 1.5)
+				_pitch = clampf(_pitch + event.relative.y * 0.009, 0.15, PI / 2.0)
 			_camera_position()
 			accept_event()
 			return
