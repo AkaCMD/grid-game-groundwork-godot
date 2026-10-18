@@ -33,7 +33,7 @@ For a floor, choose a single-cell definition with `ground=true`, set **Height**,
 - Drag an **X/Y/Z arrow** along one world axis, or an **XY/XZ/YZ square** within a plane. X is red, Y green, Z blue. Edge-on handles hide; orbit to reach them.
 - Movement snaps to whole cells. A group preserves relative spacing, shapes, orientations and overrides. Only the destination is checked, so dragging can cross obstacles.
 - A valid release commits immediately as one undo action. Invalid destinations turn steady red and restore the whole group on release. **Esc**, hiding the workspace or losing window focus cancels an unfinished move. No movement adds no history.
-- **Duplicate selected** copies the group one cell right, lifting the copies together to the first free height if needed, and selects them. A failed duplicate creates nothing. **Delete selected** removes the group. Each operation is one undo action.
+- **Duplicate selected** copies the group one cell right, lifting the copies together to the first free height if needed, and selects them. A failed duplicate creates nothing. **Delete selected** or **Delete** in Select mode removes the group. Each operation is one undo action.
 
 Selection itself is not undoable; undoing deletion restores entities without selecting them. Opening another level or entering shape editing clears selection. Multi-selection disables individual coordinates, orientation, overrides and End snap.
 
@@ -96,6 +96,7 @@ Finish painting or moving entities before navigating. Navigation hides brush pre
 | Editor | **1 / 2 / 3**, number row or keypad | Paint / Erase / Select |
 | Editor | Left click / drag | Use current tool |
 | Select | **Shift+click** | Toggle selection |
+| Select, one or more entities | **Delete** | Delete selection |
 | Select | Drag an axis / plane handle | Move selection by whole cells |
 | Select, one entity | **End**, idle or dragging | Snap down to support |
 | Active move | **Esc** | Cancel the complete move |
@@ -114,7 +115,7 @@ Finish painting or moving entities before navigating. Navigation hides brush pre
 | Play | **WASD / arrows** | Move in fixed board directions: W −Z, S +Z, A −X, D +X |
 | Play | **Z / Y / R**, or HUD buttons | Undo / redo / restart |
 
-Tool keys and End require focus in Grid Levels and no modifiers; text/property inputs and dialogs retain their normal behavior. Tool switching waits for the mouse stroke/drag to end. Viewport shortcuts require viewport focus. Use Godot's **Run Project**, **Run Current Scene** and **Stop** controls for standalone examples; their key bindings depend on your editor settings.
+Tool keys, Delete and End require focus in Grid Levels and no modifiers; text/property inputs and dialogs retain their normal behavior. Tool switching waits for the mouse stroke/drag to end. Viewport shortcuts require viewport focus. Use Godot's **Run Project**, **Run Current Scene** and **Stop** controls for standalone examples; their key bindings depend on your editor settings.
 
 Editor undo covers strokes, entity edits, group moves/copies/deletes, shapes, floor fills, level settings and whole-level transforms. Shared defaults edited in Godot's Inspector use Godot's native resource editing/undo workflow.
 

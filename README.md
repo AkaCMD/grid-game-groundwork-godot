@@ -39,7 +39,7 @@ The [designer guide](docs/designer-guide.md) explains each editing feature and i
 
 | Context | Controls |
 | --- | --- |
-| Editor | **1 / 2 / 3**: Paint / Erase / Select · **Shift+click**: toggle selection · **End**: snap one entity down · **Esc**: cancel a move |
+| Editor | **1 / 2 / 3**: Paint / Erase / Select · **Shift+click**: toggle selection · **Delete**: delete selection · **End**: snap one entity down · **Esc**: cancel a move |
 | Editor camera | **WASD**: fly · **Q/E**: down/up · right drag: look · right+wheel: speed · **Page Up/Down**: placement height |
 | Editor history | **Ctrl/Cmd+S**: save · **Ctrl/Cmd+Z**: undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y**: redo |
 | Play | **WASD / arrows**: move · click: select actor · **Z / Y / R**: undo / redo / restart |

@@ -123,7 +123,7 @@ func _ready() -> void:
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Delete: delete selected   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -614,7 +614,7 @@ func _input(event: InputEvent) -> void:
 		KEY_1, KEY_KP_1: index = 0
 		KEY_2, KEY_KP_2: index = 1
 		KEY_3, KEY_KP_3: index = 2
-		KEY_END, KEY_PAGEUP, KEY_PAGEDOWN: pass
+		KEY_DELETE, KEY_END, KEY_PAGEUP, KEY_PAGEDOWN: pass
 		_: return
 	var focus = get_viewport().gui_get_focus_owner()
 	if not focus or not is_ancestor_of(focus):
@@ -623,6 +623,11 @@ func _input(event: InputEvent) -> void:
 		return
 	var modal = get_viewport().get_last_exclusive_window()
 	if is_instance_valid(modal) and modal != get_window() and modal.visible:
+		return
+	if key == KEY_DELETE:
+		if _mode.selected == 2 and not _shape_mode.button_pressed and not _selection.is_empty():
+			_delete_selected()
+			get_viewport().set_input_as_handled()
 		return
 	if key in [KEY_PAGEUP, KEY_PAGEDOWN]:
 		if not viewport.is_drawing():
