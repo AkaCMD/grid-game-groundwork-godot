@@ -7,6 +7,8 @@ signal dragged(cell: Vector3i, entity_id: StringName)
 signal stroke_started
 signal stroke_ended
 signal hovered(cell: Vector3i)
+signal move_previewed(id: StringName, cell: Vector3i)
+signal move_finished(id: StringName, cell: Vector3i, commit: bool)
 var camera: Camera3D
 var board: GGBoardView
 var world: Node3D
@@ -21,6 +23,13 @@ var _pitch = deg_to_rad(75.2)
 var _zoom = 12.0
 var _last_cell = Vector3i(99999, 99999, 99999)
 var _drawing = false
+var _move_gizmo: GGMoveGizmo
+var _selection_id: StringName
+var _selection_cell: Vector3i
+var _move_enabled = false
+var _move_target: Vector3i
+var _move_valid = true
+var _move_pointer: Vector2
 
 func _ready() -> void:
 	stretch = true
@@ -57,15 +66,23 @@ func _ready() -> void:
 	world.add_child(environment)
 	_grid = MeshInstance3D.new()
 	world.add_child(_grid)
+	_move_gizmo = GGMoveGizmo.new()
+	_move_gizmo.camera = camera
+	world.add_child(_move_gizmo)
+	_move_gizmo.hide()
 	set_layer(0)
 	gui_input.connect(_input_on_view)
+	get_window().focus_exited.connect(cancel_move)
 	mouse_exited.connect(func():
 		if _ghost: _ghost.visible = false
+		if is_moving(): return
+		_move_gizmo.highlight(-1)
 		_drawing = false
 		stroke_ended.emit()
 	)
 
 func show_level(value: GGLevel) -> void:
+	cancel_move()
 	level = value
 	board.rebuild(level)
 
@@ -158,6 +175,9 @@ func hide_ghost() -> void:
 		_ghost.visible = false
 
 func select_entity(id: StringName) -> void:
+	cancel_move()
+	_selection_id = id
+	_move_gizmo.hide()
 	if _selected:
 		_selected.free()
 		_selected = null
@@ -168,18 +188,97 @@ func select_entity(id: StringName) -> void:
 			continue
 		_selected = Node3D.new()
 		world.add_child(_selected)
+		_selection_cell = entity.cell
+		_selected.position = Vector3(entity.cell)
 		for cell in entity.occupied_cells():
 			var box = BoxMesh.new()
 			box.size = Vector3.ONE * 1.02
-			var visual = GGBoardView.mesh_node(box, Color(0.4, 0.9, 1.0, 0.22), Vector3(cell))
+			var visual = GGBoardView.mesh_node(box, Color(0.4, 0.9, 1.0, 0.22), Vector3(cell - entity.cell))
 			visual.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			visual.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			visual.material_override.no_depth_test = true
 			_selected.add_child(visual)
+		_move_gizmo.position = Vector3(entity.cell)
+		_move_gizmo.visible = _move_enabled
+		_move_gizmo.update_view()
+
+func set_move_enabled(enabled: bool) -> void:
+	if not enabled: cancel_move()
+	_move_enabled = enabled
+	_move_gizmo.visible = enabled and is_instance_valid(_selected)
+
+func is_moving() -> bool:
+	return _move_gizmo != null and _move_gizmo.active_handle != -1
+
+func preview_move(cell: Vector3i, valid: bool) -> void:
+	_move_target = cell
+	_move_valid = valid
+	if _selected:
+		_selected.position = Vector3(cell)
+		for visual in _selected.get_children():
+			visual.material_override.albedo_color = Color(0.4, 0.9, 1.0, 0.22) if valid else Color(1.0, 0.12, 0.12, 0.55)
+	if board.roots.has(_selection_id):
+		board.roots[_selection_id].position = Vector3(cell)
+	_move_gizmo.position = Vector3(cell)
+
+func cancel_move() -> void:
+	if is_moving(): _finish_move(false)
+
+func move_position() -> Vector3i:
+	return _move_target if is_moving() else _selection_cell
+
+func rebase_move(cell: Vector3i) -> bool:
+	if not is_moving() or not _move_gizmo.rebase_drag(_move_pointer, cell):
+		return false
+	move_previewed.emit(_selection_id, cell)
+	return true
+
+func _finish_move(commit: bool) -> void:
+	var target = _move_target
+	var accepted = commit and _move_valid and target != _selection_cell
+	_move_gizmo.end_drag()
+	preview_move(_selection_cell, true)
+	move_finished.emit(_selection_id, target, accepted)
+
+func _input(event: InputEvent) -> void:
+	if not is_moving(): return
+	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
+		cancel_move()
+		get_viewport().set_input_as_handled()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree():
+		cancel_move()
 
 func is_drawing() -> bool:
-	return _drawing
+	return _drawing or is_moving()
 
 func _input_on_view(event: InputEvent) -> void:
+	if is_moving():
+		if event is InputEventMouseMotion:
+			_move_pointer = event.position
+			if not event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+				cancel_move()
+			else:
+				var target = _move_gizmo.target_at(event.position)
+				if target != null: move_previewed.emit(_selection_id, target)
+		elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_move_pointer = event.position
+			var target = _move_gizmo.target_at(event.position)
+			if target != null: move_previewed.emit(_selection_id, target)
+			_finish_move(true)
+		accept_event()
+		return
 	if event is InputEventMouseButton:
+		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			var handle = _move_gizmo.pick(event.position)
+			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, _selection_cell):
+				grab_focus()
+				_move_target = _selection_cell
+				_move_valid = true
+				_move_pointer = event.position
+				accept_event()
+				return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if event.pressed:
 				_zoom = clampf(_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 2, 100)
@@ -200,6 +299,7 @@ func _input_on_view(event: InputEvent) -> void:
 				pressed.emit(cell, entity_at(event.position), event.button_index)
 			accept_event()
 	elif event is InputEventMouseMotion:
+		if _move_enabled: _move_gizmo.highlight(_move_gizmo.pick(event.position))
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			if event.shift_pressed:
 				_pivot += (-camera.global_basis.x * event.relative.x + camera.global_basis.y * event.relative.y) * _zoom / maxf(1.0, size.y)

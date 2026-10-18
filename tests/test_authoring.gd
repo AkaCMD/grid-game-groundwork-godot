@@ -7,6 +7,8 @@ func _init() -> void:
 	_test_shapes_and_transforms()
 	_test_save_and_overrides()
 	_test_validation()
+	_test_move_preview()
+	_test_snap_to_ground()
 	_test_discard_and_unsaved_playtest()
 	_test_external_rule_save()
 	print("Authoring: %d checks, %d failures" % [checks, failures])
@@ -118,6 +120,64 @@ func _test_validation() -> void:
 	var missing = GGEntityPlacement.new()
 	editor.level.entities.append(missing)
 	check(not editor.level.validate().is_empty(), "Missing definitions produce validation messages")
+
+func _test_move_preview() -> void:
+	var editor = author()
+	var definition = editor.level.palette[3]
+	definition.shape.assign([Vector3i.ZERO, Vector3i.RIGHT])
+	editor.paint(definition, Vector3i.ZERO, 1, true, {"weight": 7.0})
+	editor.paint(definition, Vector3i(3, 0, 0))
+	var entity = editor.level.entities[0]
+	var history_size = editor._history.size()
+	editor.dirty = false
+	check(editor.position_error(entity.entity_id, Vector3i(3, 0, 0)) != "", "Move preview rejects a destination overlapping another solid")
+	check(editor.position_error(entity.entity_id, Vector3i(0, -8, 0)) != "", "Move preview rejects the fall-out height")
+	check(editor.position_error(entity.entity_id, Vector3i(6, 0, 0)) == "", "Editor moves can cross obstacles to a free destination")
+	check(entity.cell == Vector3i.ZERO and not editor.dirty and editor._history.size() == history_size, "Preview validation leaves authored coordinates, dirty state and history untouched")
+	check(entity.quarter_turns == 1 and entity.mirrored and entity.overrides.weight == 7.0, "Preview preserves orientation and overrides")
+	check(editor.edit_entity(entity.entity_id, Vector3i(6, 0, 0), entity.quarter_turns, entity.mirrored, entity.overrides), "A validated multi-cell destination can be committed")
+	check(editor.undo() and editor.find_entity(entity.entity_id).cell == Vector3i.ZERO, "One undo restores the complete moved entity")
+	check(editor.redo() and editor.find_entity(entity.entity_id).cell == Vector3i(6, 0, 0), "One redo reapplies the complete move")
+	check(editor.save("user://moved_level.tres") == OK, "Moved entity saves")
+	var reloaded = ResourceLoader.load("user://moved_level.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	check(reloaded.entities[0].cell == Vector3i(6, 0, 0) and reloaded.entities[0].quarter_turns == 1 and reloaded.entities[0].mirrored and reloaded.entities[0].overrides.weight == 7.0, "Save/reload preserves moved coordinates, orientation and overrides")
+	editor.edit_entity(entity.entity_id, Vector3i(6, 0, 0), 1, true, {"solid": false})
+	check(editor.position_error(entity.entity_id, Vector3i(3, 0, 0)) == "", "Non-solid entities may preview shared occupancy")
+
+func _test_snap_to_ground() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	crate.shape.assign([Vector3i.ZERO, Vector3i.RIGHT, Vector3i(0, -2, 0)])
+	editor.paint(crate, Vector3i(2, 9, 2), 1, true, {"weight": 7.0})
+	var entity = editor.level.entities[0]
+	var cells = entity.occupied_cells()
+	var ground = editor.level.palette[0]
+	editor.paint(ground, cells[2] + Vector3i.DOWN * 6)
+	var original = entity.cell
+	var history_size = editor._history.size()
+	editor.dirty = false
+	var target = editor.ground_position(entity.entity_id, entity.cell)
+	check(target == entity.cell + Vector3i.DOWN * 5, "Snap uses the complete rotated/mirrored shape, including cells below the origin")
+	check(entity.cell == Vector3i(2, 9, 2) and not editor.dirty and editor._history.size() == history_size, "Ground query leaves authored data, dirty state and history untouched")
+	check(editor.ground_position(entity.entity_id, entity.cell + Vector3i.UP * 1000000) == target, "Ground search handles large heights without stepping through empty cells")
+	# A higher support under the overhanging arm catches the whole entity first.
+	editor.paint(ground, cells[1] + Vector3i.DOWN * 3)
+	var higher_target = entity.cell + Vector3i.DOWN * 2
+	check(editor.ground_position(entity.entity_id, entity.cell) == higher_target, "Any supported shape cell holds the whole rigid entity at the nearest surface")
+	check(editor.ground_position(entity.entity_id, higher_target) == higher_target, "Already supported snap is a no-op")
+	check(editor.ground_position(entity.entity_id, entity.cell + Vector3i.RIGHT * 50) == null and editor.last_error.contains("No supporting surface"), "No support returns a message instead of an invisible floor")
+	var support_cell = editor.level.entities.back().cell
+	check(editor.ground_position(entity.entity_id, support_cell) == null and editor.last_error.contains("overlapping"), "Snap rejects a currently overlapping preview")
+	editor.edit_entity(editor.level.entities.back().entity_id, support_cell, 0, false, {"solid": false})
+	check(editor.ground_position(entity.entity_id, entity.cell) == target, "Non-solid entities do not catch a falling selection")
+	editor.level.gravity_enabled = false
+	check(editor.ground_position(entity.entity_id, entity.cell) == target, "Authoring snap works with gameplay gravity disabled")
+	check(editor.edit_entity(entity.entity_id, target, 1, true, entity.overrides), "Grounded destination can be committed")
+	check(editor.undo() and editor.find_entity(entity.entity_id).cell == original, "Snap undo restores the original position")
+	check(editor.redo() and editor.find_entity(entity.entity_id).cell == target, "Snap redo restores the grounded position")
+	var moved = editor.find_entity(entity.entity_id)
+	check(moved.quarter_turns == 1 and moved.mirrored and moved.overrides.weight == 7.0, "Snap preserves orientation and overrides")
+	check(editor.ground_position(&"missing", Vector3i.ZERO) == null, "Snap handles an absent selection")
 
 func _test_discard_and_unsaved_playtest() -> void:
 	var editor = author()

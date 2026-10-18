@@ -32,6 +32,7 @@ var _file: EditorFileDialog
 var _file_action: String
 var _last_hover = Vector3i.ZERO
 var _updating = false
+var _definition_refresh_pending = false
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 8)
@@ -112,7 +113,9 @@ func _ready() -> void:
 	viewport.stroke_started.connect(authoring.begin_stroke)
 	viewport.stroke_ended.connect(authoring.end_stroke)
 	viewport.hovered.connect(_hover)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Left drag: paint / erase   •   Right click: eyedropper   •   Middle drag: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	viewport.move_previewed.connect(_preview_entity_move)
+	viewport.move_finished.connect(_finish_entity_move)
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel move   •   Right click: eyedropper   •   Middle drag: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -140,6 +143,8 @@ func _ready() -> void:
 	_entity_label = _label(right, "Use Select, then click an entity.")
 	for axis in ["X", "Y", "Z"]:
 		_coords.append(_spin(right, axis, -1024, 1024, 0))
+		_coords.back().allow_greater = true
+		_coords.back().allow_lesser = true
 	_entity_turns = _spin(right, "Quarter turns", 0, 3, 0)
 	_entity_mirror = CheckBox.new()
 	_entity_mirror.text = "Mirrored"
@@ -158,7 +163,9 @@ func _ready() -> void:
 	_button(right, "Duplicate selected", _duplicate)
 	_button(right, "Delete selected", func(): authoring.erase(_selected))
 	_status = Label.new()
-	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_status.clip_text = true
+	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	add_child(_status)
 	_file = EditorFileDialog.new()
 	_file.add_filter("*.tres", "Godot resources")
@@ -171,7 +178,7 @@ func _ready() -> void:
 		if authoring.discard_changes():
 			if _pending.is_valid(): _pending.call()
 		else:
-			_status.text = authoring.last_error
+			_set_status(authoring.last_error)
 	)
 	add_child(_confirm)
 	authoring.changed.connect(_refresh)
@@ -193,6 +200,12 @@ func _label(parent: Node, text: String) -> Label:
 		label.custom_minimum_size.x = 160
 	parent.add_child(label)
 	return label
+
+func _set_status(message: String) -> void:
+	# Status changes must not resize the canvas during a drag. Preserve the
+	# complete diagnostic in the tooltip while keeping the layout to one line.
+	_status.text = message.replace("\n", " · ")
+	_status.tooltip_text = message
 
 func _spin(parent: Node, title: String, minimum: int, maximum: int, initial: int) -> SpinBox:
 	var row = HBoxContainer.new()
@@ -226,7 +239,7 @@ func _open(level: GGLevel) -> void:
 	authoring.open(level)
 	_choose_definition(0)
 	viewport.frame_level()
-	_status.text = "Opened %s. Select an entity from the palette to start painting." % level.title
+	_set_status("Opened %s. Select an entity from the palette to start painting." % level.title)
 
 func _new_level() -> void:
 	var level = GGLevel.new()
@@ -234,6 +247,7 @@ func _new_level() -> void:
 	_open(level)
 
 func _refresh() -> void:
+	_definition_refresh_pending = false
 	if not is_instance_valid(viewport) or not authoring.level:
 		return
 	_updating = true
@@ -254,7 +268,7 @@ func _refresh() -> void:
 	_refresh_view()
 	if _selected != &"" and not authoring.find_entity(_selected):
 		_selected = &""
-	viewport.select_entity(_selected)
+	_sync_coordinates()
 	_updating = false
 
 func _inspector_property_edited(_property: String) -> void:
@@ -266,7 +280,15 @@ func _definition_changed() -> void:
 	if _updating:
 		return
 	authoring.dirty = true
-	call_deferred("_refresh")
+	if not _definition_refresh_pending:
+		_definition_refresh_pending = true
+		call_deferred("_refresh_definition_if_pending")
+
+func _refresh_definition_if_pending() -> void:
+	# Undo/redo already refreshes synchronously after emitting shape changes.
+	# A stale deferred rebuild must not cancel a subsequently started drag.
+	if _definition_refresh_pending:
+		_refresh()
 
 func _refresh_view() -> void:
 	viewport.hide_ghost()
@@ -279,6 +301,8 @@ func _refresh_view() -> void:
 		viewport.show_level(preview)
 	else:
 		viewport.show_level(authoring.level)
+	viewport.select_entity(&"" if _shape_mode.button_pressed else _selected)
+	viewport.set_move_enabled(_mode.selected == 2 and not _shape_mode.button_pressed)
 
 func _choose_definition(index: int) -> void:
 	if index >= 0 and index < authoring.level.palette.size():
@@ -316,7 +340,7 @@ func _hover(cell: Vector3i) -> void:
 	var target = authoring.placement_cell(_definition, cell, int(_turns.value), _mirror.button_pressed)
 	if target != null:
 		viewport.show_ghost(_definition, target, int(_turns.value), _mirror.button_pressed)
-		_status.text = "Brush: %s   •   Place at %s   •   %d entities" % [_definition.display_name, target, authoring.level.entities.size()]
+		_set_status("Brush: %s   •   Place at %s   •   %d entities" % [_definition.display_name, target, authoring.level.entities.size()])
 
 func _select(id: StringName) -> void:
 	_selected = id
@@ -333,12 +357,62 @@ func _select(id: StringName) -> void:
 	_overrides.overrides = entity.overrides.duplicate(true)
 	_inspector.edit(_overrides)
 
+func _sync_coordinates() -> void:
+	var entity = authoring.find_entity(_selected)
+	if entity:
+		for axis in range(3): _coords[axis].set_value_no_signal(entity.cell[axis])
+	else:
+		_entity_label.text = "Use Select, then click an entity."
+
+func _preview_entity_move(id: StringName, cell: Vector3i) -> void:
+	var error = authoring.position_error(id, cell)
+	viewport.preview_move(cell, error.is_empty())
+	for axis in range(3): _coords[axis].set_value_no_signal(cell[axis])
+	_set_status("Move to %s · 1-cell snap · Esc to cancel" % cell if error.is_empty() else "Invalid destination: %s\nRelease to restore the original position." % error)
+
+func _finish_entity_move(id: StringName, cell: Vector3i, commit: bool) -> void:
+	var entity = authoring.find_entity(id)
+	if commit and entity:
+		# Preview never changes the authored resource. Commit exactly once,
+		# preserving the entity's saved orientation and overrides.
+		if authoring.edit_entity(id, cell, entity.quarter_turns, entity.mirrored, entity.overrides):
+			_set_status("Moved to %s." % cell)
+		else:
+			_set_status(authoring.last_error)
+	else:
+		_set_status("Move cancelled; original position restored.")
+	_sync_coordinates()
+
+func _snap_selected_to_ground() -> void:
+	var entity = authoring.find_entity(_selected)
+	if not entity:
+		_set_status("Select an entity first.")
+		return
+	var moving = viewport.is_moving()
+	var origin = viewport.move_position() if moving else entity.cell
+	var target = authoring.ground_position(_selected, origin)
+	if target == null:
+		_set_status(authoring.last_error)
+		return
+	if target == origin:
+		_set_status("Entity is already supported.")
+		return
+	if moving:
+		if viewport.rebase_move(target):
+			_set_status("Snapped to %s · Continue dragging · Esc to cancel" % target)
+		else:
+			_set_status("Cannot snap from this camera angle. Cancel the drag and orbit the camera.")
+	elif authoring.edit_entity(_selected, target, entity.quarter_turns, entity.mirrored, entity.overrides):
+		_set_status("Snapped to %s." % target)
+	else:
+		_set_status(authoring.last_error)
+
 func _apply_entity() -> void:
 	var cell = Vector3i(int(_coords[0].value), int(_coords[1].value), int(_coords[2].value))
 	if not authoring.edit_entity(_selected, cell, int(_entity_turns.value), _entity_mirror.button_pressed, _overrides.overrides):
-		_status.text = authoring.last_error if not authoring.last_error.is_empty() else "Select an entity first."
+		_set_status(authoring.last_error if not authoring.last_error.is_empty() else "Select an entity first.")
 	else:
-		_status.text = "Entity updated. Omitted overrides inherit their definition's defaults."
+		_set_status("Entity updated. Omitted overrides inherit their definition's defaults.")
 
 func _duplicate() -> void:
 	var entity = authoring.find_entity(_selected)
@@ -347,14 +421,14 @@ func _duplicate() -> void:
 
 func _fill_floor() -> void:
 	if not _definition or _definition.shape.size() != 1 or not _definition.defaults().get("ground", false):
-		_status.text = "Select a single-cell Ground entity in the palette first."
+		_set_status("Select a single-cell Ground entity in the palette first.")
 		return
 	authoring.fill_floor(_definition, Vector3i(0, int(_height.value), 0), int(_floor_width.value), int(_floor_depth.value))
-	_status.text = "Ground filled. Set height to 0 to place entities above a floor at -1."
+	_set_status("Ground filled. Set height to 0 to place entities above a floor at -1.")
 
 func _validate() -> bool:
 	var errors = authoring.level.validate()
-	_status.text = "Level is valid." if errors.is_empty() else "\n".join(errors)
+	_set_status("Level is valid." if errors.is_empty() else "\n".join(errors))
 	return errors.is_empty()
 
 func _dialog(action: String) -> void:
@@ -369,21 +443,21 @@ func _file_selected(path: String) -> void:
 		"open_level":
 			var value = load(path)
 			if value is GGLevel: _open(value)
-			else: _status.text = "This resource is not a Grid Game Groundwork level."
+			else: _set_status("This resource is not a Grid Game Groundwork level.")
 		"import_definition":
 			var value = load(path)
 			if value is GGEntityDefinition:
 				authoring.add_definition(value)
 				_choose_definition(authoring.level.palette.find(value))
-			else: _status.text = "This resource is not an entity definition."
+			else: _set_status("This resource is not an entity definition.")
 		"save_level": _save_to(path)
 		"save_definition":
 			var error = ResourceSaver.save(_definition, path)
 			if error == OK:
 				_definition.take_over_path(path)
 				authoring.dirty = true
-				_status.text = "Entity definition saved. Save the level to keep its reference."
-			else: _status.text = "Could not save entity definition (error %d)." % error
+				_set_status("Entity definition saved. Save the level to keep its reference.")
+			else: _set_status("Could not save entity definition (error %d)." % error)
 
 func save_current() -> void:
 	if authoring.level.resource_path.is_empty():
@@ -393,7 +467,7 @@ func save_current() -> void:
 
 func _save_to(path: String) -> bool:
 	var result = authoring.save(path)
-	_status.text = "Saved " + path if result == OK else authoring.last_error
+	_set_status("Saved " + path if result == OK else authoring.last_error)
 	if result == OK:
 		EditorInterface.get_resource_filesystem().scan()
 	return result == OK
@@ -407,13 +481,13 @@ func _playtest() -> void:
 	var resource_path = dir + "/playtest.tres"
 	var error = authoring.save_playtest(resource_path)
 	if error != OK:
-		_status.text = "Could not prepare playtest (error %d)." % error
+		_set_status("Could not prepare playtest (error %d)." % error)
 		return
 	var scene_path = dir + "/playtest.tscn"
 	var scene = '[gd_scene load_steps=3 format=3]\n[ext_resource type="Script" path="res://addons/grid_game_groundwork/runtime/game.gd" id="1"]\n[ext_resource type="Resource" path="%s" id="2"]\n[node name="Playtest" type="Node3D"]\nscript = ExtResource("1")\nlevel = ExtResource("2")\n' % resource_path
 	var file = FileAccess.open(scene_path, FileAccess.WRITE)
 	if not file:
-		_status.text = "Could not write temporary playtest scene."
+		_set_status("Could not write temporary playtest scene.")
 		return
 	file.store_string(scene)
 	file.close()
@@ -444,6 +518,7 @@ func _new_definition() -> void:
 
 func _set_mode(index: int) -> void:
 	_mode.select(index)
+	viewport.set_move_enabled(index == 2 and not _shape_mode.button_pressed)
 	_hover(_last_hover)
 
 func _input(event: InputEvent) -> void:
@@ -451,11 +526,13 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.ctrl_pressed or event.alt_pressed or event.shift_pressed or event.meta_pressed:
 		return
-	var index: int
-	match event.keycode if event.keycode != KEY_NONE else event.physical_keycode:
+	var key = event.keycode if event.keycode != KEY_NONE else event.physical_keycode
+	var index = -1
+	match key:
 		KEY_1, KEY_KP_1: index = 0
 		KEY_2, KEY_KP_2: index = 1
 		KEY_3, KEY_KP_3: index = 2
+		KEY_END: pass
 		_: return
 	var focus = get_viewport().gui_get_focus_owner()
 	if not focus or not is_ancestor_of(focus):
@@ -464,6 +541,11 @@ func _input(event: InputEvent) -> void:
 		return
 	var modal = get_viewport().get_last_exclusive_window()
 	if is_instance_valid(modal) and modal != get_window() and modal.visible:
+		return
+	if key == KEY_END:
+		if _mode.selected == 2 and not _shape_mode.button_pressed and (not viewport.is_drawing() or viewport.is_moving()):
+			_snap_selected_to_ground()
+			get_viewport().set_input_as_handled()
 		return
 	if viewport.is_drawing() or (_shape_mode.button_pressed and index == 2):
 		return

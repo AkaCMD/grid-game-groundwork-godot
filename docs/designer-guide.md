@@ -31,6 +31,14 @@ To customize one entity:
 
 Removing a key restores inheritance for that property. **Reset all overrides** clears the draft; click **Apply entity changes** to apply it. **Duplicate selected** copies overrides and orientation, starting one cell to the right and stacking if needed. Deleting or erasing removes the whole entity, including all occupied cells.
 
+In **Select**, drag an **X/Y/Z arrow** to move along one world axis, or an **XY/XZ/YZ square handle** to move within that plane. X is red, Y is green (height), and Z is blue. The handles sit at the selected entity's authored origin, even for a multi-cell shape, and remain usable as you zoom. Handles viewed almost edge-on are hidden; orbit the camera to access them.
+
+Movement snaps to **one whole grid cell while dragging**, and the right-side coordinates follow the preview. The entire entity moves together, preserving its shape, rotation, mirroring, and overrides. Only the destination is validated, so you can drag across obstacles to an empty space. Solid overlaps and other invalid destinations appear **red**; releasing there restores the original position. Non-solid entities can share occupied cells. Press **Esc** to cancel. A valid release commits immediately without **Apply entity changes**, and the whole drag is one undo/redo action. Cancelling or releasing without movement creates no undo action. Hiding the workspace or losing window focus cancels an unfinished move. Movement handles are available for a single selected entity and are hidden in Paint, Erase, and occupied-cell editing.
+
+Press **End** in Select to snap the selected entity **down along Y** onto the nearest solid support, keeping X/Z unchanged. Ground, wall tops, and crates can all support it; non-solid markers cannot. The complete rotated/mirrored shape is considered, and support under any occupied cell holds the entire entity. This editing shortcut works even with gameplay gravity disabled. If there is no support below, or the current position is invalid, the entity stays in place with a single-line status message; hover over the status for full details.
+
+During a drag, **End** snaps the current preview and lets you continue with the same axis/plane handle without jumping back. The snap changes Y even when the handle is constrained to X/Z; subsequent mouse movement keeps the handle's original constraint. Release to commit the whole drag and snap as one undo action, or press **Esc** to restore the position before dragging. Outside a drag, End commits one undo action immediately. An already supported entity or a failed snap adds no history. End is ignored while typing in text, coordinates, or properties, with modifier keys, or while a modal dialog is open.
+
 Core property keys are `solid`, `movable`, and `gravity`. Other properties are defined by game rules. The example presets use `player`, `can_push`, `pushable`, `transmits_push`, `strength`, and `weight`. These belong to entities, not a level-wide chain-pushing toggle. Default crates, including L-shaped crates, transmit pushes, matching the original Unity project: a player can push a chain when all destination cells are clear. Set `transmits_push=false` on an entity to prevent it from pushing another entity ahead of it.
 
 Editor undo covers placements, brush strokes, selection edits, shape edits, floor fills, level settings, and whole-level transforms. Shared-default edits made in Godot's native Inspector use its native resource editing/undo workflow.
@@ -50,6 +58,33 @@ The shape is gameplay data. Artwork is separate: assign **Visual Scene** on the 
 Press **1** for Paint, **2** for Erase, or **3** for Select anywhere in the Grid Levels panel. Both the number row and numeric keypad work, without modifier keys. Shortcuts are ignored while typing in text, coordinate, or property fields, while a dialog is open, and during a left-button stroke; release the mouse before switching. In **Edit occupied cells**, **1** adds cells and **2** removes them; **3** is ignored.
 
 Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Frame** fits the level. Quarter turns rotate around Y. **Mirror brush** reflects the entity's shape on local X. Whole-level rotation and mirroring transform entity positions and shapes together and survive saving/reloading.
+
+## Shortcut reference
+
+| Context | Input | Action |
+| --- | --- | --- |
+| Level editor | **1 / 2 / 3** (number row or keypad) | Paint / Erase / Select |
+| Level editor | Left click / drag | Paint or erase with the active tool; in Select, click an entity to inspect it |
+| Select | Left-drag an **X/Y/Z arrow** or **XY/XZ/YZ square** | Move along an axis or within a plane, snapped to whole cells |
+| Select, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
+| Active move | **Esc** | Cancel the whole drag, including any End snap |
+| Level editor | Right click | Pick an entity's definition, rotation, and mirroring for the brush |
+| Shape editor | **1 / 2**, left click / drag | Add / remove occupied cells; **3** is ignored |
+| Shape editor | Right click | Remove an occupied cell |
+| Level editor | **Ctrl/Cmd+S** | Save the level |
+| Level editor | **Ctrl/Cmd+Z** | Undo the last authoring action |
+| Level editor | **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** | Redo the last authoring action |
+| Editor viewport or play | Middle drag | Orbit the camera |
+| Editor viewport or play | **Shift+middle drag** | Pan the camera |
+| Editor viewport or play | Mouse wheel | Zoom in / out |
+| Editor viewport or play | **F** | Frame the level |
+| Play | **WASD / arrow keys** | Move on the grid |
+| Play | **Z / Y / R** | Undo / redo / restart |
+| Godot editor | **F5** (macOS: **Cmd+B**) | Run the project |
+| Godot editor | **F6** (macOS: **Cmd+R**) | Run the current scene |
+| Godot editor | **F8** (macOS: **Cmd+.**) | Stop the running project/scene |
+
+**1/2/3** and **End** require focus in Grid Levels and no modifier keys; they are ignored in text, coordinate, and Inspector property fields or modal dialogs. Tool switching waits until the current mouse stroke/drag ends. **End** works only in Select. Click the board before using viewport shortcuts. In play, click the game window for keyboard focus. Godot's run/stop keys use its [default editor keymap](https://docs.godotengine.org/en/4.6/tutorials/editor/default_key_mapping.html) and can be customized.
 
 ## Rules, validation, and playtesting
 

@@ -219,6 +219,49 @@ func erase(id: StringName) -> bool:
 	_notify()
 	return true
 
+func position_error(id: StringName, cell: Vector3i) -> String:
+	var entity = find_entity(id)
+	if not entity:
+		return "Select an entity first."
+	# Validate the exact destination, including rotated/mirrored shape cells,
+	# without emitting changes or recording a speculative edit in history.
+	var original = entity.cell
+	entity.cell = cell
+	var errors = level.validate()
+	entity.cell = original
+	return "\n".join(errors)
+
+func ground_position(id: StringName, cell: Vector3i) -> Variant:
+	last_error = position_error(id, cell)
+	if not last_error.is_empty():
+		last_error = "Cannot snap an invalid position; move out of overlapping cells first.\n" + last_error
+		return null
+	var entity = find_entity(id)
+	var candidate = entity.copy()
+	candidate.cell = cell
+	var cells = candidate.occupied_cells()
+	var distance: int = 0
+	var found = false
+	# The first occupied cell to meet any other solid holds the entire rigid
+	# shape. Compare grid columns directly instead of simulating a long fall.
+	for other in level.entities:
+		if other.entity_id == id or not other.resolved_properties().get("solid", true):
+			continue
+		for support in other.occupied_cells():
+			for occupied in cells:
+				if support.x != occupied.x or support.z != occupied.z or support.y >= occupied.y:
+					continue
+				var gap = occupied.y - support.y - 1
+				if not found or gap < distance:
+					distance = gap
+					found = true
+	if not found:
+		last_error = "No supporting surface below the selected entity."
+		return null
+	var target = cell + Vector3i.DOWN * distance
+	last_error = position_error(id, target)
+	return target if last_error.is_empty() else null
+
 func edit_entity(id: StringName, cell: Vector3i, turns: int, mirrored: bool, overrides: Dictionary) -> bool:
 	var entity = find_entity(id)
 	if not entity:
