@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-用于制作 3D 网格解谜游戏的 Godot 插件。通过可视化编辑器绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子和管道连接示例。
+用于制作 3D 网格解谜游戏的 Godot 插件。通过可视化编辑器绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、管道连接和 QUACK!!! on ICE 示例。
 
 **Godot 4.6+ 标准版 · Compatibility 渲染器 · 已在 4.7.2 验证**
 
@@ -12,7 +12,7 @@
 
 1. 在 Godot 中导入 `project.godot`。
 2. 点击顶部的 **Grid Levels**。若未显示，在 **项目 → 项目设置 → 插件** 中启用 **Grid Game Groundwork**。
-3. 点击 **Open…**，打开 `examples/levels/sokoban.tres` 或同目录的 `pipes.tres`。
+3. 点击 **Open…**，打开 `examples/levels/sokoban.tres` 或同目录的 `pipes.tres`／`quack.tres`。
 4. 按 **1 / 2 / 3** 切换 Paint 绘制 / Erase 擦除 / Select 选择。在 Select 下拖动 XYZ 箭头或平面手柄可按格移动，按 **End** 向下贴地。
 5. 点击 **Save** 保存，再点击 **Playtest ▶** 试玩。
 
@@ -34,6 +34,14 @@
 **不在拖拽时也能贴地**：选中实体后直接按 **End**，立即提交一次可撤销的贴地操作，不需要点击 Apply。多格实体整体移动，任一占用格得到实心支撑就会停下；关卡关闭重力时也可使用。
 
 下方没有实心支撑、当前位置与其他实心实体重叠或位置非法时，按 End 不会改变位置，底部会显示单行提示。已经贴合支撑面时不会产生新的撤销记录。输入文本或坐标时，End 保留输入框自身的行为。
+
+## QUACK!!! on ICE 三维案例
+
+基于 [QUACK!!! on ICE 原游戏（点击游玩）](https://akacmd.itch.io/quack-on-ice)（[原作源码](https://github.com/AkaCMD/Bevy_Jam_4)）制作的独立双层平台解谜案例。控制三只鸭子滑行吃面包，利用上下层落差，并让吃饱的鸭子充当挡块，协助其他鸭子完成目标。
+
+![QUACK!!! on ICE 三维案例：三只鸭子位于上下层平台，方块采用白底，选中的鸭子采用黑底](docs/media/quack.png)
+
+打开 [examples/quack.tscn](examples/quack.tscn) 按 **F6** 运行，或在 **Grid Levels** 中打开 [examples/levels/quack.tres](examples/levels/quack.tres) 编辑、保存和试玩。鼠标点击选鸭，**WASD／方向键**按固定棋盘方向滑行，**Z／Y／R** 撤销、重做和重新开始。完整七步解法见 [QUACK 案例说明](docs/quack-example.md)。
 
 ## 功能
 
@@ -83,7 +91,3 @@
 - [领域术语](CONTEXT.md) · [设计决策](docs/adr)
 
 灵感来自 Corey Martin 的 [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork)。参见[第三方许可声明](THIRD_PARTY_NOTICES.md)。
-
-## QUACK!!! on ICE 三维案例
-
-打开 `examples/quack.tscn` 按 F6，或在 Grid Levels 中打开 `examples/levels/quack.tres` 编辑、保存和试玩。鼠标点击选鸭，WASD／方向键按固定棋盘方向滑行，Z／Y／R 撤销、重做和重新开始。方块底色为白色，选中鸭子的底色为黑色。上层落到下层后继续滑行，每只鸭只能吃一块面包，吃饱后仍可充当挡块。完整七步解法与测试说明见 [QUACK 案例](docs/quack-example.md)。

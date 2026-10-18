@@ -18,8 +18,6 @@ A Godot addon for making 3D grid puzzles. Paint levels, playtest, and build mech
 
 Press **F5** to play Sokoban directly, or open `examples/pipes.tscn` and press **F6** for pipes. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
-Play the 3D duck puzzle with `examples/quack.tscn` (F6). Click a duck, then slide with WASD/arrows. See the [seven-move walkthrough](docs/quack-example.md).
-
 ![Paint and erase, select an entity, drag its XYZ handles with grid snapping, press End to snap down, and undo/redo the whole move](docs/media/authoring.gif)
 
 Switch tools with **1** (Paint), **2** (Erase), and **3** (Select). Drag to paint or erase; click to select and inspect an entity.
@@ -36,6 +34,14 @@ In **Select**, drag **X/Y/Z arrows** or **XY/XZ/YZ plane handles** to move the w
 **End also works without dragging**: select an entity and press End to commit one undoable snap immediately, without clicking Apply. Multi-cell entities move as a whole and stop when any occupied cell has solid support. This also works when level gravity is disabled.
 
 If there is no solid support below, or the current position overlaps another solid or is otherwise invalid, End leaves the position unchanged and shows a single-line status message. An already supported entity adds no undo action. While editing text or coordinates, End keeps the input field's normal behavior.
+
+## QUACK!!! on ICE — 3D example
+
+A standalone two-platform puzzle inspired by [QUACK!!! on ICE — play the original](https://akacmd.itch.io/quack-on-ice) ([original source code](https://github.com/AkaCMD/Bevy_Jam_4)). Control three ducks, slide to eat bread, drop between platforms, and use fed ducks as stoppers to help the others.
+
+![QUACK!!! on ICE 3D example: three ducks on two platforms, with white cube backgrounds and the selected duck highlighted in black](docs/media/quack.png)
+
+Open [examples/quack.tscn](examples/quack.tscn) and press **F6** to play, or open [examples/levels/quack.tres](examples/levels/quack.tres) in **Grid Levels** to edit, save and playtest. Click a duck to select it; **WASD / arrows** slide in fixed board directions, and **Z / Y / R** undo, redo and restart. See the [verified seven-move walkthrough](docs/quack-example.md).
 
 ## Features
 
