@@ -313,6 +313,7 @@ func _refresh_view() -> void:
 	if _shape_mode.button_pressed: viewport.select_entity(&"")
 	else: viewport.select_entities(_selection)
 	viewport.set_move_enabled(_mode.selected == 2 and not _shape_mode.button_pressed)
+	viewport.set_erase_enabled(_mode.selected == 1 and not _shape_mode.button_pressed)
 
 func _choose_definition(index: int) -> void:
 	if index >= 0 and index < authoring.level.palette.size():
@@ -575,6 +576,7 @@ func _new_definition() -> void:
 func _set_mode(index: int) -> void:
 	_mode.select(index)
 	viewport.set_move_enabled(index == 2 and not _shape_mode.button_pressed)
+	viewport.set_erase_enabled(index == 1 and not _shape_mode.button_pressed)
 	_hover(_last_hover)
 
 func _input(event: InputEvent) -> void:

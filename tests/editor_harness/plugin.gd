@@ -58,6 +58,7 @@ func run() -> void:
 	await check_paint_height_navigation(panel)
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
+	await check_surface_interaction(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
 	panel._paint_or_pick(Vector3i.RIGHT, &"", MOUSE_BUTTON_LEFT)
@@ -536,7 +537,7 @@ func check_move_gizmo(panel: GGEditorPanel) -> void:
 	for frame in range(4): await get_tree().process_frame
 	check(view.get_global_rect() == valid_rect and panel._status.size.y == valid_status_height, "Invalid destination status must not resize or move the editing viewport")
 	check(panel._status.tooltip_text.contains("Invalid destination:") and panel._status.tooltip_text.contains("Release to restore"), "Full invalid destination details remain available in the tooltip")
-	check(not view._move_valid and view._selected.get_child(0).material_override.albedo_color.r > 0.9, "Solid overlap displays a red invalid preview")
+	check(not view._move_valid and surface_feedback_is(view, GGEditorEntitySurfaces.RED, false), "Solid overlap displays a red invalid preview")
 	gizmo_release(panel, grabbed + Vector3(3, 0, 0))
 	check(panel.authoring.find_entity(entity.entity_id).cell == original and view.board.roots[entity.entity_id].position == Vector3(original), "Invalid release restores the starting position")
 	check(panel.authoring._history.size() == history_size, "Invalid release does not add undo actions")
@@ -703,11 +704,13 @@ func check_quack(panel: GGEditorPanel) -> void:
 	panel._select(&"duck_b")
 	var board = panel.viewport.board
 	var duck = board.roots[&"duck_b"].get_child(0)
-	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK, "Editor selection uses the shared black duck background")
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE, "Editor selection preserves the opaque white duck background")
+	var duck_root: Node3D = board.roots[&"duck_b"]
+	check(panel.viewport._surfaces.pick({&"duck_b": duck_root}, duck_root.global_transform * Vector3(0.43, 0.43, 2), duck_root.global_basis * Vector3.FORWARD) == &"duck_b", "QUACK white face background remains opaque to exact mesh picking")
 	panel._select(&"duck_c")
-	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE, "Editor deselection restores white background")
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE, "Editor deselection retains the original white background")
 	panel._select(&"duck_b", true)
-	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK and board.roots[&"duck_c"].get_child(0).get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK, "Custom visuals highlight every selected entity")
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE and board.roots[&"duck_c"].get_child(0).get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE and surface_feedback_is(panel.viewport, GGEditorEntitySurfaces.BLUE, true), "Editor multi-selection uses blue surfaces and preserves every duck background")
 
 	check(panel._save_to("res://quack_editor_smoke.tres"), "QUACK saves through Grid Levels")
 	panel._new_level()
@@ -762,7 +765,7 @@ func check_multi_selection(panel: GGEditorPanel) -> void:
 	check(panel.get("_selection") == [], "Plain click on empty space clears selection")
 	selection_click(view, fixture.entities[0].cell)
 	selection_click(view, fixture.entities[1].cell, true)
-	check(view._selected.get_child_count() == 2, "Every selected entity has a highlight")
+	check(view._surfaces.highlights.size() == 2, "Every selected entity has a highlight")
 	check(panel._entity_label.text == "2 entities selected" and not panel._coords[0].editable and not panel._entity_turns.editable and panel._entity_mirror.disabled, "Multi-selection shows count and disables single-entity fields")
 	check(panel._apply_button.disabled and panel._reset_button.disabled and panel._inspector.get_edited_object() == null, "Multi-selection disables overrides and Apply")
 	await mode_key(KEY_END)
@@ -777,8 +780,7 @@ func check_multi_selection(panel: GGEditorPanel) -> void:
 	grabbed = gizmo_press(panel, 0)
 	gizmo_motion(panel, grabbed + Vector3(3, 0, 0))
 	check(not view._move_valid, "One blocked member invalidates the group preview")
-	for highlight in view._selected.get_children():
-		check(highlight.material_override.albedo_color.r > 0.9, "Every selected highlight becomes red on collision")
+	check(surface_feedback_is(view, GGEditorEntitySurfaces.RED, false), "Every selected surface becomes steady red on collision")
 	gizmo_release(panel, grabbed + Vector3(3, 0, 0))
 	check(fixture.entities[0].cell == Vector3i(0, 2, 0) and fixture.entities[1].cell == Vector3i(3, 2, 0), "Invalid release restores the entire group")
 	grabbed = gizmo_press(panel, 0)
@@ -807,5 +809,119 @@ func check_multi_selection(panel: GGEditorPanel) -> void:
 	check(panel._selection == [&"member_0", &"member_1"], "Visible entities can be selected when the view ray cannot reach the placement plane")
 	panel._open(previous)
 	check(panel._selection.is_empty(), "Opening another level clears selection")
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
+
+func surface_feedback_is(view: GGEditorViewport, color: Color, breathing: bool) -> bool:
+	if view._surfaces.highlights.is_empty(): return false
+	for overlay in view._surfaces.highlights:
+		for surface in range(overlay.mesh.get_surface_count()):
+			var material = overlay.get_surface_override_material(surface)
+			if material.get_shader_parameter("tint") != color or material.get_shader_parameter("breathing") != breathing:
+				return false
+	return true
+
+func check_surface_interaction(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var marker = GGEntityPlacement.new()
+	marker.entity_id = &"surface_ring"
+	marker.definition = fixture.palette[4]
+	marker.definition = marker.definition.duplicate(true)
+	marker.definition.solid = false
+	marker.definition.visual_scene = null
+	var behind = GGEntityPlacement.new()
+	behind.entity_id = &"surface_behind"
+	behind.definition = fixture.palette[3]
+	behind.cell = Vector3i(0, -2, 0)
+	fixture.entities.assign([marker, behind])
+	panel._open(fixture)
+	panel._set_mode(2)
+	var view = panel.viewport
+	view._pitch = PI / 2.0
+	view._yaw = 0.0
+	view._pivot = Vector3.ZERO
+	view._zoom = 8.0
+	view._camera_position()
+	await get_tree().process_frame
+	var center = view.camera.unproject_position(Vector3.ZERO)
+	var rim = view.camera.unproject_position(Vector3(0.30, -0.43, 0.05))
+	check(view.entity_at(center) == behind.entity_id, "Exact model picking passes through the ring hole to the visible entity behind")
+	check(view.entity_at(rim) == marker.entity_id, "Exact model picking hits the ring surface in front")
+	var root: Node3D = view.board.roots[marker.entity_id]
+	var nested = Node3D.new()
+	root.add_child(nested)
+	nested.rotation.y = PI / 2.0
+	nested.scale = Vector3(-1.0, 1.0, 2.0)
+	var box = BoxMesh.new()
+	box.size = Vector3.ONE * 0.25
+	var protrusion = GGBoardView.mesh_node(box, Color.WHITE, Vector3(0, 0, 0.65))
+	nested.add_child(protrusion)
+	var outside = view.camera.unproject_position(protrusion.global_position)
+	check(view.entity_at(outside) == marker.entity_id, "Picking follows mirrored, rotated, scaled nested meshes outside occupied cells")
+	protrusion.hide()
+	check(view.entity_at(outside) == &"", "Hidden meshes do not participate in picking")
+	protrusion.show()
+	panel._select(marker.entity_id)
+	check(view._surfaces.highlights.size() == 2 and surface_feedback_is(view, GGEditorEntitySurfaces.BLUE, true), "Every visible mesh of a selected entity breathes blue")
+	for overlay in view._surfaces.highlights:
+		check(overlay.mesh == overlay.get_parent().mesh and overlay.transform == Transform3D.IDENTITY, "Highlights follow exact source geometry and local transforms")
+	var authored_material = root.get_child(0).material_override
+	view.preview_move(marker.cell + Vector3i.RIGHT, false)
+	check(surface_feedback_is(view, GGEditorEntitySurfaces.RED, false), "Invalid preview uses steady red surfaces")
+	view.preview_move(marker.cell, true)
+	check(surface_feedback_is(view, GGEditorEntitySurfaces.BLUE, true), "Returning to a valid preview restores blue breathing")
+	check(root.get_child(0).material_override == authored_material, "Surface feedback preserves original entity materials")
+	panel._set_mode(1)
+	view._update_erase_hover(rim)
+	check(view._erase_target == marker.entity_id and surface_feedback_is(view, GGEditorEntitySurfaces.RED, true), "Erase hover breathes red on precisely the entity under the pointer")
+	check(panel._selection == [marker.entity_id], "Erase mode preserves the recorded selection")
+	view._update_erase_hover(center)
+	check(view._erase_target == behind.entity_id and view._surfaces.highlights[0].get_parent().get_parent() == view.board.roots[behind.entity_id], "Hover through a model hole highlights the actual deletion target")
+	view.mouse_exited.emit()
+	check(view._surfaces.highlights.is_empty(), "Leaving the viewport clears erase feedback without showing blue selection")
+	panel._set_mode(2)
+	check(surface_feedback_is(view, GGEditorEntitySurfaces.BLUE, true), "Returning to Select restores blue feedback")
+	# A true alpha cutout passes through; custom shader sprite alpha is not assumed transparent.
+	var quad = MeshInstance3D.new()
+	quad.mesh = QuadMesh.new()
+	quad.rotation.x = -PI / 2.0
+	quad.position.y = 1.0
+	var pixels = Image.create(2, 1, false, Image.FORMAT_RGBA8)
+	pixels.set_pixel(0, 0, Color(1, 1, 1, 0))
+	pixels.set_pixel(1, 0, Color.WHITE)
+	var cutout = StandardMaterial3D.new()
+	cutout.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	cutout.albedo_texture = ImageTexture.create_from_image(pixels)
+	quad.material_override = cutout
+	root.add_child(quad)
+	var clear_pixel = view.camera.unproject_position(Vector3(-0.1, 1, 0))
+	var opaque_pixel = view.camera.unproject_position(Vector3(0.1, 1, 0))
+	check(view.entity_at(clear_pixel) == behind.entity_id, "Actual transparent material pixels pass through to the visible model behind")
+	check(view.entity_at(opaque_pixel) == marker.entity_id, "Opaque material pixels remain pickable")
+	quad.free()
+	# Deletion and drag use the same geometry target, even inside one placement cell.
+	panel._set_mode(1)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, rim)
+	check(panel.authoring.find_entity(marker.entity_id) == null and panel.authoring.find_entity(behind.entity_id) != null, "Erase click removes exactly the red-hovered entity")
+	var motion = InputEventMouseMotion.new()
+	motion.position = center
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	view.gui_input.emit(motion)
+	check(panel.authoring.find_entity(behind.entity_id) == null, "Erase drag can change model targets within the same placement cell")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, center)
+	check(panel.authoring.undo() and fixture.entities.size() == 2, "The geometry-based erase stroke remains one undo action")
+	view._pitch = 0.0
+	view._pivot = Vector3(0, -2, 0)
+	view._camera_position()
+	center = view.camera.unproject_position(Vector3(0, -2, 0))
+	view._update_erase_hover(center)
+	check(view.cell_at(center) == null and view._erase_target == behind.entity_id, "Erase hover works when the ray cannot reach the edit plane")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, center)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, center)
+	check(panel.authoring.find_entity(behind.entity_id) == null, "Horizontal-view deletion matches the visible red-hovered entity")
+	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
 	panel._set_mode(0)

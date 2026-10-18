@@ -54,6 +54,11 @@ def main():
             output = run(command, cwd=target, env=environment)
             if "EDITOR_SMOKE: 0 failures" not in output:
                 raise SystemExit("Editor smoke test did not complete")
+    if args.editor_smoke and args.screenshot:
+        output = run([executable, "--path", str(ROOT), "--script",
+                      "tests/test_editor_surfaces.gd", "--quit-after", "1200"])
+        if "Surface rendering: 0 failures" not in output:
+            raise SystemExit("Surface rendering test did not complete")
     print("All requested checks passed.")
 
 

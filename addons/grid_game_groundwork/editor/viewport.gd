@@ -18,7 +18,10 @@ var layer: int = 0
 var _paint_height = 0.0
 var _grid: MeshInstance3D
 var _ghost: Node3D
-var _selected: Node3D
+var _surfaces = GGEditorEntitySurfaces.new()
+var _erase_enabled = false
+var _erase_target: StringName = &""
+var _last_drag_entity: StringName = &""
 var _pivot = Vector3(3, 0, 3)
 var _yaw = 0.0
 var _pitch = deg_to_rad(75.2)
@@ -84,8 +87,10 @@ func _ready() -> void:
 	gui_input.connect(_input_on_view)
 	get_window().focus_exited.connect(cancel_move)
 	get_window().focus_exited.connect(_stop_navigation)
+	get_window().focus_exited.connect(_clear_erase_hover)
 	focus_exited.connect(_stop_navigation)
 	mouse_exited.connect(func():
+		_clear_erase_hover()
 		if _ghost: _ghost.visible = false
 		if is_moving(): return
 		_move_gizmo.highlight(-1)
@@ -96,6 +101,8 @@ func _ready() -> void:
 func show_level(value: GGLevel) -> void:
 	_stop_navigation()
 	cancel_move()
+	_surfaces.reset()
+	_erase_target = &""
 	level = value
 	board.rebuild(level)
 
@@ -157,25 +164,36 @@ func cell_at(point: Vector2) -> Variant:
 	return Vector3i(roundi(hit.x), layer, roundi(hit.z))
 
 func entity_at(point: Vector2) -> StringName:
-	if not level:
-		return &""
-	var origin = camera.project_ray_origin(point)
-	var direction = camera.project_ray_normal(point)
-	var closest: float = INF
-	var result: StringName = &""
-	for entity in level.entities:
-		for cell in entity.occupied_cells():
-			var bounds = AABB(Vector3(cell) - Vector3.ONE * 0.48, Vector3.ONE * 0.96)
-			if not entity.resolved_properties().get("solid", true):
-				bounds.position.y = cell.y - 0.48
-				bounds.size.y = 0.12
-			var hit = bounds.intersects_ray(origin, direction)
-			if hit != null:
-				var distance: float = origin.distance_squared_to(hit)
-				if distance < closest:
-					closest = distance
-					result = entity.entity_id
-	return result
+	if not level: return &""
+	return _surfaces.pick(board.roots, camera.project_ray_origin(point), camera.project_ray_normal(point))
+
+func set_erase_enabled(enabled: bool) -> void:
+	_erase_enabled = enabled
+	_erase_target = &""
+	_update_highlights()
+	if enabled: _update_erase_hover(get_local_mouse_position())
+
+func _update_highlights() -> void:
+	var ids: Array[StringName] = []
+	if _erase_enabled:
+		if _erase_target != &"": ids.append(_erase_target)
+	else:
+		ids.assign(_selection_origins.keys())
+	_surfaces.show_entities(board.roots, ids, GGEditorEntitySurfaces.RED if _erase_enabled or not _move_valid else GGEditorEntitySurfaces.BLUE, _erase_enabled or _move_valid)
+
+func _clear_erase_hover() -> void:
+	if _erase_target == &"": return
+	_erase_target = &""
+	_update_highlights()
+
+func _update_erase_hover(point: Vector2) -> void:
+	if not _erase_enabled: return
+	var id: StringName = &""
+	if is_visible_in_tree() and not is_navigating() and not _right_pressed and Rect2(Vector2.ZERO, size).has_point(point):
+		id = entity_at(point)
+	if id != _erase_target:
+		_erase_target = id
+		_update_highlights()
 
 func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirrored: bool) -> void:
 	if is_navigating():
@@ -209,38 +227,25 @@ func select_entity(id: StringName) -> void:
 
 func select_entities(ids: Array[StringName]) -> void:
 	cancel_move()
-	board.set_selected_entities(ids)
+	# The editor owns surface feedback; custom selection hooks remain runtime-only.
+	board.set_selected_entities([])
 	_selection_origins.clear()
 	_selection_id = ids.back() if not ids.is_empty() else &""
 	_move_gizmo.hide()
-	if _selected:
-		_selected.free()
-		_selected = null
-	if not level or ids.is_empty(): return
-	for entity in level.entities:
-		if entity.entity_id == _selection_id: _selection_cell = entity.cell
-	_selected = Node3D.new()
-	world.add_child(_selected)
-	_selected.position = Vector3(_selection_cell)
-	for entity in level.entities:
-		if not ids.has(entity.entity_id): continue
-		_selection_origins[entity.entity_id] = entity.cell
-		for cell in entity.occupied_cells():
-			var box = BoxMesh.new()
-			box.size = Vector3.ONE * 1.02
-			var visual = GGBoardView.mesh_node(box, Color(0.4, 0.9, 1.0, 0.22), Vector3(cell - _selection_cell))
-			visual.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			visual.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			visual.material_override.no_depth_test = true
-			_selected.add_child(visual)
+	_move_valid = true
+	if level:
+		for entity in level.entities:
+			if entity.entity_id == _selection_id: _selection_cell = entity.cell
+			if ids.has(entity.entity_id): _selection_origins[entity.entity_id] = entity.cell
+	_update_highlights()
 	_move_gizmo.position = Vector3(_selection_cell)
-	_move_gizmo.visible = _move_enabled
+	_move_gizmo.visible = _move_enabled and not _selection_origins.is_empty()
 	_move_gizmo.update_view()
 
 func set_move_enabled(enabled: bool) -> void:
 	if not enabled: cancel_move()
 	_move_enabled = enabled
-	_move_gizmo.visible = enabled and is_instance_valid(_selected)
+	_move_gizmo.visible = enabled and not _selection_origins.is_empty()
 
 func is_moving() -> bool:
 	return _move_gizmo != null and _move_gizmo.active_handle != -1
@@ -248,10 +253,7 @@ func is_moving() -> bool:
 func preview_move(cell: Vector3i, valid: bool) -> void:
 	_move_target = cell
 	_move_valid = valid
-	if _selected:
-		_selected.position = Vector3(cell)
-		for visual in _selected.get_children():
-			visual.material_override.albedo_color = Color(0.4, 0.9, 1.0, 0.22) if valid else Color(1.0, 0.12, 0.12, 0.55)
+	_surfaces.set_feedback(GGEditorEntitySurfaces.BLUE if valid else GGEditorEntitySurfaces.RED, valid)
 	for id in _selection_origins:
 		if board.roots.has(id):
 			board.roots[id].position = Vector3(_selection_origins[id] + cell - _selection_cell)
@@ -286,6 +288,7 @@ func _navigation_available() -> bool:
 	return not (is_instance_valid(modal) and modal != get_window() and modal.visible)
 
 func _process(delta: float) -> void:
+	if _erase_enabled: _update_erase_hover(get_local_mouse_position())
 	if not is_navigating() and not _right_pressed:
 		return
 	if not _navigation_available():
@@ -388,6 +391,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree():
 		_stop_navigation()
 		cancel_move()
+		_clear_erase_hover()
 
 func is_drawing() -> bool:
 	return _drawing or is_moving()
@@ -449,13 +453,15 @@ func _input_on_view(event: InputEvent) -> void:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
 			var cell = cell_at(event.position)
-			# Select needs only an entity ray hit, even when looking parallel to
-			# the placement plane. Paint and Erase still require a grid cell.
-			if cell != null or _move_enabled:
+			# Entity tools work even when the ray cannot reach the placement plane.
+			if cell != null or _move_enabled or _erase_enabled:
 				_drawing = true
 				_last_cell = cell if cell != null else Vector3i.ZERO
 				stroke_started.emit()
-				pressed.emit(_last_cell, entity_at(event.position), event.button_index, event.shift_pressed)
+				_last_drag_entity = entity_at(event.position)
+				_update_erase_hover(event.position)
+				pressed.emit(_last_cell, _last_drag_entity, event.button_index, event.shift_pressed)
+				_update_erase_hover(event.position)
 			accept_event()
 	elif event is InputEventMouseMotion:
 		if _right_pressed:
@@ -481,14 +487,20 @@ func _input_on_view(event: InputEvent) -> void:
 			_camera_position()
 			accept_event()
 			return
+		_update_erase_hover(event.position)
 		var cell = cell_at(event.position)
-		if cell != null:
-			hovered.emit(cell)
-			if _drawing and event.button_mask & MOUSE_BUTTON_MASK_LEFT and cell != _last_cell:
+		if cell != null: hovered.emit(cell)
+		elif _ghost: _ghost.visible = false
+		if _drawing and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			var id = entity_at(event.position)
+			if _erase_enabled and id != &"" and (id != _last_drag_entity or cell != _last_cell):
+				_last_drag_entity = id
+				_last_cell = cell if cell != null else Vector3i.ZERO
+				dragged.emit(_last_cell, id)
+				_update_erase_hover(event.position)
+			elif not _erase_enabled and cell != null and cell != _last_cell:
 				_last_cell = cell
-				dragged.emit(cell, entity_at(event.position))
-		elif _ghost:
-			_ghost.visible = false
+				dragged.emit(cell, id)
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F:
 		frame_level()
 		accept_event()
