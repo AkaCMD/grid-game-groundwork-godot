@@ -50,7 +50,8 @@ func _ready() -> void:
 	var toolbar = HBoxContainer.new()
 	add_child(toolbar)
 	_mode = OptionButton.new()
-	for text in ["Paint", "Erase", "Select"]: _mode.add_item(text)
+	for text in ["Paint (1)", "Erase (2)", "Select (3)"]: _mode.add_item(text)
+	_mode.item_selected.connect(_set_mode)
 	toolbar.add_child(_mode)
 	_height = _spin(toolbar, "Height", -64, 128, 0)
 	_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
@@ -111,7 +112,7 @@ func _ready() -> void:
 	viewport.stroke_started.connect(authoring.begin_stroke)
 	viewport.stroke_ended.connect(authoring.end_stroke)
 	viewport.hovered.connect(_hover)
-	_label(center, "Left drag: paint / erase   •   Right click: eyedropper   •   Middle drag: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Left drag: paint / erase   •   Right click: eyedropper   •   Middle drag: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -440,6 +441,34 @@ func _new_definition() -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	dialog.popup_centered()
 	name_input.grab_focus()
+
+func _set_mode(index: int) -> void:
+	_mode.select(index)
+	_hover(_last_hover)
+
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:
+		return
+	if event.ctrl_pressed or event.alt_pressed or event.shift_pressed or event.meta_pressed:
+		return
+	var index: int
+	match event.keycode if event.keycode != KEY_NONE else event.physical_keycode:
+		KEY_1, KEY_KP_1: index = 0
+		KEY_2, KEY_KP_2: index = 1
+		KEY_3, KEY_KP_3: index = 2
+		_: return
+	var focus = get_viewport().gui_get_focus_owner()
+	if not focus or not is_ancestor_of(focus):
+		return
+	if focus is LineEdit or focus is TextEdit or _inspector.is_ancestor_of(focus):
+		return
+	var modal = get_viewport().get_last_exclusive_window()
+	if is_instance_valid(modal) and modal != get_window() and modal.visible:
+		return
+	if viewport.is_drawing() or (_shape_mode.button_pressed and index == 2):
+		return
+	_set_mode(index)
+	get_viewport().set_input_as_handled()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:

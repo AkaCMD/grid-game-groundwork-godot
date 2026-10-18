@@ -47,6 +47,8 @@ The shape is gameplay data. Artwork is separate: assign **Visual Scene** on the 
 
 **Paint** places the selected definition. A drag stroke is one editor undo step. **Erase** removes the entity under the pointer; **Select** opens it for editing. Right-click picks the definition, rotation, and mirroring from an existing entity. The ghost shows where the brush will place the entity after automatic stacking.
 
+Press **1** for Paint, **2** for Erase, or **3** for Select anywhere in the Grid Levels panel. Both the number row and numeric keypad work, without modifier keys. Shortcuts are ignored while typing in text, coordinate, or property fields, while a dialog is open, and during a left-button stroke; release the mouse before switching. In **Edit occupied cells**, **1** adds cells and **2** removes them; **3** is ignored.
+
 Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Frame** fits the level. Quarter turns rotate around Y. **Mirror brush** reflects the entity's shape on local X. Whole-level rotation and mirroring transform entity positions and shapes together and survive saving/reloading.
 
 ## Rules, validation, and playtesting

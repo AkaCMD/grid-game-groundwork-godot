@@ -53,6 +53,7 @@ func run() -> void:
 	click.pressed = false
 	panel.viewport.gui_input.emit(click)
 	check(panel.authoring.level.entities.back().cell == Vector3i.UP, "Painting in the workspace stacks entities")
+	await check_mode_shortcuts(panel)
 	panel._shape_mode.button_pressed = true
 	panel._paint_or_pick(Vector3i.RIGHT, &"", MOUSE_BUTTON_LEFT)
 	check(panel._definition.shape.size() == 2, "Visual shape editor updates the selected definition")
@@ -76,3 +77,71 @@ func run() -> void:
 		image.save_png(OS.get_environment("GGG_EDITOR_SCREENSHOT"))
 	print("EDITOR_SMOKE: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
+
+func mode_key(code: Key, modifiers: int = 0, echo: bool = false, pressed: bool = true) -> void:
+	var event = InputEventKey.new()
+	event.keycode = code
+	event.physical_keycode = code
+	event.pressed = pressed
+	event.echo = echo
+	event.ctrl_pressed = bool(modifiers & KEY_MASK_CTRL)
+	event.alt_pressed = bool(modifiers & KEY_MASK_ALT)
+	event.shift_pressed = bool(modifiers & KEY_MASK_SHIFT)
+	event.meta_pressed = bool(modifiers & KEY_MASK_META)
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+
+func check_mode_shortcuts(panel: GGEditorPanel) -> void:
+	panel.viewport.grab_focus()
+	for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0], [KEY_KP_2, 1], [KEY_KP_3, 2], [KEY_KP_1, 0]]:
+		await mode_key(binding[0])
+		check(panel._mode.selected == binding[1], "Number row and keypad switch authoring modes")
+	panel._hover(Vector3i.ZERO)
+	await mode_key(KEY_2)
+	check(not panel.viewport._ghost.visible, "Erase immediately hides the brush preview")
+	await mode_key(KEY_1)
+	check(panel.viewport._ghost.visible, "Paint immediately restores the brush preview")
+	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_SHIFT, KEY_MASK_META]:
+		await mode_key(KEY_2, modifiers)
+		check(panel._mode.selected == 0, "Modified number keys do not switch modes")
+	await mode_key(KEY_2, 0, true)
+	await mode_key(KEY_2, 0, false, false)
+	check(panel._mode.selected == 0, "Key repeat and release do not switch modes")
+	panel._settings_title.grab_focus()
+	await mode_key(KEY_2)
+	check(panel._mode.selected == 0, "Title entry does not switch modes")
+	panel._height.get_line_edit().grab_focus()
+	await mode_key(KEY_KP_2)
+	check(panel._mode.selected == 0, "Coordinate entry does not switch modes")
+	panel._mirror.grab_focus()
+	await mode_key(KEY_2)
+	check(panel._mode.selected == 1, "Shortcuts work outside the canvas within the panel")
+	panel._confirm.popup_centered()
+	await get_tree().process_frame
+	await mode_key(KEY_3)
+	check(panel._mode.selected == 1, "Modal dialogs block mode shortcuts")
+	panel._confirm.hide()
+	panel.viewport.grab_focus()
+	panel.viewport._drawing = true
+	await mode_key(KEY_3)
+	check(panel._mode.selected == 1, "An active stroke blocks mode shortcuts")
+	panel.viewport._drawing = false
+	await mode_key(KEY_3)
+	check(panel._mode.selected == 2, "Switching resumes after the stroke")
+	panel._shape_mode.button_pressed = true
+	await mode_key(KEY_1)
+	await mode_key(KEY_3)
+	check(panel._mode.selected == 0, "Shape editing ignores Select")
+	await mode_key(KEY_2)
+	check(panel._mode.selected == 1, "Shape editing supports Erase")
+	await mode_key(KEY_1)
+	check(panel._mode.selected == 0, "Shape editing supports Paint")
+	panel._shape_mode.button_pressed = false
+	panel.hide()
+	await mode_key(KEY_2)
+	check(panel._mode.selected == 0, "Hidden panel ignores mode shortcuts")
+	panel.show()
+	EditorInterface.get_inspector().grab_focus()
+	await mode_key(KEY_2)
+	check(panel._mode.selected == 0, "Focus outside the panel ignores mode shortcuts")
+	panel.viewport.grab_focus()

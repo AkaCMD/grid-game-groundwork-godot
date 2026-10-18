@@ -175,6 +175,9 @@ func select_entity(id: StringName) -> void:
 			visual.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			_selected.add_child(visual)
 
+func is_drawing() -> bool:
+	return _drawing
+
 func _input_on_view(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
