@@ -56,8 +56,9 @@ Open [examples/quack.tscn](examples/quack.tscn) and press **F6** to play, or ope
 | --- | --- | --- |
 | Level editor | **1 / 2 / 3** (number row or keypad) | Paint / Erase / Select |
 | Level editor | Left click / drag | Paint or erase with the active tool; in Select, click an entity to inspect it |
+| Select | **Shift+click** | Toggle an entity in the selection; plain click replaces it, plain empty click clears it |
 | Select | Left-drag an **X/Y/Z arrow** or **XY/XZ/YZ square** | Move along an axis or within a plane, snapped to whole cells |
-| Select, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
+| Select, one entity, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
 | Active move | **Esc** | Cancel the whole drag, including any End snap |
 | Level editor | Right click | Pick an entity's definition, rotation, and mirroring for the brush |
 | Editor workspace | **Page Up / Page Down** | Raise/lower the placement plane by one cell without moving the camera |
@@ -79,9 +80,11 @@ Open [examples/quack.tscn](examples/quack.tscn) and press **F6** to play, or ope
 | Godot editor | **F6** (macOS: **Cmd+R**) | Run the current scene |
 | Godot editor | **F8** (macOS: **Cmd+.**) | Stop the running project/scene |
 
+In **Select**, hold **Shift** and click to add or remove entities. Shift-clicking empty space keeps the selection; an ordinary click selects just that entity, or clears the selection on empty space. All selected entities are highlighted, with the movement gizmo on the last selected entity. Dragging moves the whole group with preserved spacing; an invalid destination marks the group red and rejects the entire move. **Duplicate selected** copies the group one cell right and lifts all copies together to the first free position, then selects the copies. **Delete selected** removes the group. Each group operation is one undo action. Selection itself is not undoable; undoing deletion restores entities without selecting them. Multiple selection disables individual position, rotation, mirror, overrides and **End** snap. Opening another level or entering shape editing clears selection.
+
 With the editor viewport focused, **WASD** flies along the current view and **Q/E** descends/ascends along world Y, without holding a mouse button. Right-click still picks brush settings; drag the right button to look around, or hold it and scroll to change flight speed (default 8 cells/s). Cameras can pass through entities and below the board. Flight and pan carry the placement plane vertically with the camera, snapping Height to whole cells; rotation and zoom preserve it. **Page Up / Page Down** adjusts placement height independently by one cell. Release a movement key to stop; **Esc**, focus loss, dialogs, and leaving the workspace stop navigation. Finish painting or dragging an entity before navigating; brush previews stay hidden during navigation.
 
-**1/2/3** and **End** require focus in Grid Levels and no modifier keys; they are ignored in text, coordinate, and Inspector property fields or modal dialogs. Tool switching waits until the current mouse stroke/drag ends. **End** works only in Select. Click the board before using viewport shortcuts. In play, click the game window for keyboard focus. Godot's run/stop keys use its [default editor keymap](https://docs.godotengine.org/en/4.6/tutorials/editor/default_key_mapping.html) and can be customized.
+**1/2/3** and **End** require focus in Grid Levels and no modifier keys; they are ignored in text, coordinate, and Inspector property fields or modal dialogs. Tool switching waits until the current mouse stroke/drag ends. **End** works only in Select with one entity selected. Click the board before using viewport shortcuts. In play, click the game window for keyboard focus. Godot's run/stop keys use its [default editor keymap](https://docs.godotengine.org/en/4.6/tutorials/editor/default_key_mapping.html) and can be customized.
 
 ## Use in your project
 

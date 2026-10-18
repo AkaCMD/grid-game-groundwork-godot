@@ -7,6 +7,9 @@ func _init() -> void:
 	_test_shapes_and_transforms()
 	_test_save_and_overrides()
 	_test_validation()
+	_test_group_delete()
+	_test_group_duplicate()
+	_test_group_move()
 	_test_move_preview()
 	_test_snap_to_ground()
 	_test_discard_and_unsaved_playtest()
@@ -231,3 +234,63 @@ func _test_external_rule_save() -> void:
 	check(editor.save("user://rule_level.tres") == OK, "Save persists external game-rule edits")
 	loaded = ResourceLoader.load("user://rule_level.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
 	check(not loaded.game_rule.push_rule is GGStrengthPushRule, "Fresh reload uses the newly selected push policy")
+
+func _test_group_move() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	editor.paint(crate, Vector3i.ZERO, 1, true, {"weight": 7.0})
+	editor.paint(crate, Vector3i.RIGHT)
+	editor.paint(crate, Vector3i(3, 0, 0))
+	var first = editor.level.entities[0].entity_id
+	var second = editor.level.entities[1].entity_id
+	var ids: Array[StringName] = [first, second]
+	editor.dirty = false
+	check(editor.translation_error(ids, Vector3i.RIGHT).is_empty(), "Group preview allows cells vacated by selected entities")
+	check(editor.find_entity(first).cell == Vector3i.ZERO and editor.find_entity(second).cell == Vector3i.RIGHT and not editor.dirty, "Group preview leaves authored data untouched")
+	check(not editor.translate_entities(ids, Vector3i(2, 0, 0)), "One blocked member rejects the entire group move")
+	check(editor.find_entity(first).cell == Vector3i.ZERO and editor.find_entity(second).cell == Vector3i.RIGHT, "Rejected group move restores every member")
+	check(editor.translate_entities(ids, Vector3i.RIGHT), "Group moves simultaneously into vacated cells")
+	check(editor.find_entity(first).cell == Vector3i.RIGHT and editor.find_entity(second).cell == Vector3i(2, 0, 0), "Group move preserves relative positions")
+	check(editor.undo() and editor.find_entity(first).cell == Vector3i.ZERO and editor.find_entity(second).cell == Vector3i.RIGHT, "One undo restores the entire group")
+	check(editor.redo() and editor.find_entity(second).cell == Vector3i(2, 0, 0), "One redo reapplies the entire group")
+	var moved = editor.find_entity(first)
+	check(moved.quarter_turns == 1 and moved.mirrored and moved.overrides.weight == 7.0, "Group move preserves orientation and overrides")
+	check(not editor.translate_entities([first, &"missing"], Vector3i.UP) and moved.cell == Vector3i.RIGHT, "Stale group members fail atomically")
+
+func _test_group_duplicate() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	crate.shape.assign([Vector3i.ZERO, Vector3i(0, -2, 0)])
+	editor.paint(crate, Vector3i(0, 2, 0), 1, true, {"weight": 7.0})
+	editor.paint(crate, Vector3i(1, 2, 0))
+	var first = editor.level.entities[0].entity_id
+	var second = editor.level.entities[1].entity_id
+	var copies = editor.duplicate_entities([first, second])
+	check(copies.size() == 2 and editor.level.entities.size() == 4, "Duplicate creates every selected entity")
+	if copies.size() != 2: return
+	var copied = editor.find_entity(copies[0])
+	check(copied.cell == Vector3i(1, 3, 0) and editor.find_entity(copies[1]).cell == Vector3i(2, 3, 0), "Duplicate lifts the whole group to the first free position, preserving spacing and downward shapes")
+	check(copied.definition == crate and copied.quarter_turns == 1 and copied.mirrored and copied.overrides.weight == 7.0, "Duplicate preserves shared definition, orientation and explicit overrides")
+	copied.overrides.weight = 9.0
+	check(editor.find_entity(first).overrides.weight == 7.0, "Duplicate owns an independent override dictionary")
+	check(copies[0] != first and copies[1] != second and copies[0] != copies[1], "Every duplicate receives a fresh unique ID")
+	check(editor.undo() and editor.level.entities.size() == 2, "One undo removes all copies")
+	check(editor.redo() and editor.find_entity(copies[1]) != null, "Redo restores all copies and their IDs")
+	check(editor.duplicate_entities([first, &"missing"]).is_empty() and editor.level.entities.size() == 4, "Duplicate rejects stale selections without partial copies")
+	editor.level.schema_version = 2
+	check(editor.duplicate_entities([first, second]).is_empty() and editor.level.entities.size() == 4, "Invalid level rejects duplicate atomically")
+
+func _test_group_delete() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	editor.paint(crate, Vector3i.ZERO)
+	editor.paint(crate, Vector3i.RIGHT)
+	editor.paint(editor.level.palette[4], Vector3i.ZERO)
+	var first = editor.level.entities[0].entity_id
+	var second = editor.level.entities[1].entity_id
+	check(not editor.erase_entities([first, &"missing"]) and editor.level.entities.size() == 3, "Stale selection cannot cause partial deletion")
+	check(editor.erase_entities([first, second, first]) and editor.level.entities.size() == 1, "Group delete removes each selected entity once, retaining unselected non-solid entities")
+	check(editor.undo() and editor.level.entities.size() == 3 and editor.find_entity(first) != null and editor.find_entity(second) != null, "One undo restores the whole deleted group")
+	check(editor.redo() and editor.level.entities.size() == 1, "One redo deletes the whole group")
+	check(not editor.erase_entities([]), "Empty deletion does not create an edit")
+	check(editor.undo() and editor.level.entities.size() == 3, "Failed empty deletion does not consume an undo action")

@@ -57,6 +57,7 @@ func run() -> void:
 	await check_camera_navigation(panel)
 	await check_paint_height_navigation(panel)
 	await check_move_gizmo(panel)
+	await check_multi_selection(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
 	panel._paint_or_pick(Vector3i.RIGHT, &"", MOUSE_BUTTON_LEFT)
@@ -705,6 +706,9 @@ func check_quack(panel: GGEditorPanel) -> void:
 	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK, "Editor selection uses the shared black duck background")
 	panel._select(&"duck_c")
 	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.WHITE, "Editor deselection restores white background")
+	panel._select(&"duck_b", true)
+	check(duck.get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK and board.roots[&"duck_c"].get_child(0).get_child(0).material_override.get_shader_parameter("background_color") == Color.BLACK, "Custom visuals highlight every selected entity")
+
 	check(panel._save_to("res://quack_editor_smoke.tres"), "QUACK saves through Grid Levels")
 	panel._new_level()
 	panel.request_open(load("res://quack_editor_smoke.tres"))
@@ -714,3 +718,94 @@ func check_quack(panel: GGEditorPanel) -> void:
 	check(EditorInterface.is_playing_scene(), "QUACK launches through editor playtest")
 	EditorInterface.stop_playing_scene()
 	check(not panel.authoring.level.entities[panel.authoring.level.entities.size() - 1].overrides.has("fed"), "QUACK playtest does not write runtime state into authoring")
+
+func selection_click(view: GGEditorViewport, cell: Vector3i, shift: bool = false) -> void:
+	var event = InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	event.shift_pressed = shift
+	event.position = view.camera.unproject_position(Vector3(cell))
+	view.gui_input.emit(event)
+	event.pressed = false
+	view.gui_input.emit(event)
+
+func check_multi_selection(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	for index in range(3):
+		var entity = GGEntityPlacement.new()
+		entity.entity_id = StringName("member_%d" % index)
+		entity.definition = fixture.palette[3]
+		entity.cell = Vector3i(index * 3, 2, 0)
+		fixture.entities.append(entity)
+	panel._open(fixture)
+	panel._set_mode(2)
+	var view = panel.viewport
+	view._yaw = 0.65
+	view._pitch = 0.8
+	view.frame_level()
+	await get_tree().process_frame
+	selection_click(view, fixture.entities[0].cell)
+	selection_click(view, fixture.entities[1].cell, true)
+	check(panel.get("_selection") == [&"member_0", &"member_1"], "Shift-click adds an entity to the selection")
+	check(view._move_gizmo.position == Vector3(3, 2, 0), "Gizmo follows the last selected entity")
+	selection_click(view, fixture.entities[1].cell, true)
+	check(panel.get("_selection") == [&"member_0"], "Shift-click removes a selected entity")
+	check(view._move_gizmo.position == Vector3(0, 2, 0), "Removing the active entity restores the preceding selection anchor")
+	selection_click(view, Vector3i(-3, 2, 0), true)
+	check(panel.get("_selection") == [&"member_0"], "Shift-click on empty space preserves selection")
+	selection_click(view, fixture.entities[2].cell)
+	check(panel.get("_selection") == [&"member_2"], "Plain click replaces selection")
+	selection_click(view, Vector3i(-3, 2, 0))
+	check(panel.get("_selection") == [], "Plain click on empty space clears selection")
+	selection_click(view, fixture.entities[0].cell)
+	selection_click(view, fixture.entities[1].cell, true)
+	check(view._selected.get_child_count() == 2, "Every selected entity has a highlight")
+	check(panel._entity_label.text == "2 entities selected" and not panel._coords[0].editable and not panel._entity_turns.editable and panel._entity_mirror.disabled, "Multi-selection shows count and disables single-entity fields")
+	check(panel._apply_button.disabled and panel._reset_button.disabled and panel._inspector.get_edited_object() == null, "Multi-selection disables overrides and Apply")
+	await mode_key(KEY_END)
+	check(fixture.entities[0].cell == Vector3i(0, 2, 0) and fixture.entities[1].cell == Vector3i(3, 2, 0), "End does not snap one member of a multi-selection")
+	var grabbed = gizmo_press(panel, 0)
+	gizmo_motion(panel, grabbed + Vector3.RIGHT)
+	check(view.board.roots[&"member_0"].position == Vector3(1, 2, 0) and view.board.roots[&"member_1"].position == Vector3(4, 2, 0), "Whole group follows the move preview with preserved spacing")
+	check(fixture.entities[0].cell == Vector3i(0, 2, 0), "Group preview does not modify authored coordinates")
+	gizmo_release(panel, grabbed + Vector3.RIGHT)
+	check(fixture.entities[0].cell == Vector3i(1, 2, 0) and fixture.entities[1].cell == Vector3i(4, 2, 0), "Release commits every selected entity")
+	check(panel.authoring.undo() and fixture.entities[0].cell == Vector3i(0, 2, 0) and fixture.entities[1].cell == Vector3i(3, 2, 0), "Editor group drag is one undo action")
+	grabbed = gizmo_press(panel, 0)
+	gizmo_motion(panel, grabbed + Vector3(3, 0, 0))
+	check(not view._move_valid, "One blocked member invalidates the group preview")
+	for highlight in view._selected.get_children():
+		check(highlight.material_override.albedo_color.r > 0.9, "Every selected highlight becomes red on collision")
+	gizmo_release(panel, grabbed + Vector3(3, 0, 0))
+	check(fixture.entities[0].cell == Vector3i(0, 2, 0) and fixture.entities[1].cell == Vector3i(3, 2, 0), "Invalid release restores the entire group")
+	grabbed = gizmo_press(panel, 0)
+	gizmo_motion(panel, grabbed + Vector3.RIGHT)
+	await mode_key(KEY_ESCAPE)
+	check(view.board.roots[&"member_0"].position == Vector3(0, 2, 0) and view.board.roots[&"member_1"].position == Vector3(3, 2, 0), "Esc restores every member's visual position")
+	panel._duplicate()
+	check(fixture.entities.size() == 5 and panel._selection.size() == 2 and not panel._selection.has(&"member_0") and not panel._selection.has(&"member_1"), "Duplicate selects the new group")
+	var copies = panel._selection.duplicate()
+	panel._delete_selected()
+	check(fixture.entities.size() == 3 and panel._selection.is_empty(), "Delete removes the entire group and clears selection")
+	check(panel.authoring.undo() and fixture.entities.size() == 5 and panel._selection.is_empty(), "Undo restores deleted entities without changing selection")
+	check(panel.authoring.undo() and fixture.entities.size() == 3, "A second undo removes the duplicate group")
+	check(panel.authoring.redo() and panel.authoring.find_entity(copies[0]) != null, "Redo restores copies with stable IDs")
+	selection_click(view, fixture.entities[0].cell)
+	check(panel._coords[0].editable and not panel._apply_button.disabled and panel._inspector.get_edited_object() != null, "Returning to one selection restores single-entity editing")
+	panel._shape_mode.button_pressed = true
+	check(panel._selection.is_empty() and not view._move_gizmo.visible, "Entering shape editing clears selection")
+	panel._shape_mode.button_pressed = false
+	view._pitch = 0.0
+	view._pivot = Vector3(3, 2, 0)
+	view._camera_position()
+	await get_tree().process_frame
+	selection_click(view, fixture.entities[0].cell, true)
+	selection_click(view, fixture.entities[1].cell, true)
+	check(panel._selection == [&"member_0", &"member_1"], "Visible entities can be selected when the view ray cannot reach the placement plane")
+	panel._open(previous)
+	check(panel._selection.is_empty(), "Opening another level clears selection")
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)

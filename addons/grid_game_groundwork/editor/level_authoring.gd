@@ -231,6 +231,85 @@ func position_error(id: StringName, cell: Vector3i) -> String:
 	entity.cell = original
 	return "\n".join(errors)
 
+func _selected_entities(ids: Array[StringName]) -> Array[GGEntityPlacement]:
+	var result: Array[GGEntityPlacement] = []
+	for id in ids:
+		var entity = find_entity(id)
+		if not entity:
+			last_error = "Selected entity no longer exists: %s" % id
+			return []
+		if not result.has(entity): result.append(entity)
+	last_error = "" if not result.is_empty() else "Select an entity first."
+	return result
+
+func erase_entities(ids: Array[StringName]) -> bool:
+	var entities = _selected_entities(ids)
+	if entities.is_empty(): return false
+	end_stroke()
+	_record()
+	for entity in entities: level.entities.erase(entity)
+	_notify()
+	return true
+
+func translation_error(ids: Array[StringName], offset: Vector3i) -> String:
+	var entities = _selected_entities(ids)
+	if entities.is_empty(): return last_error
+	# Validate every destination simultaneously, excluding all vacated cells.
+	for entity in entities: entity.cell += offset
+	var errors = level.validate()
+	for entity in entities: entity.cell -= offset
+	return "\n".join(errors)
+
+func translate_entities(ids: Array[StringName], offset: Vector3i) -> bool:
+	last_error = translation_error(ids, offset)
+	if not last_error.is_empty() or offset == Vector3i.ZERO: return false
+	end_stroke()
+	_record()
+	for entity in _selected_entities(ids): entity.cell += offset
+	_notify()
+	return true
+
+func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
+	var sources = _selected_entities(ids)
+	if sources.is_empty(): return []
+	last_error = "\n".join(level.validate())
+	if not last_error.is_empty(): return []
+	var copies: Array[GGEntityPlacement] = []
+	var columns = {}
+	for entity in level.entities:
+		if not entity.resolved_properties().get("solid", true): continue
+		for cell in entity.occupied_cells():
+			var column = Vector2i(cell.x, cell.z)
+			if not columns.has(column): columns[column] = []
+			columns[column].append(cell.y)
+	# Each same-column solid cell pair forbids exactly one lift. Search this
+	# finite set rather than walking all the empty space below tall entities.
+	var blocked_lifts = {}
+	for source in sources:
+		var copied = source.copy()
+		copied.cell += Vector3i.RIGHT
+		copies.append(copied)
+		if not copied.resolved_properties().get("solid", true): continue
+		for cell in copied.occupied_cells():
+			for height in columns.get(Vector2i(cell.x, cell.z), []):
+				if height >= cell.y: blocked_lifts[height - cell.y] = true
+	var lift = 0
+	while blocked_lifts.has(lift): lift += 1
+	var result: Array[StringName] = []
+	for copied in copies:
+		copied.cell += Vector3i.UP * lift
+		copied.entity_id = _next_id(copied.definition.definition_id)
+		result.append(copied.entity_id)
+		level.entities.append(copied)
+	last_error = "\n".join(level.validate())
+	for copied in copies: level.entities.erase(copied)
+	if not last_error.is_empty(): return []
+	end_stroke()
+	_record()
+	level.entities.append_array(copies)
+	_notify()
+	return result
+
 func ground_position(id: StringName, cell: Vector3i) -> Variant:
 	last_error = position_error(id, cell)
 	if not last_error.is_empty():

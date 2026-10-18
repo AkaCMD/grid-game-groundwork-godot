@@ -13,6 +13,9 @@ var _turns: SpinBox
 var _mirror: CheckBox
 var _shape_mode: CheckButton
 var _selected: StringName
+var _selection: Array[StringName] = []
+var _apply_button: Button
+var _reset_button: Button
 var _definition: GGEntityDefinition
 var _coords: Array[SpinBox] = []
 var _entity_turns: SpinBox
@@ -90,7 +93,8 @@ func _ready() -> void:
 	)
 	_shape_mode = CheckButton.new()
 	_shape_mode.text = "Edit occupied cells"
-	_shape_mode.toggled.connect(func(_value):
+	_shape_mode.toggled.connect(func(value):
+		if value: _select(&"")
 		_refresh_view()
 		viewport.frame_level()
 	)
@@ -110,7 +114,7 @@ func _ready() -> void:
 	center_right.add_child(center)
 	viewport = GGEditorViewport.new()
 	center.add_child(viewport)
-	viewport.pressed.connect(_paint_or_pick)
+	viewport.pressed.connect(func(cell, id, button, shift): _paint_or_pick(cell, id, button, false, shift))
 	viewport.dragged.connect(func(cell, id): _paint_or_pick(cell, id, MOUSE_BUTTON_LEFT, true))
 	viewport.stroke_started.connect(authoring.begin_stroke)
 	viewport.stroke_ended.connect(authoring.end_stroke)
@@ -118,7 +122,7 @@ func _ready() -> void:
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -158,13 +162,13 @@ func _ready() -> void:
 	_inspector.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(_inspector)
 	_inspector.edit(_overrides)
-	_button(right, "Apply entity changes", _apply_entity)
-	_button(right, "Reset all overrides", func():
+	_apply_button = _button(right, "Apply entity changes", _apply_entity)
+	_reset_button = _button(right, "Reset all overrides", func():
 		_overrides = GGPropertyOverrides.new()
 		_inspector.edit(_overrides)
 	)
 	_button(right, "Duplicate selected", _duplicate)
-	_button(right, "Delete selected", func(): authoring.erase(_selected))
+	_button(right, "Delete selected", _delete_selected)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_status.clip_text = true
@@ -236,6 +240,8 @@ func request_open(level: GGLevel) -> void:
 	_guard(func(): _open(level))
 
 func _open(level: GGLevel) -> void:
+	viewport.cancel_move()
+	_selection.clear()
 	_selected = &""
 	_definition = null
 	_shape_mode.set_pressed_no_signal(false)
@@ -268,10 +274,10 @@ func _refresh() -> void:
 			_palette.select(_palette.item_count - 1)
 		if not definition.changed.is_connected(_definition_changed):
 			definition.changed.connect(_definition_changed)
+	_selection = _selection.filter(func(id): return authoring.find_entity(id) != null)
+	_selected = _selection.back() if not _selection.is_empty() else &""
 	_refresh_view()
-	if _selected != &"" and not authoring.find_entity(_selected):
-		_selected = &""
-	_sync_coordinates()
+	_update_selection()
 	_updating = false
 
 func _inspector_property_edited(_property: String) -> void:
@@ -304,7 +310,8 @@ func _refresh_view() -> void:
 		viewport.show_level(preview)
 	else:
 		viewport.show_level(authoring.level)
-	viewport.select_entity(&"" if _shape_mode.button_pressed else _selected)
+	if _shape_mode.button_pressed: viewport.select_entity(&"")
+	else: viewport.select_entities(_selection)
 	viewport.set_move_enabled(_mode.selected == 2 and not _shape_mode.button_pressed)
 
 func _choose_definition(index: int) -> void:
@@ -313,7 +320,7 @@ func _choose_definition(index: int) -> void:
 		_palette.select(index)
 		_refresh_view()
 
-func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = false) -> void:
+func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = false, shift: bool = false) -> void:
 	if _shape_mode.button_pressed:
 		if _definition:
 			var remove = _mode.selected == 1
@@ -334,7 +341,7 @@ func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = fa
 		1:
 			if id != &"": authoring.erase(id)
 		2:
-			if not drag: _select(id)
+			if not drag: _select(id, shift)
 
 func _paint_height_changed(value: int) -> void:
 	_height.set_value_no_signal(value)
@@ -355,13 +362,31 @@ func _hover(cell: Vector3i) -> void:
 		viewport.show_ghost(_definition, target, int(_turns.value), _mirror.button_pressed)
 		_set_status("Brush: %s   •   Place at %s   •   %d entities" % [_definition.display_name, target, authoring.level.entities.size()])
 
-func _select(id: StringName) -> void:
-	_selected = id
-	var entity = authoring.find_entity(id)
-	viewport.select_entity(id)
-	if not entity:
-		_entity_label.text = "Use Select, then click an entity."
+func _select(id: StringName, toggle: bool = false) -> void:
+	viewport.cancel_move()
+	if toggle:
+		if id != &"":
+			if _selection.has(id): _selection.erase(id)
+			elif authoring.find_entity(id): _selection.append(id)
+	else:
+		_selection.clear()
+		if authoring.find_entity(id): _selection.append(id)
+	_selected = _selection.back() if not _selection.is_empty() else &""
+	viewport.select_entities(_selection)
+	_update_selection()
+
+func _update_selection() -> void:
+	var single = _selection.size() == 1
+	for coord in _coords: coord.editable = single
+	_entity_turns.editable = single
+	_entity_mirror.disabled = not single
+	_apply_button.disabled = not single
+	_reset_button.disabled = not single
+	_inspector.edit(null)
+	if not single:
+		_entity_label.text = "%d entities selected" % _selection.size() if not _selection.is_empty() else "Use Select, then click an entity."
 		return
+	var entity = authoring.find_entity(_selected)
 	_entity_label.text = "%s · %s" % [entity.definition.display_name, entity.entity_id]
 	for axis in range(3): _coords[axis].value = entity.cell[axis]
 	_entity_turns.value = entity.quarter_turns
@@ -378,7 +403,9 @@ func _sync_coordinates() -> void:
 		_entity_label.text = "Use Select, then click an entity."
 
 func _preview_entity_move(id: StringName, cell: Vector3i) -> void:
-	var error = authoring.position_error(id, cell)
+	var entity = authoring.find_entity(id)
+	if not entity: return
+	var error = authoring.translation_error(_selection, cell - entity.cell)
 	viewport.preview_move(cell, error.is_empty())
 	for axis in range(3): _coords[axis].set_value_no_signal(cell[axis])
 	_set_status("Move to %s · 1-cell snap · Esc to cancel" % cell if error.is_empty() else "Invalid destination: %s\nRelease to restore the original position." % error)
@@ -387,8 +414,8 @@ func _finish_entity_move(id: StringName, cell: Vector3i, commit: bool) -> void:
 	var entity = authoring.find_entity(id)
 	if commit and entity:
 		# Preview never changes the authored resource. Commit exactly once,
-		# preserving the entity's saved orientation and overrides.
-		if authoring.edit_entity(id, cell, entity.quarter_turns, entity.mirrored, entity.overrides):
+		# preserving every selected entity's saved orientation and overrides.
+		if authoring.translate_entities(_selection, cell - entity.cell):
 			_set_status("Moved to %s." % cell)
 		else:
 			_set_status(authoring.last_error)
@@ -397,6 +424,9 @@ func _finish_entity_move(id: StringName, cell: Vector3i, commit: bool) -> void:
 	_sync_coordinates()
 
 func _snap_selected_to_ground() -> void:
+	if _selection.size() > 1:
+		_set_status("Snap down is available only for a single selected entity.")
+		return
 	var entity = authoring.find_entity(_selected)
 	if not entity:
 		_set_status("Select an entity first.")
@@ -421,6 +451,7 @@ func _snap_selected_to_ground() -> void:
 		_set_status(authoring.last_error)
 
 func _apply_entity() -> void:
+	if _selection.size() != 1: return
 	var cell = Vector3i(int(_coords[0].value), int(_coords[1].value), int(_coords[2].value))
 	if not authoring.edit_entity(_selected, cell, int(_entity_turns.value), _entity_mirror.button_pressed, _overrides.overrides):
 		_set_status(authoring.last_error if not authoring.last_error.is_empty() else "Select an entity first.")
@@ -428,9 +459,21 @@ func _apply_entity() -> void:
 		_set_status("Entity updated. Omitted overrides inherit their definition's defaults.")
 
 func _duplicate() -> void:
-	var entity = authoring.find_entity(_selected)
-	if entity:
-		authoring.paint(entity.definition, entity.cell + Vector3i.RIGHT, entity.quarter_turns, entity.mirrored, entity.overrides)
+	viewport.cancel_move()
+	var copies = authoring.duplicate_entities(_selection)
+	if copies.is_empty():
+		_set_status(authoring.last_error)
+		return
+	_selection.assign(copies)
+	_selected = _selection.back()
+	viewport.select_entities(_selection)
+	_update_selection()
+	_set_status("Duplicated %d entities." % copies.size())
+
+func _delete_selected() -> void:
+	viewport.cancel_move()
+	if authoring.erase_entities(_selection): _select(&"")
+	else: _set_status(authoring.last_error)
 
 func _fill_floor() -> void:
 	if not _definition or _definition.shape.size() != 1 or not _definition.defaults().get("ground", false):

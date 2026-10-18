@@ -2,7 +2,7 @@
 class_name GGEditorViewport
 extends SubViewportContainer
 
-signal pressed(cell: Vector3i, entity_id: StringName, button: int)
+signal pressed(cell: Vector3i, entity_id: StringName, button: int, shift: bool)
 signal dragged(cell: Vector3i, entity_id: StringName)
 signal stroke_started
 signal stroke_ended
@@ -28,6 +28,7 @@ var _drawing = false
 var _move_gizmo: GGMoveGizmo
 var _selection_id: StringName
 var _selection_cell: Vector3i
+var _selection_origins: Dictionary = {}
 var _move_enabled = false
 var _move_target: Vector3i
 var _move_valid = true
@@ -202,33 +203,39 @@ func hide_ghost() -> void:
 		_ghost.visible = false
 
 func select_entity(id: StringName) -> void:
-	board.set_selected(id)
+	var ids: Array[StringName] = []
+	if id != &"": ids.append(id)
+	select_entities(ids)
+
+func select_entities(ids: Array[StringName]) -> void:
 	cancel_move()
-	_selection_id = id
+	board.set_selected_entities(ids)
+	_selection_origins.clear()
+	_selection_id = ids.back() if not ids.is_empty() else &""
 	_move_gizmo.hide()
 	if _selected:
 		_selected.free()
 		_selected = null
-	if not level:
-		return
+	if not level or ids.is_empty(): return
 	for entity in level.entities:
-		if entity.entity_id != id:
-			continue
-		_selected = Node3D.new()
-		world.add_child(_selected)
-		_selection_cell = entity.cell
-		_selected.position = Vector3(entity.cell)
+		if entity.entity_id == _selection_id: _selection_cell = entity.cell
+	_selected = Node3D.new()
+	world.add_child(_selected)
+	_selected.position = Vector3(_selection_cell)
+	for entity in level.entities:
+		if not ids.has(entity.entity_id): continue
+		_selection_origins[entity.entity_id] = entity.cell
 		for cell in entity.occupied_cells():
 			var box = BoxMesh.new()
 			box.size = Vector3.ONE * 1.02
-			var visual = GGBoardView.mesh_node(box, Color(0.4, 0.9, 1.0, 0.22), Vector3(cell - entity.cell))
+			var visual = GGBoardView.mesh_node(box, Color(0.4, 0.9, 1.0, 0.22), Vector3(cell - _selection_cell))
 			visual.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			visual.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			visual.material_override.no_depth_test = true
 			_selected.add_child(visual)
-		_move_gizmo.position = Vector3(entity.cell)
-		_move_gizmo.visible = _move_enabled
-		_move_gizmo.update_view()
+	_move_gizmo.position = Vector3(_selection_cell)
+	_move_gizmo.visible = _move_enabled
+	_move_gizmo.update_view()
 
 func set_move_enabled(enabled: bool) -> void:
 	if not enabled: cancel_move()
@@ -245,8 +252,9 @@ func preview_move(cell: Vector3i, valid: bool) -> void:
 		_selected.position = Vector3(cell)
 		for visual in _selected.get_children():
 			visual.material_override.albedo_color = Color(0.4, 0.9, 1.0, 0.22) if valid else Color(1.0, 0.12, 0.12, 0.55)
-	if board.roots.has(_selection_id):
-		board.roots[_selection_id].position = Vector3(cell)
+	for id in _selection_origins:
+		if board.roots.has(id):
+			board.roots[id].position = Vector3(_selection_origins[id] + cell - _selection_cell)
 	_move_gizmo.position = Vector3(cell)
 
 func cancel_move() -> void:
@@ -310,7 +318,7 @@ func _release_right(point: Vector2) -> void:
 	if pick and not is_drawing():
 		var cell = cell_at(point)
 		# Picking an entity also works when the view ray cannot reach the edit plane.
-		pressed.emit(cell if cell != null else Vector3i.ZERO, entity_at(point), MOUSE_BUTTON_RIGHT)
+		pressed.emit(cell if cell != null else Vector3i.ZERO, entity_at(point), MOUSE_BUTTON_RIGHT, false)
 
 func _look_camera(relative: Vector2) -> void:
 	# Free look rotates in place; keep the orbit pivot compatible with middle-drag.
@@ -418,7 +426,7 @@ func _input_on_view(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT and (is_navigating() or _right_pressed):
 			accept_event()
 			return
-		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not event.shift_pressed:
 			var handle = _move_gizmo.pick(event.position)
 			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, _selection_cell):
 				grab_focus()
@@ -441,11 +449,13 @@ func _input_on_view(event: InputEvent) -> void:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
 			var cell = cell_at(event.position)
-			if cell != null:
+			# Select needs only an entity ray hit, even when looking parallel to
+			# the placement plane. Paint and Erase still require a grid cell.
+			if cell != null or _move_enabled:
 				_drawing = true
-				_last_cell = cell
+				_last_cell = cell if cell != null else Vector3i.ZERO
 				stroke_started.emit()
-				pressed.emit(cell, entity_at(event.position), event.button_index)
+				pressed.emit(_last_cell, entity_at(event.position), event.button_index, event.shift_pressed)
 			accept_event()
 	elif event is InputEventMouseMotion:
 		if _right_pressed:

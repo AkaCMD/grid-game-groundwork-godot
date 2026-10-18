@@ -7,6 +7,7 @@ var roots: Dictionary = {}
 var _definitions: Dictionary = {}
 var _selection: MeshInstance3D
 var _selected: StringName = &""
+var _selected_ids: Array[StringName] = []
 
 func select_actor(actor_id: StringName) -> void:
 	set_selected(actor_id)
@@ -20,11 +21,17 @@ func select_actor(actor_id: StringName) -> void:
 	_update_selection()
 
 func set_selected(entity_id: StringName) -> void:
-	_selected = entity_id
+	var ids: Array[StringName] = []
+	if entity_id != &"": ids.append(entity_id)
+	set_selected_entities(ids)
+
+func set_selected_entities(ids: Array[StringName]) -> void:
+	_selected_ids = ids.duplicate()
+	_selected = ids.back() if not ids.is_empty() else &""
 	for id in roots:
 		for visual in roots[id].get_children():
 			if visual.has_method("apply_entity_selection"):
-				visual.call("apply_entity_selection", id == _selected)
+				visual.call("apply_entity_selection", _selected_ids.has(id))
 
 func _process(_delta: float) -> void:
 	_update_selection()
@@ -83,7 +90,7 @@ func show_state(state: Dictionary, duration: float = 0.0) -> Tween:
 		for visual in root.get_children():
 			if visual.has_method("apply_entity_state"):
 				visual.call("apply_entity_state", entity.get("state", {}))
-	set_selected(_selected)
+	set_selected_entities(_selected_ids)
 	_update_selection()
 	return tween
 
