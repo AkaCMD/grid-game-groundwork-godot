@@ -27,6 +27,9 @@ func _get_plugin_icon() -> Texture2D:
 func _make_visible(visible: bool) -> void:
 	if is_instance_valid(panel):
 		panel.visible = visible
+		if visible:
+			# Main-screen switching can leave keyboard focus in another dock.
+			panel.viewport.grab_focus()
 
 func _handles(value: Object) -> bool:
 	return value is GGLevel

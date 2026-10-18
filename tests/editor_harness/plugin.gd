@@ -25,7 +25,7 @@ func run() -> void:
 	if not panel:
 		get_tree().quit(1)
 		return
-	EditorInterface.set_main_screen_editor("Grid Levels")
+	await check_workspace_shortcuts(panel)
 	var example: GGLevel = load("res://examples/levels/sokoban.tres")
 	var example_count = example.entities.size()
 	panel.request_open(example)
@@ -90,6 +90,17 @@ func mode_key(code: Key, modifiers: int = 0, echo: bool = false, pressed: bool =
 	event.meta_pressed = bool(modifiers & KEY_MASK_META)
 	Input.parse_input_event(event)
 	await get_tree().process_frame
+
+func check_workspace_shortcuts(panel: GGEditorPanel) -> void:
+	for screen in ["3D", "2D"]:
+		EditorInterface.set_main_screen_editor(screen)
+		EditorInterface.get_inspector().grab_focus()
+		await get_tree().process_frame
+		EditorInterface.set_main_screen_editor("Grid Levels")
+		await get_tree().process_frame
+		for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0]]:
+			await mode_key(binding[0])
+			check(panel._mode.selected == binding[1], "Entering Grid Levels enables number shortcuts without a canvas click")
 
 func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	panel.viewport.grab_focus()
