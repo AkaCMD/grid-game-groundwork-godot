@@ -6,6 +6,7 @@ signal pressed(cell: Vector3i, entity_id: StringName, button: int)
 signal dragged(cell: Vector3i, entity_id: StringName)
 signal stroke_started
 signal stroke_ended
+signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
 signal move_previewed(id: StringName, cell: Vector3i)
 signal move_finished(id: StringName, cell: Vector3i, commit: bool)
@@ -14,6 +15,7 @@ var board: GGBoardView
 var world: Node3D
 var level: GGLevel
 var layer: int = 0
+var _paint_height = 0.0
 var _grid: MeshInstance3D
 var _ghost: Node3D
 var _selected: Node3D
@@ -114,6 +116,9 @@ func frame_level() -> void:
 
 func set_layer(value: int) -> void:
 	layer = value
+	_paint_height = float(value)
+	hide_ghost()
+	layer_changed.emit(layer)
 	if not _grid:
 		return
 	var mesh = ImmediateMesh.new()
@@ -135,6 +140,14 @@ func _camera_position() -> void:
 	camera.position = _pivot + Vector3(sin(_yaw) * cos(_pitch), sin(_pitch), cos(_yaw) * cos(_pitch)) * distance
 	# Euler rotation remains well-defined when looking straight down.
 	camera.rotation = Vector3(-_pitch, _yaw, 0)
+
+func _translate_camera(offset: Vector3) -> void:
+	_pivot += offset
+	_camera_position()
+	var height = _paint_height + offset.y
+	if roundi(height) != layer:
+		set_layer(roundi(height))
+	_paint_height = height
 
 func cell_at(point: Vector2) -> Variant:
 	var hit = Plane(Vector3.UP, layer).intersects_ray(camera.project_ray_origin(point), camera.project_ray_normal(point))
@@ -274,8 +287,7 @@ func _process(delta: float) -> void:
 	direction -= camera.basis.z * (int(_navigation_keys.has(KEY_W)) - int(_navigation_keys.has(KEY_S)))
 	direction += Vector3.UP * (int(_navigation_keys.has(KEY_E)) - int(_navigation_keys.has(KEY_Q)))
 	if not direction.is_zero_approx():
-		_pivot += direction.normalized() * _fly_speed * delta
-		_camera_position()
+		_translate_camera(direction.normalized() * _fly_speed * delta)
 
 func _end_look() -> void:
 	_right_pressed = false
@@ -452,7 +464,7 @@ func _input_on_view(event: InputEvent) -> void:
 		if _move_enabled: _move_gizmo.highlight(_move_gizmo.pick(event.position))
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			if event.shift_pressed:
-				_pivot += (-camera.global_basis.x * event.relative.x + camera.global_basis.y * event.relative.y) * _zoom / maxf(1.0, size.y)
+				_translate_camera((-camera.global_basis.x * event.relative.x + camera.global_basis.y * event.relative.y) * _zoom / maxf(1.0, size.y))
 			else:
 				_yaw -= event.relative.x * 0.009
 				_pitch = clampf(_pitch + event.relative.y * 0.009, -PI / 2.0, PI / 2.0)

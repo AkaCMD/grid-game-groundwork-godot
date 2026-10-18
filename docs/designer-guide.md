@@ -12,7 +12,7 @@ Godot's **Y axis is height**; movement takes place on **XZ**. Entity cells use i
 
 Ground is explicit: empty space beneath an entity is a gap, not an invisible floor. With gravity enabled, one supported occupied cell holds an entire entity rigidly. Overhangs do not tip. Unsupported stacks fall together. A player falling beyond the fall-out height fails the attempt; other entities disappear from that attempt, and undo can restore them.
 
-**Height** sets the brush's starting Y coordinate. When a solid entity overlaps existing solids, its preview and placement rise to the first collision-free height. Its entire multi-cell shape is considered. Non-solid entities, such as goals, share cells without stacking upward.
+**Height** sets the brush's starting Y coordinate. Camera flight and Shift+middle pan carry this plane vertically with the camera, snapped to whole cells; rotation and zoom keep it unchanged. **Page Up / Page Down** raises/lowers the plane by one cell without moving the camera. Manual Height changes become the starting height for subsequent movement. When a solid entity overlaps existing solids, its preview and placement rise to the first collision-free height. Its entire multi-cell shape is considered. Non-solid entities, such as goals, share cells without stacking upward.
 
 **Fill ground** uses the selected single-cell ground definition, the current height, and a rectangle beginning at `X=0, Z=0`. Existing solid cells are skipped. One fill is one undo action.
 
@@ -73,6 +73,7 @@ Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Fram
 | Select, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
 | Active move | **Esc** | Cancel the whole drag, including any End snap |
 | Level editor | Right click | Pick an entity's definition, rotation, and mirroring for the brush |
+| Editor workspace | **Page Up / Page Down** | Raise/lower the placement plane by one cell without moving the camera |
 | Editor viewport | **WASD** / **Q / E** | Fly relative to the view / descend or ascend along world Y; no mouse button required |
 | Editor viewport | Right drag | Look around in place; release restores the cursor |
 | Editor viewport | **Right button + wheel** | Increase / decrease flight speed |

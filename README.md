@@ -60,6 +60,7 @@ Open [examples/quack.tscn](examples/quack.tscn) and press **F6** to play, or ope
 | Select, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
 | Active move | **Esc** | Cancel the whole drag, including any End snap |
 | Level editor | Right click | Pick an entity's definition, rotation, and mirroring for the brush |
+| Editor workspace | **Page Up / Page Down** | Raise/lower the placement plane by one cell without moving the camera |
 | Editor viewport | **WASD** / **Q / E** | Fly relative to the view / descend or ascend along world Y; no mouse button required |
 | Editor viewport | Right drag | Look around in place; release restores the cursor |
 | Editor viewport | **Right button + wheel** | Increase / decrease flight speed |
@@ -78,7 +79,7 @@ Open [examples/quack.tscn](examples/quack.tscn) and press **F6** to play, or ope
 | Godot editor | **F6** (macOS: **Cmd+R**) | Run the current scene |
 | Godot editor | **F8** (macOS: **Cmd+.**) | Stop the running project/scene |
 
-With the editor viewport focused, **WASD** flies along the current view and **Q/E** descends/ascends along world Y, without holding a mouse button. Right-click still picks brush settings; drag the right button to look around, or hold it and scroll to change flight speed (default 8 cells/s). Cameras can pass through entities and below the board. Release a movement key to stop; **Esc**, focus loss, dialogs, and leaving the workspace stop navigation. Finish painting or dragging an entity before navigating; brush previews stay hidden during navigation.
+With the editor viewport focused, **WASD** flies along the current view and **Q/E** descends/ascends along world Y, without holding a mouse button. Right-click still picks brush settings; drag the right button to look around, or hold it and scroll to change flight speed (default 8 cells/s). Cameras can pass through entities and below the board. Flight and pan carry the placement plane vertically with the camera, snapping Height to whole cells; rotation and zoom preserve it. **Page Up / Page Down** adjusts placement height independently by one cell. Release a movement key to stop; **Esc**, focus loss, dialogs, and leaving the workspace stop navigation. Finish painting or dragging an entity before navigating; brush previews stay hidden during navigation.
 
 **1/2/3** and **End** require focus in Grid Levels and no modifier keys; they are ignored in text, coordinate, and Inspector property fields or modal dialogs. Tool switching waits until the current mouse stroke/drag ends. **End** works only in Select. Click the board before using viewport shortcuts. In play, click the game window for keyboard focus. Godot's run/stop keys use its [default editor keymap](https://docs.godotengine.org/en/4.6/tutorials/editor/default_key_mapping.html) and can be customized.
 

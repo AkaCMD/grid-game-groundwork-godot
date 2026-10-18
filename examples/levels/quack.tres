@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GGLevel" format=3 uid="uid://84v5f6cx2ppc"]
+[gd_resource type="Resource" script_class="GGLevel" format=3 uid="uid://jtv7lsw8wnec"]
 
 [ext_resource type="Script" uid="uid://c3ebklv7aopjr" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_mtgn3"]
 [ext_resource type="Script" uid="uid://dc0bwfls8ti8r" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="2_3vlsd"]
@@ -18,7 +18,7 @@ properties = {
 "sprite": "ice"
 }
 
-[sub_resource type="Resource" id="Resource_3xorw"]
+[sub_resource type="Resource" id="Resource_mtgn3"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_0"
 definition = SubResource("Resource_ucwlb")
@@ -35,361 +35,361 @@ properties = {
 "sprite": "wall"
 }
 
-[sub_resource type="Resource" id="Resource_athir"]
+[sub_resource type="Resource" id="Resource_3vlsd"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_1"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, -1)
 
-[sub_resource type="Resource" id="Resource_keeqp"]
+[sub_resource type="Resource" id="Resource_bk7wp"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_2"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, -1, 0)
 
-[sub_resource type="Resource" id="Resource_p2qfm"]
+[sub_resource type="Resource" id="Resource_ggqc2"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_3"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, 0)
 
-[sub_resource type="Resource" id="Resource_letex"]
+[sub_resource type="Resource" id="Resource_4lhe2"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_4"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, -1, 1)
 
-[sub_resource type="Resource" id="Resource_l8b68"]
+[sub_resource type="Resource" id="Resource_3xorw"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_5"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, 1)
 
-[sub_resource type="Resource" id="Resource_a553y"]
+[sub_resource type="Resource" id="Resource_athir"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_6"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, -1, 2)
 
-[sub_resource type="Resource" id="Resource_48flc"]
+[sub_resource type="Resource" id="Resource_keeqp"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_7"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, 2)
 
-[sub_resource type="Resource" id="Resource_isf15"]
+[sub_resource type="Resource" id="Resource_p2qfm"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_8"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, -1, 3)
 
-[sub_resource type="Resource" id="Resource_yseak"]
+[sub_resource type="Resource" id="Resource_letex"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_9"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, 3)
 
-[sub_resource type="Resource" id="Resource_b66dw"]
+[sub_resource type="Resource" id="Resource_l8b68"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_10"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, -1, 4)
 
-[sub_resource type="Resource" id="Resource_10p5j"]
+[sub_resource type="Resource" id="Resource_a553y"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_11"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(-1, 0, 4)
 
-[sub_resource type="Resource" id="Resource_e0awo"]
+[sub_resource type="Resource" id="Resource_48flc"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_12"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, -1)
 
-[sub_resource type="Resource" id="Resource_04243"]
+[sub_resource type="Resource" id="Resource_isf15"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_13"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(0, 0, -1)
 
-[sub_resource type="Resource" id="Resource_pq2gh"]
+[sub_resource type="Resource" id="Resource_yseak"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_14"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, 0)
 
-[sub_resource type="Resource" id="Resource_5fc8f"]
+[sub_resource type="Resource" id="Resource_b66dw"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_15"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, 1)
 
-[sub_resource type="Resource" id="Resource_4twsx"]
+[sub_resource type="Resource" id="Resource_10p5j"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_16"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, 2)
 
-[sub_resource type="Resource" id="Resource_0f3on"]
+[sub_resource type="Resource" id="Resource_e0awo"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_17"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, 3)
 
-[sub_resource type="Resource" id="Resource_60per"]
+[sub_resource type="Resource" id="Resource_04243"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_18"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(0, -1, 4)
 
-[sub_resource type="Resource" id="Resource_qg0oy"]
+[sub_resource type="Resource" id="Resource_pq2gh"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_19"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(0, 0, 4)
 
-[sub_resource type="Resource" id="Resource_ce37e"]
+[sub_resource type="Resource" id="Resource_5fc8f"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_20"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, -1)
 
-[sub_resource type="Resource" id="Resource_v8gfj"]
+[sub_resource type="Resource" id="Resource_4twsx"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_21"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(1, 0, -1)
 
-[sub_resource type="Resource" id="Resource_o76a8"]
+[sub_resource type="Resource" id="Resource_0f3on"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_22"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, 0)
 
-[sub_resource type="Resource" id="Resource_gpmuf"]
+[sub_resource type="Resource" id="Resource_60per"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_23"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, 1)
 
-[sub_resource type="Resource" id="Resource_fnqku"]
+[sub_resource type="Resource" id="Resource_qg0oy"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_24"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, 2)
 
-[sub_resource type="Resource" id="Resource_7lqb1"]
+[sub_resource type="Resource" id="Resource_ce37e"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_25"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, 3)
 
-[sub_resource type="Resource" id="Resource_a3iem"]
+[sub_resource type="Resource" id="Resource_v8gfj"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_26"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(1, -1, 4)
 
-[sub_resource type="Resource" id="Resource_nwokx"]
+[sub_resource type="Resource" id="Resource_o76a8"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_27"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(1, 0, 4)
 
-[sub_resource type="Resource" id="Resource_37l12"]
+[sub_resource type="Resource" id="Resource_gpmuf"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_28"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, -1)
 
-[sub_resource type="Resource" id="Resource_hqcfy"]
+[sub_resource type="Resource" id="Resource_fnqku"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_29"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(2, 0, -1)
 
-[sub_resource type="Resource" id="Resource_bwx6x"]
+[sub_resource type="Resource" id="Resource_7lqb1"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_30"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, 0)
 
-[sub_resource type="Resource" id="Resource_veyl4"]
+[sub_resource type="Resource" id="Resource_a3iem"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_31"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, 1)
 
-[sub_resource type="Resource" id="Resource_hq2ig"]
+[sub_resource type="Resource" id="Resource_nwokx"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_32"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, 2)
 
-[sub_resource type="Resource" id="Resource_wc27i"]
+[sub_resource type="Resource" id="Resource_37l12"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_33"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, 3)
 
-[sub_resource type="Resource" id="Resource_0dqs8"]
+[sub_resource type="Resource" id="Resource_hqcfy"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_34"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(2, -1, 4)
 
-[sub_resource type="Resource" id="Resource_m1iqs"]
+[sub_resource type="Resource" id="Resource_bwx6x"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_35"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(2, 0, 4)
 
-[sub_resource type="Resource" id="Resource_e4ioa"]
+[sub_resource type="Resource" id="Resource_veyl4"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_36"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, -1)
 
-[sub_resource type="Resource" id="Resource_algv8"]
+[sub_resource type="Resource" id="Resource_hq2ig"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_37"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(3, 0, -1)
 
-[sub_resource type="Resource" id="Resource_pwbpx"]
+[sub_resource type="Resource" id="Resource_wc27i"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_38"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, 0)
 
-[sub_resource type="Resource" id="Resource_r8imn"]
+[sub_resource type="Resource" id="Resource_0dqs8"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_39"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, 1)
 
-[sub_resource type="Resource" id="Resource_yx0x8"]
+[sub_resource type="Resource" id="Resource_m1iqs"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_40"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, 2)
 
-[sub_resource type="Resource" id="Resource_dyi1t"]
+[sub_resource type="Resource" id="Resource_e4ioa"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_41"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, 3)
 
-[sub_resource type="Resource" id="Resource_1mwuw"]
+[sub_resource type="Resource" id="Resource_algv8"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_42"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(3, -1, 4)
 
-[sub_resource type="Resource" id="Resource_r3ud2"]
+[sub_resource type="Resource" id="Resource_pwbpx"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_43"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(3, 0, 4)
 
-[sub_resource type="Resource" id="Resource_amd7k"]
+[sub_resource type="Resource" id="Resource_r8imn"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_44"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, -1)
 
-[sub_resource type="Resource" id="Resource_54lf1"]
+[sub_resource type="Resource" id="Resource_yx0x8"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_45"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, -1)
 
-[sub_resource type="Resource" id="Resource_s43ip"]
+[sub_resource type="Resource" id="Resource_dyi1t"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_46"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, 0)
 
-[sub_resource type="Resource" id="Resource_2psxw"]
+[sub_resource type="Resource" id="Resource_1mwuw"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_47"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, 0)
 
-[sub_resource type="Resource" id="Resource_sec20"]
+[sub_resource type="Resource" id="Resource_r3ud2"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_48"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, 1)
 
-[sub_resource type="Resource" id="Resource_niy3y"]
+[sub_resource type="Resource" id="Resource_amd7k"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_49"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, 1)
 
-[sub_resource type="Resource" id="Resource_i13et"]
+[sub_resource type="Resource" id="Resource_54lf1"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_50"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, 2)
 
-[sub_resource type="Resource" id="Resource_mr8x6"]
+[sub_resource type="Resource" id="Resource_s43ip"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_51"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, 2)
 
-[sub_resource type="Resource" id="Resource_yul6g"]
+[sub_resource type="Resource" id="Resource_2psxw"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_52"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, 3)
 
-[sub_resource type="Resource" id="Resource_ka5pv"]
+[sub_resource type="Resource" id="Resource_sec20"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_53"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, 3)
 
-[sub_resource type="Resource" id="Resource_0vuqt"]
+[sub_resource type="Resource" id="Resource_niy3y"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_54"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(4, -1, 4)
 
-[sub_resource type="Resource" id="Resource_p5iru"]
+[sub_resource type="Resource" id="Resource_i13et"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_55"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(4, 0, 4)
 
-[sub_resource type="Resource" id="Resource_p25ro"]
+[sub_resource type="Resource" id="Resource_mr8x6"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_56"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(0, 0, 2)
 
-[sub_resource type="Resource" id="Resource_oegxp"]
+[sub_resource type="Resource" id="Resource_yul6g"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_57"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(2, 0, 2)
 
-[sub_resource type="Resource" id="Resource_wwy7d"]
+[sub_resource type="Resource" id="Resource_ka5pv"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_wall_58"
 definition = SubResource("Resource_supwo")
 cell = Vector3i(3, 0, 2)
 
-[sub_resource type="Resource" id="Resource_f6fxp"]
+[sub_resource type="Resource" id="Resource_0vuqt"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_59"
 definition = SubResource("Resource_ucwlb")
 cell = Vector3i(-1, 1, 1)
 
-[sub_resource type="Resource" id="Resource_8n5rg"]
+[sub_resource type="Resource" id="Resource_p5iru"]
 script = ExtResource("1_mtgn3")
 entity_id = &"ice_60"
 definition = SubResource("Resource_ucwlb")
@@ -405,19 +405,19 @@ properties = {
 "sprite": "duck"
 }
 
-[sub_resource type="Resource" id="Resource_b1v3c"]
+[sub_resource type="Resource" id="Resource_p25ro"]
 script = ExtResource("1_mtgn3")
 entity_id = &"duck_a"
 definition = SubResource("Resource_5ihm5")
 cell = Vector3i(-1, 2, 1)
 
-[sub_resource type="Resource" id="Resource_dp12a"]
+[sub_resource type="Resource" id="Resource_oegxp"]
 script = ExtResource("1_mtgn3")
 entity_id = &"duck_b"
 definition = SubResource("Resource_5ihm5")
 cell = Vector3i(0, 0, 3)
 
-[sub_resource type="Resource" id="Resource_h816d"]
+[sub_resource type="Resource" id="Resource_wwy7d"]
 script = ExtResource("1_mtgn3")
 entity_id = &"duck_c"
 definition = SubResource("Resource_5ihm5")
@@ -435,23 +435,35 @@ properties = {
 "sprite": "bread"
 }
 
-[sub_resource type="Resource" id="Resource_rajp4"]
+[sub_resource type="Resource" id="Resource_f6fxp"]
 script = ExtResource("1_mtgn3")
 entity_id = &"bread_a"
 definition = SubResource("Resource_kxmn8")
 cell = Vector3i(3, 0, 1)
 
-[sub_resource type="Resource" id="Resource_b3kre"]
+[sub_resource type="Resource" id="Resource_8n5rg"]
 script = ExtResource("1_mtgn3")
 entity_id = &"bread_b"
 definition = SubResource("Resource_kxmn8")
 cell = Vector3i(2, 0, 3)
 
-[sub_resource type="Resource" id="Resource_84u2c"]
+[sub_resource type="Resource" id="Resource_b1v3c"]
 script = ExtResource("1_mtgn3")
 entity_id = &"bread_c"
 definition = SubResource("Resource_kxmn8")
 cell = Vector3i(1, 0, 2)
+
+[sub_resource type="Resource" id="Resource_dp12a"]
+script = ExtResource("1_mtgn3")
+entity_id = &"ice_1"
+definition = SubResource("Resource_ucwlb")
+cell = Vector3i(-2, 0, 1)
+
+[sub_resource type="Resource" id="Resource_h816d"]
+script = ExtResource("1_mtgn3")
+entity_id = &"ice_3"
+definition = SubResource("Resource_ucwlb")
+cell = Vector3i(-2, 2, 1)
 
 [sub_resource type="Resource" id="Resource_bgger"]
 script = ExtResource("4_ggqc2")
@@ -461,5 +473,5 @@ script = ExtResource("5_4lhe2")
 title = "QUACK!!! on ICE — Three hungry ducks"
 void_height = -5
 palette = Array[ExtResource("2_3vlsd")]([SubResource("Resource_5ihm5"), SubResource("Resource_kxmn8"), SubResource("Resource_ucwlb"), SubResource("Resource_supwo")])
-entities = Array[ExtResource("1_mtgn3")]([SubResource("Resource_3xorw"), SubResource("Resource_athir"), SubResource("Resource_keeqp"), SubResource("Resource_p2qfm"), SubResource("Resource_letex"), SubResource("Resource_l8b68"), SubResource("Resource_a553y"), SubResource("Resource_48flc"), SubResource("Resource_isf15"), SubResource("Resource_yseak"), SubResource("Resource_b66dw"), SubResource("Resource_10p5j"), SubResource("Resource_e0awo"), SubResource("Resource_04243"), SubResource("Resource_pq2gh"), SubResource("Resource_5fc8f"), SubResource("Resource_4twsx"), SubResource("Resource_0f3on"), SubResource("Resource_60per"), SubResource("Resource_qg0oy"), SubResource("Resource_ce37e"), SubResource("Resource_v8gfj"), SubResource("Resource_o76a8"), SubResource("Resource_gpmuf"), SubResource("Resource_fnqku"), SubResource("Resource_7lqb1"), SubResource("Resource_a3iem"), SubResource("Resource_nwokx"), SubResource("Resource_37l12"), SubResource("Resource_hqcfy"), SubResource("Resource_bwx6x"), SubResource("Resource_veyl4"), SubResource("Resource_hq2ig"), SubResource("Resource_wc27i"), SubResource("Resource_0dqs8"), SubResource("Resource_m1iqs"), SubResource("Resource_e4ioa"), SubResource("Resource_algv8"), SubResource("Resource_pwbpx"), SubResource("Resource_r8imn"), SubResource("Resource_yx0x8"), SubResource("Resource_dyi1t"), SubResource("Resource_1mwuw"), SubResource("Resource_r3ud2"), SubResource("Resource_amd7k"), SubResource("Resource_54lf1"), SubResource("Resource_s43ip"), SubResource("Resource_2psxw"), SubResource("Resource_sec20"), SubResource("Resource_niy3y"), SubResource("Resource_i13et"), SubResource("Resource_mr8x6"), SubResource("Resource_yul6g"), SubResource("Resource_ka5pv"), SubResource("Resource_0vuqt"), SubResource("Resource_p5iru"), SubResource("Resource_p25ro"), SubResource("Resource_oegxp"), SubResource("Resource_wwy7d"), SubResource("Resource_f6fxp"), SubResource("Resource_8n5rg"), SubResource("Resource_b1v3c"), SubResource("Resource_dp12a"), SubResource("Resource_h816d"), SubResource("Resource_rajp4"), SubResource("Resource_b3kre"), SubResource("Resource_84u2c")])
+entities = Array[ExtResource("1_mtgn3")]([SubResource("Resource_mtgn3"), SubResource("Resource_3vlsd"), SubResource("Resource_bk7wp"), SubResource("Resource_ggqc2"), SubResource("Resource_4lhe2"), SubResource("Resource_3xorw"), SubResource("Resource_athir"), SubResource("Resource_keeqp"), SubResource("Resource_p2qfm"), SubResource("Resource_letex"), SubResource("Resource_l8b68"), SubResource("Resource_a553y"), SubResource("Resource_48flc"), SubResource("Resource_isf15"), SubResource("Resource_yseak"), SubResource("Resource_b66dw"), SubResource("Resource_10p5j"), SubResource("Resource_e0awo"), SubResource("Resource_04243"), SubResource("Resource_pq2gh"), SubResource("Resource_5fc8f"), SubResource("Resource_4twsx"), SubResource("Resource_0f3on"), SubResource("Resource_60per"), SubResource("Resource_qg0oy"), SubResource("Resource_ce37e"), SubResource("Resource_v8gfj"), SubResource("Resource_o76a8"), SubResource("Resource_gpmuf"), SubResource("Resource_fnqku"), SubResource("Resource_7lqb1"), SubResource("Resource_a3iem"), SubResource("Resource_nwokx"), SubResource("Resource_37l12"), SubResource("Resource_hqcfy"), SubResource("Resource_bwx6x"), SubResource("Resource_veyl4"), SubResource("Resource_hq2ig"), SubResource("Resource_wc27i"), SubResource("Resource_0dqs8"), SubResource("Resource_m1iqs"), SubResource("Resource_e4ioa"), SubResource("Resource_algv8"), SubResource("Resource_pwbpx"), SubResource("Resource_r8imn"), SubResource("Resource_yx0x8"), SubResource("Resource_dyi1t"), SubResource("Resource_1mwuw"), SubResource("Resource_r3ud2"), SubResource("Resource_amd7k"), SubResource("Resource_54lf1"), SubResource("Resource_s43ip"), SubResource("Resource_2psxw"), SubResource("Resource_sec20"), SubResource("Resource_niy3y"), SubResource("Resource_i13et"), SubResource("Resource_mr8x6"), SubResource("Resource_yul6g"), SubResource("Resource_ka5pv"), SubResource("Resource_0vuqt"), SubResource("Resource_p5iru"), SubResource("Resource_p25ro"), SubResource("Resource_oegxp"), SubResource("Resource_wwy7d"), SubResource("Resource_f6fxp"), SubResource("Resource_8n5rg"), SubResource("Resource_b1v3c"), SubResource("Resource_dp12a"), SubResource("Resource_h816d")])
 game_rule = SubResource("Resource_bgger")

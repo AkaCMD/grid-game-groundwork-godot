@@ -55,6 +55,7 @@ func run() -> void:
 	check(panel.authoring.level.entities.back().cell == Vector3i.UP, "Painting in the workspace stacks entities")
 	await check_mode_shortcuts(panel)
 	await check_camera_navigation(panel)
+	await check_paint_height_navigation(panel)
 	await check_move_gizmo(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
@@ -358,6 +359,80 @@ func check_camera_navigation(panel: GGEditorPanel) -> void:
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
 	panel._set_mode(0)
+	view.set_process(true)
+
+func check_paint_height_navigation(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	panel._open(fixture)
+	panel._choose_definition(0)
+	panel._height.value = 0
+	var view = panel.viewport
+	view.grab_focus()
+	view.set_process(false)
+	await mode_key(KEY_Q)
+	# Small frame steps must accumulate rather than rounding each movement away.
+	for frame in range(160): view._process(0.01)
+	await mode_key(KEY_Q, 0, false, false)
+	check(view.layer == -13, "Descending below the original plane moves the paint height with the camera")
+	check(panel._height.value == view.layer, "Height control follows the camera's paint plane")
+	var point = view.size * 0.5
+	var cell = view.cell_at(point)
+	check(cell != null and cell.y == -13, "Paint ray still reaches a lower plane after descending below the original height")
+	if cell != null:
+		var motion = InputEventMouseMotion.new()
+		motion.position = point
+		view.gui_input.emit(motion)
+		check(view._ghost != null and view._ghost.visible and view._ghost.position.y == -13, "Brush preview uses the lowered paint plane")
+		camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+		camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+		check(fixture.entities.size() == 1 and fixture.entities[0].cell == cell, "Click paints on the lowered plane")
+	var height = view.layer
+	view._look_camera(Vector2(12, 10))
+	camera_mouse(view, MOUSE_BUTTON_WHEEL_DOWN, true, point)
+	check(view.layer == height, "Free look and zoom preserve paint height")
+	panel._height.value = -5
+	view.grab_focus()
+	await mode_key(KEY_E)
+	view._process(0.25)
+	await mode_key(KEY_E, 0, false, false)
+	check(view.layer == -3 and panel._height.value == -3, "Manual height rebases subsequent camera movement")
+	var camera_origin = view.camera.position
+	await mode_key(KEY_PAGEUP)
+	check(view.layer == -2 and panel._height.value == -2, "Page Up raises the paint plane by one cell")
+	await mode_key(KEY_PAGEDOWN)
+	check(view.layer == -3, "Page Down lowers the paint plane by one cell")
+	check(view.camera.position.is_equal_approx(camera_origin), "Paint height shortcuts keep the camera in place")
+	await mode_key(KEY_PAGEUP, 0, true)
+	check(view.layer == -3, "Paint height shortcuts ignore key repeat")
+	panel._settings_title.grab_focus()
+	await mode_key(KEY_PAGEUP)
+	check(view.layer == -3, "Text fields retain Page Up without changing paint height")
+	view.grab_focus()
+	view._drawing = true
+	await mode_key(KEY_PAGEDOWN)
+	check(view.layer == -3, "An active stroke cannot change paint height")
+	view._drawing = false
+	var pan = InputEventMouseMotion.new()
+	pan.position = point
+	pan.relative = Vector2(0, 2.75 * view.size.y / (view._zoom * view.camera.global_basis.y.y))
+	pan.button_mask = MOUSE_BUTTON_MASK_MIDDLE
+	pan.shift_pressed = true
+	view.gui_input.emit(pan)
+	check(view.layer == 0 and panel._height.value == 0, "Vertical middle pan carries the paint plane and Height control")
+	await mode_key(KEY_D)
+	view._process(0.25)
+	await mode_key(KEY_D, 0, false, false)
+	check(view.layer == 0, "Horizontal camera movement preserves the paint height")
+	view.set_layer(-80)
+	check(panel._height.value == -80, "Automatic height remains synchronized beyond the old spinner limits")
+	view.set_layer(0)
+	view._yaw = 0.0
+	view._pitch = deg_to_rad(75.2)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
 	view.set_process(true)
 
 func gizmo_press(panel: GGEditorPanel, handle: int) -> Vector3:

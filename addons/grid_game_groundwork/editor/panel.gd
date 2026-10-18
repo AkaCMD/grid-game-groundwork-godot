@@ -55,6 +55,8 @@ func _ready() -> void:
 	_mode.item_selected.connect(_set_mode)
 	toolbar.add_child(_mode)
 	_height = _spin(toolbar, "Height", -64, 128, 0)
+	_height.allow_lesser = true
+	_height.allow_greater = true
 	_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
 	_turns = _spin(toolbar, "Quarter turns", 0, 3, 0)
 	_mirror = CheckBox.new()
@@ -113,9 +115,10 @@ func _ready() -> void:
 	viewport.stroke_started.connect(authoring.begin_stroke)
 	viewport.stroke_ended.connect(authoring.end_stroke)
 	viewport.hovered.connect(_hover)
+	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -333,6 +336,15 @@ func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = fa
 		2:
 			if not drag: _select(id)
 
+func _paint_height_changed(value: int) -> void:
+	_height.set_value_no_signal(value)
+	var point = viewport.get_local_mouse_position()
+	if not Rect2(Vector2.ZERO, viewport.size).has_point(point):
+		return
+	var cell = viewport.cell_at(point)
+	if cell != null:
+		_hover(cell)
+
 func _hover(cell: Vector3i) -> void:
 	_last_hover = cell
 	if not _definition or _mode.selected != 0 or _shape_mode.button_pressed:
@@ -535,7 +547,7 @@ func _input(event: InputEvent) -> void:
 		KEY_1, KEY_KP_1: index = 0
 		KEY_2, KEY_KP_2: index = 1
 		KEY_3, KEY_KP_3: index = 2
-		KEY_END: pass
+		KEY_END, KEY_PAGEUP, KEY_PAGEDOWN: pass
 		_: return
 	var focus = get_viewport().gui_get_focus_owner()
 	if not focus or not is_ancestor_of(focus):
@@ -544,6 +556,11 @@ func _input(event: InputEvent) -> void:
 		return
 	var modal = get_viewport().get_last_exclusive_window()
 	if is_instance_valid(modal) and modal != get_window() and modal.visible:
+		return
+	if key in [KEY_PAGEUP, KEY_PAGEDOWN]:
+		if not viewport.is_drawing():
+			viewport.set_layer(viewport.layer + (1 if key == KEY_PAGEUP else -1))
+			get_viewport().set_input_as_handled()
 		return
 	if key == KEY_END:
 		if _mode.selected == 2 and not _shape_mode.button_pressed and (not viewport.is_drawing() or viewport.is_moving()):
