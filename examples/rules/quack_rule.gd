@@ -20,27 +20,32 @@ func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i)
 	var limit = maxi(maximum.x - minimum.x, maximum.z - minimum.z) + 2
 	var moved = false
 	for _step in range(limit):
-		var duck: Dictionary = session.entities[actor_id]
-		var next_cells = GGGrid.cells(duck)
-		for cell in next_cells:
-			for id in GGGrid.index(session.entities).get(cell + direction, []):
-				if session.entities[id].properties.get("bread", false) and duck.state.get("fed", false):
-					return moved
+		var was_fed: bool = session.entities[actor_id].state.get("fed", false)
 		if not session.step(actor_id, direction):
 			return moved
 		moved = true
 		if session.status == &"failed" or not session.entities.has(actor_id):
 			return true
-		duck = session.entities[actor_id]
-		var occupied = GGGrid.index(session.entities)
+		if not was_fed and session.entities[actor_id].state.get("fed", false):
+			return true
+	return false
+
+func blocks_entity(session: GGSession, actor_id: StringName, obstacle_id: StringName, direction: Vector3i) -> bool:
+	if super.blocks_entity(session, actor_id, obstacle_id, direction):
+		return true
+	return session.entities[obstacle_id].properties.get("bread", false) and session.entities[actor_id].state.get("fed", false)
+
+func after_step(session: GGSession) -> void:
+	var occupied = GGGrid.index(session.entities)
+	for duck in session.entities.values():
+		if not duck.properties.get("player", false) or duck.state.get("fed", false):
+			continue
 		for cell in GGGrid.cells(duck):
 			for id in occupied.get(cell, []):
-				if session.entities[id].properties.get("bread", false) and not duck.state.get("fed", false):
+				if session.entities.has(id) and session.entities[id].properties.get("bread", false) and not duck.state.get("fed", false):
 					session.entities.erase(id)
 					duck.state["fed"] = true
 					session.stages.append(session.snapshot())
-					return true
-	return false
 
 func after_action(session: GGSession) -> void:
 	if session.status == &"failed":

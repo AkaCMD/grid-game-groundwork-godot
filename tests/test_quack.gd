@@ -54,6 +54,7 @@ func run() -> void:
 	check(not can_solve(true), "Level cannot be solved without moving a fed duck")
 	check(not can_solve(false), "Level cannot be solved without stopping against another duck")
 	test_bread_and_blockers()
+	test_falling_bread()
 	test_authoring()
 	await test_runtime()
 	print("QUACK: %d checks, %d failures" % [checks, failures])
@@ -161,3 +162,28 @@ func can_solve(freeze_fed: bool) -> bool:
 					visited[signature] = true
 					frontier.append(session.snapshot())
 	return false
+
+func test_falling_bread() -> void:
+	for fed in [false, true]:
+		var level: GGLevel = load("res://examples/levels/quack.tres").duplicate(true)
+		for placement in level.entities:
+			if placement.entity_id == &"bread_a": placement.cell = Vector3i(0, 0 if fed else 1, 1)
+		var session = GGSession.new()
+		check(session.start(level).is_empty(), "Falling bread fixture validates")
+		if fed: session.entities[&"duck_a"].state["fed"] = true
+		var before = session.snapshot()
+		check(session.move(&"duck_a", Vector3i.RIGHT), "Duck can slide toward bread during descent")
+		if fed:
+			var touched_bread = false
+			var supported_above_bread = false
+			for stage in session.stages:
+				var cell: Vector3i = stage.entities[&"duck_a"].cell
+				if cell == Vector3i(0, 0, 1): touched_bread = true
+				if cell == Vector3i(0, 1, 1): supported_above_bread = true
+			check(session.entities.has(&"bread_a") and supported_above_bread and not touched_bread, "Bread blocks a fed duck's fall without being consumed or crossed")
+		else:
+			check(not session.entities.has(&"bread_a") and session.entities[&"duck_a"].state.fed, "Hungry duck eats bread crossed during falling")
+			check(session.entities[&"duck_a"].cell == Vector3i(0, 0, 1), "Eating while falling finishes gravity but stops horizontal sliding")
+		var after = session.snapshot()
+		check(session.undo() and session.snapshot() == before, "Undo restores all consequences of falling into bread")
+		check(session.redo() and session.snapshot() == after, "Redo restores falling bread interactions")

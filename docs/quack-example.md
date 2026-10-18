@@ -4,7 +4,7 @@ Open `examples/quack.tscn` and press F6, or open `examples/levels/quack.tres` in
 
 Click a duck to select it. Its cube background turns black; other cubes have white backgrounds. WASD/arrows always mean −Z/+Z/−X/+X, independent of camera rotation; labels around the board show those directions. Middle drag orbits, Shift+middle drag pans, wheel zooms, and F frames. Z/Y/R undo, redo and restart. Selection is not a history action, and clicks during animation are ignored so buffered moves cannot switch actors unexpectedly.
 
-Each hungry duck slides until blocked or eating one bread. Ducks block each other without pushing. Eating stops the slide immediately; fed ducks still slide, but cannot pass or eat another bread. Unsupported ducks fall, then continue in the original direction on landing. Falling out fails. All three bread consumed wins. One undo restores a whole slide, including all falls, feeding, bread removal and outcome. Restart is also undoable.
+Each hungry duck slides until blocked or eating one bread. Ducks block each other without pushing. Eating stops the slide immediately; fed ducks still slide, but cannot pass or eat another bread. Unsupported ducks fall, then continue in the original direction on landing. Bread interactions are checked after every grid displacement: eating during a fall finishes gravity but ends horizontal sliding, and bread can support a fed duck without being consumed. Falling out fails. All three bread consumed wins. One undo restores a whole slide, including all falls, feeding, bread removal and outcome. Restart is also undoable.
 
 ## Verified walkthrough
 

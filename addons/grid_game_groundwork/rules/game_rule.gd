@@ -16,3 +16,11 @@ func after_action(_session: GGSession) -> void:
 func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i) -> bool:
 	## Override to compose multiple steps into one complete action.
 	return session.step(actor_id, direction)
+
+func blocks_entity(session: GGSession, _actor_id: StringName, obstacle_id: StringName, _direction: Vector3i) -> bool:
+	## Used for both horizontal collision and support during gravity.
+	return session.entities[obstacle_id].properties.get("solid", true)
+
+func after_step(_session: GGSession) -> void:
+	## Interaction phase after each grid displacement, including falling.
+	pass

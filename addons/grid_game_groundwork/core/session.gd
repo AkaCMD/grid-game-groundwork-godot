@@ -35,6 +35,7 @@ func start(level: GGLevel) -> PackedStringArray:
 			"properties": placement.resolved_properties(), "state": {},
 		}
 	initial_entities = entities.duplicate(true)
+	_rule.after_step(self)
 	_settle()
 	_rule.after_action(self)
 	_initial = snapshot()
@@ -50,11 +51,11 @@ func restore(state: Dictionary) -> void:
 	status = state.status
 
 func blockers(entity_id: StringName, direction: Vector3i) -> Array:
-	var occupied = GGGrid.index(entities, true)
+	var occupied = GGGrid.index(entities)
 	var result = []
 	for cell in GGGrid.cells(entities[entity_id]):
 		for id in occupied.get(cell + direction, []):
-			if id != entity_id and not result.has(id):
+			if id != entity_id and not result.has(id) and _rule.blocks_entity(self, entity_id, id, direction):
 				result.append(id)
 	return result
 
@@ -90,6 +91,7 @@ func step(actor_id: StringName, direction: Vector3i) -> bool:
 	for id in moving:
 		entities[id].cell += direction
 	stages.append(snapshot())
+	_rule.after_step(self)
 	_settle()
 	return true
 
@@ -138,6 +140,7 @@ func _settle() -> void:
 					status = &"failed"
 				entities.erase(id)
 		stages.append(snapshot())
+		_rule.after_step(self)
 
 func _begin_action() -> void:
 	_history.append(snapshot())

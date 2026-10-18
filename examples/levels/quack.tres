@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="GGLevel" format=3]
+[gd_resource type="Resource" script_class="GGLevel" format=3 uid="uid://84v5f6cx2ppc"]
 
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_mtgn3"]
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="2_3vlsd"]
+[ext_resource type="Script" uid="uid://c3ebklv7aopjr" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_mtgn3"]
+[ext_resource type="Script" uid="uid://dc0bwfls8ti8r" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="2_3vlsd"]
 [ext_resource type="PackedScene" path="res://examples/visuals/quack.tscn" id="3_bk7wp"]
-[ext_resource type="Script" path="res://examples/rules/quack_rule.gd" id="4_ggqc2"]
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/level.gd" id="5_4lhe2"]
+[ext_resource type="Script" uid="uid://c3t5ae32iyglb" path="res://examples/rules/quack_rule.gd" id="4_ggqc2"]
+[ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="5_4lhe2"]
 
 [sub_resource type="Resource" id="Resource_ucwlb"]
 script = ExtResource("2_3vlsd")

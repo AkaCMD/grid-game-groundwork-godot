@@ -4,7 +4,7 @@
 
 `data/` holds the authored resource model: `GGLevel`, `GGEntityDefinition`, and `GGEntityPlacement`. A placement references a shared definition, a cell/orientation, and explicit property overrides.
 
-`core/` resolves the grid. `GGSession.start(level)`, `move(entity_id, direction)`, `undo()`, `redo()`, `restart()`, and `snapshot()` form the public gameplay boundary. `entities`, `mechanic_state`, and `status` describe the current session. No scene transforms or physics simulation determine movement. Horizontal commands are one cardinal XZ cell at a time.
+`core/` resolves the grid. `GGSession.start(level)`, `move(entity_id, direction)`, `undo()`, `redo()`, `restart()`, and `snapshot()` form the public gameplay boundary. `entities`, `mechanic_state`, and `status` describe the current session. No scene transforms or physics simulation determine movement. Horizontal commands supply a cardinal XZ direction; the default resolver moves one cell.
 
 `rules/` defines the game extension points. `runtime/` renders snapshots, animates intermediate turn stages, reads input, and reports outcomes. `editor/` owns authoring and playtest preparation; `GGLevelAuthoring` is its save/load and editing boundary.
 
@@ -83,3 +83,5 @@ Override `GGGameRule.resolve_move(session, actor_id, direction)` to compose move
 Resolvers must terminate, even with malformed edited layouts, and keep mutable state in session dictionaries. The QUACK example composes steps into a straight slide, stopping at a collision, food or failure. It rejects an unbounded slide atomically if an edited gravity-disabled level has no stopping obstacle within the authored board's span.
 
 Custom visuals may implement `apply_entity_selection(selected: bool)` as a presentation hook. `GGBoardView.set_selected(id)` applies it to existing visuals and reapplies it after state restoration; the editor uses the same hook. `select_actor(id)` also supplies the runtime's generic selection ring.
+
+Override `blocks_entity(session, actor_id, obstacle_id, direction)` for actor-dependent obstacles. It is queried for horizontal motion and downward support; the default blocks solid entities only. `after_step(session)` runs after each horizontal displacement and each one-cell fall, and once before initial settling. Use it for interactions that must happen before gravity continues, such as consuming bread crossed during a fall. It must leave valid occupancy, store mutable data in the session, and may append a snapshot stage when its visual changes need a distinct animation phase. It must not create history or recursively issue movement. A resolver can detect state changes from this hook to stop further horizontal steps while allowing current gravity consequences to finish.
