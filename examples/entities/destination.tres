@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_3u1sv"]
+[ext_resource type="PackedScene" path="res://examples/visuals/pipe.tscn" id="2_ajg34"]
+
+[resource]
+script = ExtResource("1_3u1sv")
+definition_id = &"destination"
+display_name = "Pipe destination"
+movable = false
+color = Color(0.9411765, 0.54509807, 0.6627451, 1)
+visual_scene = ExtResource("2_ajg34")
+properties = {
+"destination": true,
+"pipe": true,
+"ports": [Vector3i(-1, 0, 0)]
+}

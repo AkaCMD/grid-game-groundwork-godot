@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_hgvpj"]
+
+[resource]
+script = ExtResource("1_hgvpj")
+definition_id = &"wall"
+display_name = "Wall"
+movable = false
+affected_by_gravity = false
+color = Color(0.3764706, 0.44313726, 0.5254902, 1)
+properties = {}

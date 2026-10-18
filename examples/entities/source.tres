@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_vry41"]
+[ext_resource type="PackedScene" path="res://examples/visuals/pipe.tscn" id="2_q44ix"]
+
+[resource]
+script = ExtResource("1_vry41")
+definition_id = &"source"
+display_name = "Pipe source"
+movable = false
+color = Color(0.29803923, 0.9019608, 0.8745098, 1)
+visual_scene = ExtResource("2_q44ix")
+properties = {
+"pipe": true,
+"ports": [Vector3i(1, 0, 0)],
+"source": true
+}

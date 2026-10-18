@@ -1,0 +1,3 @@
+# Separate authored levels from playtest changes
+
+Authoring follows an edit, play, stop, and edit workflow: stopping a playtest restores the authored arrangement, and gameplay changes never overwrite it. Applying edits made during play back to the authored level is outside the initial scope, keeping the source of a level's starting state unambiguous. Levels will use Godot-native resources and the examples will be recreated in Godot; importing the original Unity JSON format is outside the initial scope. See [ADR 0009](0009-prioritize-native-level-authoring.md) for the storage choice and deferred sharing scope.

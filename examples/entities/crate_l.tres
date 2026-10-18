@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_nsvbs"]
+
+[resource]
+script = ExtResource("1_nsvbs")
+definition_id = &"crate_l"
+display_name = "L crate"
+shape = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, -1)])
+color = Color(0.8980392, 0.5254902, 0.33333334, 1)
+properties = {
+"crate": true,
+"pushable": true,
+"transmits_push": false,
+"weight": 3.0
+}

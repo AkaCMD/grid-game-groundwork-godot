@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_hprhx"]
+
+[resource]
+script = ExtResource("1_hprhx")
+definition_id = &"player"
+display_name = "Player"
+color = Color(0.39215687, 0.8352941, 0.8156863, 1)
+properties = {
+"can_push": true,
+"player": true,
+"strength": 5.0
+}

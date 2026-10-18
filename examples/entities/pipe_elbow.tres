@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_vv80x"]
+[ext_resource type="PackedScene" path="res://examples/visuals/pipe.tscn" id="2_1db6c"]
+
+[resource]
+script = ExtResource("1_vv80x")
+definition_id = &"pipe_elbow"
+display_name = "Elbow pipe"
+color = Color(0.75686276, 0.5803922, 0.9098039, 1)
+visual_scene = ExtResource("2_1db6c")
+properties = {
+"pipe": true,
+"ports": [Vector3i(-1, 0, 0), Vector3i(0, 0, -1)],
+"pushable": true,
+"transmits_push": true
+}
