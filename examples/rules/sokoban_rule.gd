@@ -10,18 +10,13 @@ func after_action(session: GGSession) -> void:
 		if entity.properties.get("goal", false):
 			for cell in GGGrid.cells(entity):
 				goals[cell] = true
-	var crate_count = 0
-	var solved = true
-	for id in session.initial_entities:
-		if not session.initial_entities[id].properties.get("crate", false):
+	var covered = {}
+	for entity in session.entities.values():
+		if not entity.properties.get("crate", false):
 			continue
-		crate_count += 1
-		var on_goal = false
-		if session.entities.has(id):
-			for cell in GGGrid.cells(session.entities[id]):
-				if goals.has(cell):
-					on_goal = true
-		if not on_goal:
-			solved = false
+		for cell in GGGrid.cells(entity):
+			if goals.has(cell):
+				covered[cell] = true
+	var solved = not goals.is_empty() and covered.size() == goals.size()
 	session.mechanic_state["crates_on_goals"] = solved
-	session.status = &"won" if solved and crate_count > 0 else &"playing"
+	session.status = &"won" if solved else &"playing"

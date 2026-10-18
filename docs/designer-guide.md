@@ -101,7 +101,7 @@ Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Fram
 
 ## Rules, validation, and playtesting
 
-Select a **Game rule** resource in the right panel. `GGSokobanRule` completes when every original crate has at least one occupied cell on a goal. `GGPipeRule` completes when every destination has a reciprocal pipe connection to a source; connected pipes light up. A generic level with no rule can test movement and gravity but does not have a built-in win condition.
+Select a **Game rule** resource in the right panel. `GGSokobanRule` completes when every goal cell is occupied by a crate, with at least one goal present. Extra crates may remain elsewhere, and a multi-cell crate can cover multiple goals. `GGPipeRule` completes when every destination has a reciprocal pipe connection to a source; connected pipes light up. A generic level with no rule can test movement and gravity but does not have a built-in win condition.
 
 **Apply level settings** commits the title, gravity toggle, and fall-out height. **Validate** checks schema compatibility, missing definitions, empty/duplicate shapes, duplicate IDs, solid overlaps, and entities starting beyond the fall-out boundary. Saving and playtesting also validate.
 

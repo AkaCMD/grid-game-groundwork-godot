@@ -32,6 +32,9 @@ func _init() -> void:
 	add(sokoban, "goal", Vector3i(2, 0, 1))
 	add(sokoban, "goal", Vector3i(4, 0, 1))
 	add_drop_test_area(sokoban)
+	# Demonstrate stacking above the starting puzzle crate.
+	for height in [1, 2]:
+		add(sokoban, "crate", Vector3i(2, height, 3))
 	save_example(sokoban, "sokoban")
 	var pipes = arena("Connect the current")
 	pipes.game_rule = GGPipeRule.new()
@@ -60,8 +63,6 @@ func add_drop_test_area(level: GGLevel) -> void:
 			if (x == 0 or x == 6 or z == 9) and z != 7:
 				add(level, "wall", Vector3i(x, -2, z))
 	add(level, "crate", Vector3i(2, 0, 6))
-	# This spare test block does not add a goal requirement to the puzzle.
-	level.entities.back().overrides = {"crate": false}
 
 func define(id: String, title: String, color: Color, movable: bool, properties: Dictionary) -> GGEntityDefinition:
 	var definition = GGEntityDefinition.new()

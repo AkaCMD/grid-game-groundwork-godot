@@ -733,9 +733,6 @@ script = ExtResource("1_8dhlk")
 entity_id = &"crate_108"
 definition = SubResource("Resource_hlmcl")
 cell = Vector3i(2, 0, 6)
-overrides = {
-"crate": false
-}
 
 [sub_resource type="Resource" id="Resource_em3kx"]
 script = ExtResource("1_8dhlk")

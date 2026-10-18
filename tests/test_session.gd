@@ -14,6 +14,7 @@ func _init() -> void:
 	_test_permissions_and_strength()
 	_test_support_and_fallout()
 	_test_non_solid_overlap()
+	_test_sokoban_goals()
 	_test_examples()
 	print("Session: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures else 0)
@@ -128,14 +129,38 @@ func _test_non_solid_overlap() -> void:
 	check(session.move(&"p", Vector3i.RIGHT), "Non-solid entities do not block movement")
 	check(GGGrid.index(session.entities)[Vector3i.RIGHT].size() == 2, "Multiple entities can occupy the same cell")
 
+func _test_sokoban_goals() -> void:
+	var crate = definition(&"crate", {"crate": true})
+	var goal = definition(&"goal", {"goal": true})
+	goal.solid = false
+	goal.movable = false
+	var items = [placed(&"crate", crate, Vector3i.ZERO), placed(&"goal", goal, Vector3i.ZERO)]
+	var session = setup(items + [placed(&"extra", crate, Vector3i.RIGHT)], false, GGSokobanRule.new())
+	check(session.status == &"won", "Extra crates do not prevent winning when every goal is covered")
+	session = setup(items + [placed(&"empty_goal", goal, Vector3i.RIGHT)], false, GGSokobanRule.new())
+	check(session.status == &"playing", "Every goal must be covered even when every crate is on a goal")
+	crate.shape.assign([Vector3i.ZERO, Vector3i.RIGHT])
+	session = setup(items + [placed(&"second_goal", goal, Vector3i.RIGHT)], false, GGSokobanRule.new())
+	check(session.status == &"won", "One multi-cell crate can cover multiple goals")
+	session = setup([placed(&"crate", crate, Vector3i.ZERO)], false, GGSokobanRule.new())
+	check(session.status == &"playing", "A level without goals does not immediately win")
+	session = setup([placed(&"goal", goal, Vector3i.ZERO)], false, GGSokobanRule.new())
+	check(session.status == &"playing", "An uncovered goal cannot win without a crate")
+
 func _test_examples() -> void:
 	var sokoban = load("res://examples/levels/sokoban.tres")
 	var session = GGSession.new()
 	check(session.start(sokoban).is_empty(), "Sokoban level loads")
+	var stacked_demo_crates = 0
+	for entity in session.entities.values():
+		if entity.properties.get("pushable", false) and entity.cell.y > 0:
+			stacked_demo_crates += 1
+	check(stacked_demo_crates == 2, "Two stacked demonstration crates remain in the playable example")
 	for direction in [Vector3i.FORWARD, Vector3i.FORWARD, Vector3i.BACK, Vector3i.BACK, Vector3i.BACK, Vector3i.RIGHT, Vector3i.RIGHT, Vector3i.FORWARD, Vector3i.FORWARD]:
 		check(session.move(session.player_id(), direction), "Sokoban solution step is legal")
 	check(session.status == &"won", "Sokoban example is solvable with a multi-cell crate")
 	check(session.undo() and session.status == &"playing", "Undo reopens a completed puzzle")
+	check(session.redo() and session.status == &"won", "Redo restores Sokoban completion with demonstration crates present")
 	var pipes = load("res://examples/levels/pipes.tres")
 	session = GGSession.new()
 	check(session.start(pipes).is_empty(), "Pipe level loads")
