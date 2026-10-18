@@ -9,7 +9,23 @@ python3 tools/check.py --godot /path/to/godot
 python3 tools/check.py --godot /path/to/godot --editor-smoke
 ```
 
-The first command imports/typechecks scripts, runs simulation and authoring/save-load checks, and checks all three runtime scenes. The optional editor check uses a disposable project to exercise painting, shape edits, direct WASDQE camera navigation, camera-following paint height and Page Up/Down placement controls, right-click eyedropper versus right-drag look, focus/cursor recovery, saving/reopening, and playtest launch. To capture the actual editor on a machine with a display, add `--screenshot artifacts/editor.png`.
+The runner accepts `--godot`, the `GODOT` environment variable, or `godot` on PATH. Use Godot Standard with Compatibility rendering. The project declares Godot 4.7; the documented test version is 4.7.2.
+
+The first command imports/typechecks scripts and runs session, authoring/save-load, QUACK and runtime checks. The optional editor smoke check uses a disposable project to exercise editor operations, navigation, focus recovery, saving/reopening and playtest launch.
+
+On a machine with a graphical display, capture the editor and run surface rendering checks too:
+
+```sh
+python3 tools/check.py --godot /path/to/godot --editor-smoke --screenshot artifacts/editor.png
+```
+
+Surface checks can also run separately after import:
+
+```sh
+godot --path . --script tests/test_editor_surfaces.gd --quit-after 1200
+```
+
+These checks need a graphical renderer; headless checks alone cannot verify highlight pixels or the shader coverage probe. See [editor surface coverage](editor-surface-coverage.md).
 
 ## Export
 
@@ -23,6 +39,17 @@ python3 -m http.server --directory build/web 8000
 ```
 
 Open `http://localhost:8000` for the web build; opening the HTML directly from disk will not work. The web preset uses single-threaded Compatibility rendering. To ship a different level, change the project's main scene before exporting. Windows/macOS presets can be added in Godot's Export dialog.
+
+## Regenerate examples
+
+Run these only when intentionally replacing the authored example resources:
+
+```sh
+godot --headless --path . --script tools/create_examples.gd
+godot --headless --path . --script tools/create_quack.gd
+```
+
+The first rebuilds Sokoban and pipes; the second rebuilds QUACK definitions and its level without changing the other examples. Re-run checks afterward. Original QUACK assets and licensing are described in the [example guide](quack-example.md#assets-and-rebuilding).
 
 ## Movement timing
 

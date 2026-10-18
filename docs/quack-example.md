@@ -1,5 +1,7 @@
 # QUACK!!! on ICE — 3D example
 
+[README](../README.md) · [中文说明](../README.zh-CN.md) · [Designer guide](designer-guide.md)
+
 Open `examples/quack.tscn` and press F6, or open `examples/levels/quack.tres` in Grid Levels and click Playtest. The example uses the existing authoring palette, painting, selection, movement, saving and isolated playtest workflow.
 
 Click a duck to select it. Its cube background turns black; other cubes have white backgrounds. WASD/arrows always mean −Z/+Z/−X/+X, independent of camera rotation; labels around the board show those directions. Middle drag orbits, Shift+middle drag pans, wheel zooms, and F frames. Z/Y/R undo, redo and restart. Selection is not a history action, and clicks during animation are ignored so buffered moves cannot switch actors unexpectedly.

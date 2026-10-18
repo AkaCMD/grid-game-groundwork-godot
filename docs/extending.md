@@ -1,5 +1,7 @@
 # Extending the framework
 
+[README](../README.md) · [Designer guide](designer-guide.md) · [中文用户指南](designer-guide.zh-CN.md)
+
 ## Boundaries
 
 `data/` holds the authored resource model: `GGLevel`, `GGEntityDefinition`, and `GGEntityPlacement`. A placement references a shared definition, a cell/orientation, and explicit property overrides.
@@ -34,7 +36,7 @@ Mutable mechanic data must live in `session.mechanic_state` or each entity's `st
 
 Each entity record contains `cell`, `turns`, `mirror`, `shape`, `properties`, and `state`. Entity shapes contain local `Vector3i` offsets; `GGGrid.cells(entity)` returns occupied world cells. `GGGrid.transform_cell(offset, turns, mirror)` applies the same orientation as the visual representation.
 
-The initial framework hook is for state changes and evaluation after movement. If a mechanic changes occupancy in this hook, it must leave a valid, settled board; the hook is not automatically called recursively to resolve additional movement. Add a deliberate resolution phase when introducing mechanics such as conveyors or teleport chains, and test it at the session boundary.
+`after_action` is for state changes and evaluation after movement. If a mechanic changes occupancy in this hook, it must leave a valid, settled board; the hook is not automatically called recursively to resolve additional movement. Add a deliberate resolution phase when introducing mechanics such as conveyors or teleport chains, and test it at the session boundary.
 
 ## Custom pushing
 
@@ -64,13 +66,13 @@ Assign this resource to the game rule's **Push Rule** field. Alternatively, over
 
 Assign a custom `PackedScene` to an entity definition's `visual_scene`. The default renderer otherwise builds colored cell meshes and non-solid markers. Custom visual scenes may implement `configure_entity(definition, properties)` to build their appearance and `apply_entity_state(state)` to react to restored or updated state. The pipe example owns its geometry and flow colors through this interface. The renderer positions visual roots from snapshots; never query those animated roots for gameplay coordinates.
 
-`GGGame` creates an orthographic camera, lighting, input, and a small HUD for an individual level. A consuming game can use `GGSession` and `GGBoardView` separately to supply its own presentation and controls. Connect `GGGame.level_completed` and `level_failed` for game-specific transitions. The framework does not maintain persistent progression.
+`GGGame` creates a perspective camera, lighting, fixed board-direction labels, input, and a small HUD for an individual level. Attach `addons/grid_game_groundwork/runtime/game.gd` to a `Node3D` and assign its `level` resource to use this complete runtime. A consuming game can use `GGSession` and `GGBoardView` separately to supply its own presentation and controls. Connect `GGGame.level_completed` and `level_failed` for game-specific transitions. The framework does not maintain persistent progression.
 
 ## Native authoring and exports
 
 Level resources carry `schema_version=1`. Definitions can be external shared `.tres` resources or embedded resources; overrides remain explicit rather than flattening inherited defaults. `GGLevel.validate()` returns author-facing errors. `GGLevelAuthoring.save(path)` validates before writing a temporary resource and replacing the destination level file. Definitions and game-rule configuration stored in separate `.tres`/`.res` files are saved separately before the level; saving the entire collection is not a multi-file transaction.
 
-Use Standard GDScript and the Compatibility renderer for desktop and browser builds. Editor code is excluded by the provided export presets. Web uses single-threaded export and must be served over HTTP. Rebuild the example resources with `godot --headless --path . --script tools/create_examples.gd` only when intentionally replacing their authored content.
+Use Standard GDScript and the Compatibility renderer for desktop and browser builds. The example project declares Godot 4.7; the documented test version is 4.7.2. Editor code is excluded by the provided export presets. Web uses single-threaded export and must be served over HTTP. See [example regeneration](development.md#regenerate-examples) before rebuilding authored example resources.
 
 The accepted design is recorded in `docs/adr/`. Before adding mechanics, add behavior checks through `GGSession`; before changing storage or editing semantics, use `GGLevelAuthoring` and a real save/reload round trip. `python3 tools/check.py` runs both boundaries and runtime checks.
 
@@ -82,6 +84,6 @@ Override `GGGameRule.resolve_move(session, actor_id, direction)` to compose move
 
 Resolvers must terminate, even with malformed edited layouts, and keep mutable state in session dictionaries. The QUACK example composes steps into a straight slide, stopping at a collision, food or failure. It rejects an unbounded slide atomically if an edited gravity-disabled level has no stopping obstacle within the authored board's span.
 
-Custom visuals may implement `apply_entity_selection(selected: bool)` as a presentation hook. `GGBoardView.set_selected(id)` applies it to existing visuals and reapplies it after state restoration; this hook is for runtime presentation. The editor keeps custom visuals unselected and supplies its own blue/red mesh surface feedback. Editor picking uses transformed MeshInstance3D triangles rather than occupied cells; standard-material transparency is sampled from albedo alpha, while custom shader surfaces (including QUACK's opaque white background) are treated as opaque. `select_actor(id)` also supplies the runtime's generic selection ring.
+Custom visuals may implement `apply_entity_selection(selected: bool)` as a presentation hook. `GGBoardView.set_selected(id)` applies it to existing visuals and reapplies it after state restoration; this hook is for runtime presentation. The editor keeps custom visuals unselected and supplies its own blue/red mesh surface feedback. Editor picking uses transformed MeshInstance3D triangles rather than occupied cells; standard-material transparency is sampled from albedo alpha. Material-local shader alpha/discard uses a graphical coverage probe; shaders without alpha/discard are opaque, including QUACK's white background. See [editor surface coverage](editor-surface-coverage.md) for graphical-renderer requirements and custom shader limits. `select_actor(id)` also supplies the runtime's generic selection ring.
 
 Override `blocks_entity(session, actor_id, obstacle_id, direction)` for actor-dependent obstacles. It is queried for horizontal motion and downward support; the default blocks solid entities only. `after_step(session)` runs after each horizontal displacement and each one-cell fall, and once before initial settling. Use it for interactions that must happen before gravity continues, such as consuming bread crossed during a fall. It must leave valid occupancy, store mutable data in the session, and may append a snapshot stage when its visual changes need a distinct animation phase. It must not create history or recursively issue movement. A resolver can detect state changes from this hook to stop further horizontal steps while allowing current gravity consequences to finish.
