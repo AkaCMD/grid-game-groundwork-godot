@@ -24,7 +24,16 @@ Switch tools with **1** (Paint), **2** (Erase), and **3** (Select). Drag to pain
 
 In **Select**, drag **X/Y/Z arrows** or **XY/XZ/YZ plane handles** to move the whole entity with **one-cell snapping**. Coordinates follow the preview; invalid destinations turn red and restore the original position on release. **Esc** cancels, and each completed drag is one undo/redo action. Godot's **Y axis remains height**.
 
-Press **End** while selected or dragging to snap down to the nearest solid support (ground, walls, or crates). Continue dragging after the snap; release commits the whole operation as one undo action, and **Esc** restores the position before dragging. Missing support or an invalid starting position leaves the entity in place with a single-line status message.
+### Snap to ground (End)
+
+1. Press **3** for **Select**, then click the entity to move.
+2. Drag an XYZ arrow or plane handle to place the entity above its destination.
+3. **Keep the left mouse button held and press End**. The entity snaps down to the nearest ground, crate, or wall top, keeping X/Z unchanged and aligning Y to whole grid cells.
+4. Continue dragging if needed, then **release the left mouse button** to commit the whole operation. **Esc** restores the position before dragging; **Ctrl/Cmd+Z** undoes the completed operation as a whole.
+
+**End also works without dragging**: select an entity and press End to commit one undoable snap immediately, without clicking Apply. Multi-cell entities move as a whole and stop when any occupied cell has solid support. This also works when level gravity is disabled.
+
+If there is no solid support below, or the current position overlaps another solid or is otherwise invalid, End leaves the position unchanged and shows a single-line status message. An already supported entity adds no undo action. While editing text or coordinates, End keeps the input field's normal behavior.
 
 ## Features
 
