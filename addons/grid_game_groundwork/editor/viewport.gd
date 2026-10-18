@@ -30,6 +30,13 @@ var _move_enabled = false
 var _move_target: Vector3i
 var _move_valid = true
 var _move_pointer: Vector2
+var _navigation_keys: Dictionary = {}
+var _fly_speed = 8.0
+var _right_pressed = false
+var _right_used = false
+var _right_position: Vector2
+var _looking = false
+var _previous_mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _ready() -> void:
 	stretch = true
@@ -73,6 +80,8 @@ func _ready() -> void:
 	set_layer(0)
 	gui_input.connect(_input_on_view)
 	get_window().focus_exited.connect(cancel_move)
+	get_window().focus_exited.connect(_stop_navigation)
+	focus_exited.connect(_stop_navigation)
 	mouse_exited.connect(func():
 		if _ghost: _ghost.visible = false
 		if is_moving(): return
@@ -82,11 +91,13 @@ func _ready() -> void:
 	)
 
 func show_level(value: GGLevel) -> void:
+	_stop_navigation()
 	cancel_move()
 	level = value
 	board.rebuild(level)
 
 func frame_level() -> void:
+	_stop_navigation()
 	if not level or level.entities.is_empty():
 		_pivot = Vector3.ZERO
 		_zoom = 12.0
@@ -153,6 +164,9 @@ func entity_at(point: Vector2) -> StringName:
 	return result
 
 func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirrored: bool) -> void:
+	if is_navigating():
+		hide_ghost()
+		return
 	if _ghost:
 		_ghost.free()
 	_ghost = GGBoardView.make_visual(definition, definition.defaults())
@@ -241,20 +255,127 @@ func _finish_move(commit: bool) -> void:
 	preview_move(_selection_cell, true)
 	move_finished.emit(_selection_id, target, accepted)
 
+func is_navigating() -> bool:
+	return _looking or not _navigation_keys.is_empty()
+
+func _navigation_available() -> bool:
+	if not is_visible_in_tree() or not has_focus():
+		return false
+	var modal = get_viewport().get_last_exclusive_window()
+	return not (is_instance_valid(modal) and modal != get_window() and modal.visible)
+
+func _process(delta: float) -> void:
+	if not is_navigating() and not _right_pressed:
+		return
+	if not _navigation_available():
+		_stop_navigation()
+		return
+	var direction = camera.basis.x * (int(_navigation_keys.has(KEY_D)) - int(_navigation_keys.has(KEY_A)))
+	direction -= camera.basis.z * (int(_navigation_keys.has(KEY_W)) - int(_navigation_keys.has(KEY_S)))
+	direction += Vector3.UP * (int(_navigation_keys.has(KEY_E)) - int(_navigation_keys.has(KEY_Q)))
+	if not direction.is_zero_approx():
+		_pivot += direction.normalized() * _fly_speed * delta
+		_camera_position()
+
+func _end_look() -> void:
+	_right_pressed = false
+	if _looking:
+		_looking = false
+		Input.mouse_mode = _previous_mouse_mode
+		if is_inside_tree() and is_visible_in_tree():
+			warp_mouse(_right_position)
+
+func _stop_navigation() -> void:
+	_navigation_keys.clear()
+	_end_look()
+
+func _exit_tree() -> void:
+	_stop_navigation()
+
+func _release_right(point: Vector2) -> void:
+	var pick = _right_pressed and not _right_used and Rect2(Vector2.ZERO, size).has_point(point)
+	_end_look()
+	if pick and not is_drawing():
+		var cell = cell_at(point)
+		# Picking an entity also works when the view ray cannot reach the edit plane.
+		pressed.emit(cell if cell != null else Vector3i.ZERO, entity_at(point), MOUSE_BUTTON_RIGHT)
+
+func _look_camera(relative: Vector2) -> void:
+	# Free look rotates in place; keep the orbit pivot compatible with middle-drag.
+	var origin = camera.position
+	var distance = camera.position.distance_to(_pivot)
+	_yaw -= relative.x * 0.009
+	_pitch = clampf(_pitch + relative.y * 0.009, -PI / 2.0, PI / 2.0)
+	camera.rotation = Vector3(-_pitch, _yaw, 0)
+	_pivot = origin - camera.basis.z * distance
+	_camera_position()
+
+func _handle_look_input(event: InputEvent) -> bool:
+	if not _looking:
+		return false
+	if event is InputEventMouseMotion:
+		if event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+			_look_camera(event.relative)
+		else:
+			_end_look()
+		return true
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+			_release_right(_right_position)
+		else:
+			_adjust_fly_speed(event)
+		return true
+	return false
+
 func _input(event: InputEvent) -> void:
-	if not is_moving(): return
-	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
+	if _handle_look_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if _right_pressed and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+		_release_right(get_global_transform_with_canvas().affine_inverse() * event.position)
+		get_viewport().set_input_as_handled()
+		return
+	if not event is InputEventKey:
+		return
+	var key = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
+	if event.pressed and key == KEY_ESCAPE and (is_navigating() or _right_pressed or is_moving()):
+		_stop_navigation()
 		cancel_move()
 		get_viewport().set_input_as_handled()
+		return
+	if not event.pressed and _navigation_keys.has(key):
+		_navigation_keys.erase(key)
+		get_viewport().set_input_as_handled()
+		return
+	if not _navigation_available() or is_drawing():
+		return
+	if event.ctrl_pressed or event.alt_pressed or event.meta_pressed:
+		_navigation_keys.clear()
+		return
+	if key in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E]:
+		if event.pressed and not event.echo:
+			_navigation_keys[key] = true
+			if _right_pressed: _right_used = true
+			hide_ghost()
+		get_viewport().set_input_as_handled()
+
+func _adjust_fly_speed(event: InputEventMouseButton) -> void:
+	if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		_fly_speed = clampf(_fly_speed * (1.2 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.2), 0.25, 128.0)
+		_right_used = true
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree():
+		_stop_navigation()
 		cancel_move()
 
 func is_drawing() -> bool:
 	return _drawing or is_moving()
 
 func _input_on_view(event: InputEvent) -> void:
+	if _handle_look_input(event):
+		accept_event()
+		return
 	if is_moving():
 		if event is InputEventMouseMotion:
 			_move_pointer = event.position
@@ -271,6 +392,20 @@ func _input_on_view(event: InputEvent) -> void:
 		accept_event()
 		return
 	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				if not is_drawing():
+					grab_focus()
+					_right_pressed = true
+					_right_used = is_navigating()
+					_right_position = event.position
+			else:
+				_release_right(event.position)
+			accept_event()
+			return
+		if event.button_index == MOUSE_BUTTON_LEFT and (is_navigating() or _right_pressed):
+			accept_event()
+			return
 		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			var handle = _move_gizmo.pick(event.position)
 			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, _selection_cell):
@@ -281,7 +416,9 @@ func _input_on_view(event: InputEvent) -> void:
 				accept_event()
 				return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			if event.pressed:
+			if _right_pressed:
+				_adjust_fly_speed(event)
+			elif event.pressed:
 				_zoom = clampf(_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 2, 100)
 				_camera_position()
 			accept_event()
@@ -289,24 +426,36 @@ func _input_on_view(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			_drawing = false
 			stroke_ended.emit()
-		if event.pressed and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
 			var cell = cell_at(event.position)
 			if cell != null:
-				if event.button_index == MOUSE_BUTTON_LEFT:
-					_drawing = true
-					_last_cell = cell
-					stroke_started.emit()
+				_drawing = true
+				_last_cell = cell
+				stroke_started.emit()
 				pressed.emit(cell, entity_at(event.position), event.button_index)
 			accept_event()
 	elif event is InputEventMouseMotion:
+		if _right_pressed:
+			if not event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+				_end_look()
+			elif event.position.distance_to(_right_position) >= 4.0:
+				_right_used = true
+				_looking = true
+				_previous_mouse_mode = Input.mouse_mode
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+				hide_ghost()
+				_move_gizmo.highlight(-1)
+				_look_camera(event.relative)
+			accept_event()
+			return
 		if _move_enabled: _move_gizmo.highlight(_move_gizmo.pick(event.position))
 		if event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 			if event.shift_pressed:
 				_pivot += (-camera.global_basis.x * event.relative.x + camera.global_basis.y * event.relative.y) * _zoom / maxf(1.0, size.y)
 			else:
 				_yaw -= event.relative.x * 0.009
-				_pitch = clampf(_pitch + event.relative.y * 0.009, 0.15, PI / 2.0)
+				_pitch = clampf(_pitch + event.relative.y * 0.009, -PI / 2.0, PI / 2.0)
 			_camera_position()
 			accept_event()
 			return

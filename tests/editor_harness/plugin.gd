@@ -54,6 +54,7 @@ func run() -> void:
 	panel.viewport.gui_input.emit(click)
 	check(panel.authoring.level.entities.back().cell == Vector3i.UP, "Painting in the workspace stacks entities")
 	await check_mode_shortcuts(panel)
+	await check_camera_navigation(panel)
 	await check_move_gizmo(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
@@ -169,6 +170,196 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	check(panel._mode.selected == 0, "Focus outside the panel ignores mode shortcuts")
 	panel.viewport.grab_focus()
 
+func camera_mouse(view: GGEditorViewport, button: MouseButton, pressed: bool, point: Vector2) -> void:
+	var event = InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = pressed
+	event.position = point
+	view.gui_input.emit(event)
+
+func camera_mouse_input(view: GGEditorViewport, button: MouseButton, pressed: bool, point: Vector2) -> void:
+	var event = InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = pressed
+	event.button_mask = MOUSE_BUTTON_MASK_RIGHT if pressed else 0
+	event.position = view.get_global_transform_with_canvas() * point
+	event.global_position = event.position
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+
+func check_camera_navigation(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var entity = GGEntityPlacement.new()
+	entity.entity_id = &"camera_fixture"
+	entity.definition = fixture.palette[3]
+	entity.quarter_turns = 1
+	entity.mirrored = true
+	fixture.entities.append(entity)
+	panel._open(fixture)
+	panel._set_mode(0)
+	var view = panel.viewport
+	view.grab_focus()
+	# Advance navigation deterministically, while still routing real key events through the editor.
+	view.set_process(false)
+	view._yaw = 0.65
+	view._pitch = 0.65
+	view._camera_position()
+	var rotation = view.camera.rotation
+	var origin = view.camera.position
+	var speed = view._fly_speed
+	for binding in [[KEY_W, -view.camera.basis.z], [KEY_S, view.camera.basis.z], [KEY_A, -view.camera.basis.x], [KEY_D, view.camera.basis.x], [KEY_Q, Vector3.DOWN], [KEY_E, Vector3.UP]]:
+		origin = view.camera.position
+		await mode_key(binding[0])
+		view._process(0.25)
+		check(view.camera.position.is_equal_approx(origin + binding[1] * speed * 0.25), "WASDQE moves relative to view or world height without a mouse button")
+		check(view.camera.rotation.is_equal_approx(rotation), "Flying preserves the view angle")
+		await mode_key(binding[0], 0, false, false)
+		origin = view.camera.position
+		view._process(0.25)
+		check(view.camera.position.is_equal_approx(origin), "Releasing a navigation key stops immediately")
+	await mode_key(KEY_W)
+	await mode_key(KEY_D)
+	origin = view.camera.position
+	view._process(0.5)
+	check(is_equal_approx(view.camera.position.distance_to(origin), speed * 0.5), "Diagonal flight has the same speed as single-axis flight")
+	view._stop_navigation()
+	origin = view.camera.position
+	await mode_key(KEY_W)
+	view._process(0.25)
+	view._process(0.25)
+	check(is_equal_approx(view.camera.position.distance_to(origin), speed * 0.5), "Flight distance depends on elapsed time")
+	panel._hover(Vector3i.ZERO)
+	check(not view._ghost or not view._ghost.visible, "Navigation hides the placement preview even when hover refreshes")
+	var history_size = panel.authoring._history.size()
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, view.size * 0.5)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, view.size * 0.5)
+	check(fixture.entities.size() == 1 and panel.authoring._history.size() == history_size, "Flying cannot paint or change authoring history")
+	await mode_key(KEY_ESCAPE)
+	check(not view.is_navigating(), "Esc stops keyboard navigation")
+	await mode_key(KEY_W, 0, true)
+	check(not view.is_navigating(), "Key repeat cannot restart navigation after cancellation")
+	for field in [panel._settings_title, panel._height.get_line_edit(), EditorInterface.get_inspector()]:
+		field.grab_focus()
+		await mode_key(KEY_W)
+		check(not view.is_navigating(), "Text, coordinate and Inspector focus do not navigate")
+	view.grab_focus()
+	await mode_key(KEY_W)
+	panel._settings_title.grab_focus()
+	check(not view.is_navigating(), "Moving focus out of the viewport stops held navigation")
+	view.grab_focus()
+	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_META]:
+		await mode_key(KEY_W, modifiers)
+		check(not view.is_navigating(), "Command shortcuts do not move the camera")
+	panel._confirm.popup_centered()
+	await get_tree().process_frame
+	await mode_key(KEY_W)
+	check(not view.is_navigating(), "Modal dialogs block camera keys")
+	panel._confirm.hide()
+	view.grab_focus()
+	await mode_key(KEY_W)
+	view.get_window().focus_exited.emit()
+	check(not view.is_navigating(), "Window focus loss clears held navigation")
+	await mode_key(KEY_W)
+	panel.hide()
+	check(not view.is_navigating(), "Hiding the workspace stops navigation")
+	panel.show()
+	view.grab_focus()
+	view._drawing = true
+	await mode_key(KEY_W)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, view.size * 0.5)
+	check(not view.is_navigating() and not view._right_pressed, "An active paint stroke blocks keyboard and right-drag navigation")
+	view._drawing = false
+	view.frame_level()
+	var point = view.camera.unproject_position(Vector3.ZERO)
+	panel._choose_definition(0)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	check(panel._definition == fixture.palette[0], "Right press waits before picking or looking")
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(panel._definition == entity.definition and panel._turns.value == 1 and panel._mirror.button_pressed, "Right click retains definition, rotation and mirroring eyedropper")
+	panel._choose_definition(0)
+	point = view.camera.unproject_position(Vector3.ZERO)
+	await camera_mouse_input(view, MOUSE_BUTTON_RIGHT, true, point)
+	check(view._right_pressed, "Real right press reaches the editor viewport")
+	await camera_mouse_input(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(panel._definition == entity.definition, "Real mouse dispatch retains the right-click eyedropper")
+	view._pitch = 0.0
+	view._camera_position()
+	point = view.camera.unproject_position(Vector3.ZERO)
+	check(view.cell_at(point) == null and view.entity_at(point) == entity.entity_id, "A horizontal view can hit an entity without reaching the editing plane")
+	panel._choose_definition(0)
+	await camera_mouse_input(view, MOUSE_BUTTON_RIGHT, true, point)
+	await camera_mouse_input(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(panel._definition == entity.definition and panel._turns.value == 1 and panel._mirror.button_pressed, "Horizontal views retain all eyedropper brush settings")
+	view._pitch = 0.65
+	view._camera_position()
+	point = view.camera.unproject_position(Vector3.ZERO)
+	panel._choose_definition(0)
+	origin = view.camera.position
+	rotation = view.camera.rotation
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	var motion = InputEventMouseMotion.new()
+	motion.position = point + Vector2(12, 8)
+	motion.relative = Vector2(12, 8)
+	motion.button_mask = MOUSE_BUTTON_MASK_RIGHT
+	view.gui_input.emit(motion)
+	check(view._looking and view.camera.position.is_equal_approx(origin), "Right drag starts free look without orbiting the camera position")
+	check(not view.camera.rotation.is_equal_approx(rotation), "Right drag turns the view")
+	var zoom = view._zoom
+	camera_mouse(view, MOUSE_BUTTON_WHEEL_UP, true, point)
+	check(view._fly_speed > speed and view._zoom == zoom, "Right wheel changes movement speed instead of zoom")
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(not view._looking and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE and panel._definition == fixture.palette[0], "Finishing a right drag restores the cursor without using the eyedropper")
+	camera_mouse(view, MOUSE_BUTTON_WHEEL_UP, true, point)
+	check(view._zoom < zoom, "Ordinary wheel still zooms")
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_WHEEL_DOWN, true, point)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(panel._definition == fixture.palette[0], "Right wheel without dragging does not trigger the eyedropper")
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	view.gui_input.emit(motion)
+	await mode_key(KEY_ESCAPE)
+	check(not view._looking and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "Esc restores the captured cursor")
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	view.gui_input.emit(motion)
+	await mode_key(KEY_W)
+	await camera_mouse_input(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(not view._looking and view.is_navigating(), "Global right release ends free look while direct keyboard movement continues")
+	await mode_key(KEY_W, 0, false, false)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	view.gui_input.emit(motion)
+	view.get_window().focus_exited.emit()
+	check(not view._looking and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "Losing window focus restores the captured cursor")
+	for global_input in [false, true]:
+		camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+		motion.button_mask = MOUSE_BUTTON_MASK_RIGHT
+		view.gui_input.emit(motion)
+		origin = view.camera.position
+		rotation = view.camera.rotation
+		motion.button_mask = 0
+		if global_input: view._input(motion)
+		else: view.gui_input.emit(motion)
+		check(not view._looking and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "Both input paths recover from a missed right-button release")
+		check(view.camera.position.is_equal_approx(origin) and view.camera.rotation.is_equal_approx(rotation), "Mouse motion after a missed release cannot turn the camera")
+	view._pitch = -0.5
+	view._camera_position()
+	origin = view.camera.position
+	await mode_key(KEY_W)
+	view._process(0.5)
+	check(view.camera.position.y > origin.y, "Looking upward and flying forward increases height")
+	view._stop_navigation()
+	view._look_camera(Vector2(0, -10000))
+	check(view.camera.transform.is_finite() and is_zero_approx(view.camera.rotation.z), "Extreme free look stays finite and cannot roll upside down")
+	view._fly_speed = speed
+	view._yaw = 0.0
+	view._pitch = deg_to_rad(75.2)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
+	view.set_process(true)
+
 func gizmo_press(panel: GGEditorPanel, handle: int) -> Vector3:
 	var view = panel.viewport
 	var gizmo = view._move_gizmo
@@ -244,6 +435,9 @@ func check_move_gizmo(panel: GGEditorPanel) -> void:
 			panel.authoring.undo()
 	var history_size = panel.authoring._history.size()
 	var grabbed = gizmo_press(panel, 0)
+	await mode_key(KEY_W)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, view.size * 0.5)
+	check(not view.is_navigating() and not view._right_pressed, "An entity drag blocks camera navigation")
 	gizmo_release(panel, grabbed)
 	check(panel.authoring._history.size() == history_size, "Clicking a handle without moving does not add undo actions")
 	grabbed = gizmo_press(panel, 0)

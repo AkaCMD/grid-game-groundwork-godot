@@ -45,7 +45,7 @@ Editor undo covers placements, brush strokes, selection edits, shape edits, floo
 
 ## Visual occupied-cell editor
 
-Select a definition, then enable **Edit occupied cells**. The board changes to show that definition's shape around its origin. Left-click or drag to add cells at the current **Height**. Right-click or choose **Erase** to remove them. Change height to build a three-dimensional shape. The last occupied cell cannot be removed.
+Select a definition, then enable **Edit occupied cells**. The board changes to show that definition's shape around its origin. Left-click or drag to add cells at the current **Height**. Choose **Erase** (**2**) and left-click or drag to remove them. Change height to build a three-dimensional shape. The last occupied cell cannot be removed.
 
 Turn off **Edit occupied cells** to return to the level. These edits affect the shared definition, so inspect the resulting level for overlaps and click **Validate** before saving. Shape edits can be undone.
 
@@ -56,6 +56,10 @@ The shape is gameplay data. Artwork is separate: assign **Visual Scene** on the 
 **Paint** places the selected definition. A drag stroke is one editor undo step. **Erase** removes the entity under the pointer; **Select** opens it for editing. Right-click picks the definition, rotation, and mirroring from an existing entity. The ghost shows where the brush will place the entity after automatic stacking.
 
 Press **1** for Paint, **2** for Erase, or **3** for Select anywhere in the Grid Levels panel. Both the number row and numeric keypad work, without modifier keys. Shortcuts are ignored while typing in text, coordinate, or property fields, while a dialog is open, and during a left-button stroke; release the mouse before switching. In **Edit occupied cells**, **1** adds cells and **2** removes them; **3** is ignored.
+
+With the viewport focused, hold **WASD** to fly relative to the camera: looking down and pressing W descends, and looking up and pressing W ascends. **Q/E** moves down/up along world Y. No mouse button is required. Right-click retains the brush eyedropper; right-drag turns the camera in place. Hold right and scroll to adjust flight speed (default **8 cells/s**, range **0.25–128 cells/s**). Ordinary wheel still zooms. The camera passes freely through entities and below the board, can look up/down, and never rolls upside down.
+
+Release a movement key to stop immediately. **Esc**, changing focus, opening a dialog, window focus loss, or leaving the workspace clears navigation and releases any captured cursor. Finish a paint stroke or entity drag before navigating. Navigation suppresses painting and hides the brush preview. Text, coordinate and Inspector fields retain their normal keyboard behavior; Ctrl/Cmd shortcuts do not move the camera.
 
 Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Frame** fits the level. Quarter turns rotate around Y. **Mirror brush** reflects the entity's shape on local X. Whole-level rotation and mirroring transform entity positions and shapes together and survive saving/reloading.
 
@@ -69,8 +73,11 @@ Middle-drag orbits, Shift+middle-drag pans, the wheel zooms, and **F** or **Fram
 | Select, idle or dragging | **End** | Snap down to the nearest solid support; continue dragging afterward |
 | Active move | **Esc** | Cancel the whole drag, including any End snap |
 | Level editor | Right click | Pick an entity's definition, rotation, and mirroring for the brush |
+| Editor viewport | **WASD** / **Q / E** | Fly relative to the view / descend or ascend along world Y; no mouse button required |
+| Editor viewport | Right drag | Look around in place; release restores the cursor |
+| Editor viewport | **Right button + wheel** | Increase / decrease flight speed |
+| Editor navigation | **Esc** | Stop movement and release the cursor |
 | Shape editor | **1 / 2**, left click / drag | Add / remove occupied cells; **3** is ignored |
-| Shape editor | Right click | Remove an occupied cell |
 | Level editor | **Ctrl/Cmd+S** | Save the level |
 | Level editor | **Ctrl/Cmd+Z** | Undo the last authoring action |
 | Level editor | **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** | Redo the last authoring action |

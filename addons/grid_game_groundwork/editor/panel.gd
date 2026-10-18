@@ -115,7 +115,7 @@ func _ready() -> void:
 	viewport.hovered.connect(_hover)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel move   •   Right click: eyedropper   •   Middle drag: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -313,7 +313,8 @@ func _choose_definition(index: int) -> void:
 func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = false) -> void:
 	if _shape_mode.button_pressed:
 		if _definition:
-			var remove = button == MOUSE_BUTTON_RIGHT or _mode.selected == 1
+			var remove = _mode.selected == 1
+			if button != MOUSE_BUTTON_LEFT: return
 			authoring.edit_shape(_definition, cell, remove)
 		return
 	if button == MOUSE_BUTTON_RIGHT:
@@ -522,6 +523,8 @@ func _set_mode(index: int) -> void:
 	_hover(_last_hover)
 
 func _input(event: InputEvent) -> void:
+	if viewport and viewport.is_navigating():
+		return
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:
 		return
 	if event.ctrl_pressed or event.alt_pressed or event.shift_pressed or event.meta_pressed:
