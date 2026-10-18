@@ -56,6 +56,7 @@ func run() -> void:
 	await check_mode_shortcuts(panel)
 	await check_camera_navigation(panel)
 	await check_paint_height_navigation(panel)
+	await check_paint_surfaces(panel)
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
 	await check_surface_interaction(panel)
@@ -925,3 +926,67 @@ func check_surface_interaction(panel: GGEditorPanel) -> void:
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
 	panel._set_mode(0)
+
+func check_paint_surfaces(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	panel._open(fixture)
+	panel._choose_definition(3)
+	panel._set_mode(0)
+	panel.authoring.paint(panel._definition, Vector3i(0, 4, 0))
+	var view = panel.viewport
+	view.set_layer(0)
+	view.camera.position = Vector3(7, 10, 12)
+	view.camera.look_at(Vector3(0, 4, 0))
+	var point = view.camera.unproject_position(Vector3(0, 4.48, 0))
+	var motion = InputEventMouseMotion.new()
+	motion.position = point
+	view.gui_input.emit(motion)
+	check(view._ghost != null and view._ghost.position == Vector3(0, 5, 0), "Paint preview snaps to the pointed elevated top instead of the distant height plane")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.back().cell == Vector3i(0, 5, 0), "Paint stacks directly on the pointed elevated entity")
+	check(panel.authoring.undo() and fixture.entities.size() == 1, "Surface paint is one undo action")
+	check(panel.authoring.redo() and fixture.entities.back().cell == Vector3i(0, 5, 0), "Redo restores the snapped placement")
+	panel.authoring.undo()
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	motion.position = point + Vector2(0.1, 0.1)
+	view.gui_input.emit(motion)
+	check(fixture.entities.size() == 2, "A small pointer motion cannot stack onto an entity created by the same stroke")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	panel.authoring.undo()
+	view.camera.position = Vector3(0, 4, 10)
+	view.camera.look_at(Vector3(0, 4, 0))
+	point = view.camera.unproject_position(Vector3(0, 4, 0.5))
+	motion.button_mask = 0
+	motion.position = point
+	view.gui_input.emit(motion)
+	check(view.cell_at(point) == null, "Horizontal surface test cannot reach the Height plane")
+	check(view._ghost.position == Vector3(0, 4, 1), "Paint preview snaps onto a vertical grid face")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.back().cell == Vector3i(0, 4, 1), "Paint clicks work on surfaces without a Height plane intersection")
+	panel.authoring.undo()
+	var shaped = panel._definition.duplicate(true) as GGEntityDefinition
+	shaped.shape.assign([Vector3i.DOWN, Vector3i.ZERO])
+	fixture.palette.append(shaped)
+	panel._refresh()
+	panel._choose_definition(fixture.palette.size() - 1)
+	view.camera.position = Vector3(7, 10, 12)
+	view.camera.look_at(Vector3(0, 4, 0))
+	point = view.camera.unproject_position(Vector3(0, 4.48, 0))
+	motion.position = point
+	view.gui_input.emit(motion)
+	check(view._ghost.position == Vector3(0, 6, 0), "Surface placement aligns the lowest occupied cell of the complete brush")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.back().cell == Vector3i(0, 6, 0), "Multi-cell surface preview agrees with committed paint")
+
+	view._yaw = 0.0
+	view._pitch = deg_to_rad(75.2)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	view.frame_level()

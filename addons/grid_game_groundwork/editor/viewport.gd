@@ -14,6 +14,9 @@ var camera: Camera3D
 var board: GGBoardView
 var world: Node3D
 var level: GGLevel
+var paint_cell_query: Callable
+var _stroke_solids: Array[Vector3i] = []
+var _stroke_cells: Dictionary = {}
 var layer: int = 0
 var _paint_height = 0.0
 var _grid: MeshInstance3D
@@ -162,6 +165,39 @@ func cell_at(point: Vector2) -> Variant:
 	if hit == null:
 		return null
 	return Vector3i(roundi(hit.x), layer, roundi(hit.z))
+
+# Paint uses logical cell faces, keeping custom visual geometry out of occupancy rules.
+func solid_cells() -> Array[Vector3i]:
+	var cells: Array[Vector3i] = []
+	if level:
+		for entity in level.entities:
+			if entity.resolved_properties().get("solid", true):
+				cells.append_array(entity.occupied_cells())
+	return cells
+
+func surface_at(point: Vector2) -> Dictionary:
+	var origin = camera.project_ray_origin(point)
+	var direction = camera.project_ray_normal(point)
+	var nearest = INF
+	var result: Dictionary = {}
+	var cells = _stroke_solids if _drawing else solid_cells()
+	for cell in cells:
+		var hit = AABB(Vector3(cell) - Vector3.ONE * 0.5, Vector3.ONE).intersects_ray(origin, direction)
+		if hit == null: continue
+		var distance = origin.distance_squared_to(hit)
+		if distance >= nearest: continue
+		var local: Vector3 = hit - Vector3(cell)
+		var axis = local.abs().max_axis_index()
+		var normal = Vector3i.ZERO
+		normal[axis] = 1 if local[axis] > 0 else -1
+		nearest = distance
+		result = {"cell": cell, "normal": normal}
+	return result
+
+func input_cell_at(point: Vector2) -> Variant:
+	if not _move_enabled and not _erase_enabled and paint_cell_query.is_valid():
+		return paint_cell_query.call(point)
+	return cell_at(point)
 
 func entity_at(point: Vector2) -> StringName:
 	if not level: return &""
@@ -452,11 +488,14 @@ func _input_on_view(event: InputEvent) -> void:
 			stroke_ended.emit()
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
-			var cell = cell_at(event.position)
+			_stroke_solids = solid_cells()
+			_stroke_cells.clear()
+			var cell = input_cell_at(event.position)
 			# Entity tools work even when the ray cannot reach the placement plane.
 			if cell != null or _move_enabled or _erase_enabled:
 				_drawing = true
 				_last_cell = cell if cell != null else Vector3i.ZERO
+				_stroke_cells[_last_cell] = true
 				stroke_started.emit()
 				_last_drag_entity = entity_at(event.position)
 				_update_erase_hover(event.position)
@@ -488,7 +527,7 @@ func _input_on_view(event: InputEvent) -> void:
 			accept_event()
 			return
 		_update_erase_hover(event.position)
-		var cell = cell_at(event.position)
+		var cell = input_cell_at(event.position)
 		if cell != null: hovered.emit(cell)
 		elif _ghost: _ghost.visible = false
 		if _drawing and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
@@ -498,7 +537,8 @@ func _input_on_view(event: InputEvent) -> void:
 				_last_cell = cell if cell != null else Vector3i.ZERO
 				dragged.emit(_last_cell, id)
 				_update_erase_hover(event.position)
-			elif not _erase_enabled and cell != null and cell != _last_cell:
+			elif not _erase_enabled and cell != null and cell != _last_cell and not _stroke_cells.has(cell):
+				_stroke_cells[cell] = true
 				_last_cell = cell
 				dragged.emit(cell, id)
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F:

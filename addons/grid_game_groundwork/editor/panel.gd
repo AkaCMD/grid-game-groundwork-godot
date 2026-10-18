@@ -119,6 +119,7 @@ func _ready() -> void:
 	viewport.stroke_started.connect(authoring.begin_stroke)
 	viewport.stroke_ended.connect(authoring.end_stroke)
 	viewport.hovered.connect(_hover)
+	viewport.paint_cell_query = _brush_cell_at
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
@@ -344,12 +345,33 @@ func _paint_or_pick(cell: Vector3i, id: StringName, button: int, drag: bool = fa
 		2:
 			if not drag: _select(id, shift)
 
+func _brush_cell_at(point: Vector2) -> Variant:
+	if _shape_mode.button_pressed or not _definition:
+		return viewport.cell_at(point)
+	var hit = viewport.surface_at(point)
+	if hit.is_empty():
+		return viewport.cell_at(point)
+	var normal: Vector3i = hit.normal
+	var axis = Vector3(normal).abs().max_axis_index()
+	var offsets: Array[Vector3i] = []
+	for cell in _definition.shape:
+		offsets.append(GGGrid.transform_cell(cell, int(_turns.value), _mirror.button_pressed))
+	if offsets.is_empty(): return null
+	# Put the brush's contacting face against the picked face, including shapes
+	# whose occupied cells extend below or to either side of their origin.
+	var edge = offsets[0][axis]
+	for offset in offsets:
+		edge = mini(edge, offset[axis]) if normal[axis] > 0 else maxi(edge, offset[axis])
+	var target: Vector3i = hit.cell + normal
+	target[axis] -= edge
+	return target
+
 func _paint_height_changed(value: int) -> void:
 	_height.set_value_no_signal(value)
 	var point = viewport.get_local_mouse_position()
 	if not Rect2(Vector2.ZERO, viewport.size).has_point(point):
 		return
-	var cell = viewport.cell_at(point)
+	var cell = viewport.input_cell_at(point)
 	if cell != null:
 		_hover(cell)
 
