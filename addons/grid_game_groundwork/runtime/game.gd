@@ -11,6 +11,11 @@ signal level_failed
 const INPUT_BUFFER_LIMIT = 4
 var session = GGSession.new()
 var _view: GGBoardView
+var _camera: Camera3D
+var _camera_pivot = Vector3.ZERO
+var _camera_yaw = 0.0
+var _camera_pitch = deg_to_rad(75.2)
+var _camera_zoom = 12.0
 var _label: Label
 var _busy = false
 var _status: StringName
@@ -35,8 +40,7 @@ func _ready() -> void:
 	_build_hud()
 	_update_status()
 
-func _build_camera() -> void:
-	var center = Vector3.ZERO
+func _frame_camera() -> void:
 	var bounds = AABB()
 	var first = true
 	for entity in level.entities:
@@ -46,18 +50,42 @@ func _build_camera() -> void:
 				first = false
 			else:
 				bounds = bounds.expand(Vector3(cell) + Vector3.ONE).expand(Vector3(cell))
-	center = bounds.get_center() - Vector3.ONE * 0.5
-	var camera = Camera3D.new()
+	_camera_pivot = bounds.get_center() - Vector3.ONE * 0.5
+	_camera_zoom = maxf(8.0, maxf(bounds.size.x, bounds.size.z) * 1.25 + bounds.size.y * 0.5)
+	_update_camera()
+
+func _update_camera() -> void:
+	_camera.size = _camera_zoom
+	var distance = _camera_zoom / (2.0 * tan(deg_to_rad(_camera.fov) * 0.5))
+	_camera.position = _camera_pivot + Vector3(sin(_camera_yaw) * cos(_camera_pitch), sin(_camera_pitch), cos(_camera_yaw) * cos(_camera_pitch)) * distance
+	_camera.rotation = Vector3(-_camera_pitch, _camera_yaw, 0)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _camera:
+		return
+	if event is InputEventMouseButton:
+		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			if event.pressed:
+				_camera_zoom = clampf(_camera_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 2, 100)
+				_update_camera()
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
+		if event.shift_pressed:
+			_camera_pivot += (-_camera.basis.x * event.relative.x + _camera.basis.y * event.relative.y) * _camera_zoom / maxf(1.0, get_viewport().get_visible_rect().size.y)
+		else:
+			_camera_yaw -= event.relative.x * 0.009
+			_camera_pitch = clampf(_camera_pitch + event.relative.y * 0.009, 0.15, PI / 2.0)
+		_update_camera()
+		get_viewport().set_input_as_handled()
+
+func _build_camera() -> void:
+	_camera = Camera3D.new()
 	# Match the original demo's high, nearly overhead perspective.
-	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
-	camera.fov = 45.5
-	camera.size = maxf(8.0, maxf(bounds.size.x, bounds.size.z) * 1.25 + bounds.size.y * 0.5)
-	add_child(camera)
-	var pitch = deg_to_rad(75.2)
-	var distance = camera.size / (2.0 * tan(deg_to_rad(camera.fov) * 0.5))
-	camera.position = center + Vector3(0, sin(pitch), cos(pitch)) * distance
-	camera.look_at(center)
-	camera.current = true
+	_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	_camera.fov = 45.5
+	add_child(_camera)
+	_frame_camera()
+	_camera.current = true
 	var light = DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-55, -30, 0)
 	light.light_energy = 1.5
@@ -92,6 +120,9 @@ func _build_hud() -> void:
 	var controls = Label.new()
 	controls.text = "WASD / arrows · Move    Z · Undo    Y · Redo    R · Restart"
 	column.add_child(controls)
+	var camera_controls = Label.new()
+	camera_controls.text = "Wheel · Zoom    Middle drag · Orbit    Shift + middle drag · Pan    F · Frame"
+	column.add_child(camera_controls)
 	var row = HBoxContainer.new()
 	column.add_child(row)
 	for action in ["Undo", "Redo", "Restart"]:
@@ -105,6 +136,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or not _view:
 		return
 	var key = event.physical_keycode
+	if key == KEY_F:
+		_frame_camera()
+		get_viewport().set_input_as_handled()
+		return
 	if key in [KEY_Z, KEY_Y, KEY_R]:
 		_history_action({KEY_Z: "Undo", KEY_Y: "Redo", KEY_R: "Restart"}[key])
 		get_viewport().set_input_as_handled()

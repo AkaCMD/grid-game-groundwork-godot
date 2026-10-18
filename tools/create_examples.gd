@@ -8,8 +8,8 @@ func _init() -> void:
 	var wall = define("wall", "Wall", Color(0.3647059, 0.48627454, 0.28235295, 1), false, {})
 	wall.affected_by_gravity = false
 	define("player", "Player", Color(0, 0, 0, 1), true, {"player": true, "can_push": true, "strength": 5.0})
-	define("crate", "Crate", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"crate": true, "pushable": true, "transmits_push": false, "weight": 1.0})
-	var l_crate = define("crate_l", "L crate", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"crate": true, "pushable": true, "transmits_push": false, "weight": 3.0})
+	define("crate", "Crate", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"crate": true, "pushable": true, "transmits_push": true, "weight": 1.0})
+	var l_crate = define("crate_l", "L crate", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"crate": true, "pushable": true, "transmits_push": true, "weight": 3.0})
 	l_crate.shape.assign([Vector3i.ZERO, Vector3i.RIGHT, Vector3i(0, 0, -1)])
 	var goal = define("goal", "Goal", Color(0.735849, 0.6563319, 0.5900676, 1), false, {"goal": true})
 	goal.solid = false

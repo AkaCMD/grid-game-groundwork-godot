@@ -44,6 +44,7 @@ func run() -> void:
 	check(pipes._view.roots.size() == pipes.level.entities.size(), "Pipe example renders all entities")
 	pipes.queue_free()
 	await process_frame
+	await test_camera_controls()
 	await test_input_buffer()
 	print("Runtime: %d failures" % failures)
 	quit(1 if failures else 0)
@@ -158,3 +159,36 @@ func test_input_buffer() -> void:
 		check(game.session.status == &"playing" and game.session.entities[&"player"].cell == Vector3i.RIGHT, "Undo after a terminal buffered action restores play without stale input")
 		game.queue_free()
 		await process_frame
+
+func test_camera_controls() -> void:
+	var game = load("res://examples/pipes.tscn").instantiate()
+	root.add_child(game)
+	await process_frame
+	var initial_position: Vector3 = game._camera.position
+	var initial_pivot: Vector3 = game._camera_pivot
+	var initial_state: Dictionary = game.session.snapshot()
+	var wheel = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel.pressed = true
+	game._unhandled_input(wheel)
+	check(game._camera.position.distance_to(initial_pivot) < initial_position.distance_to(initial_pivot), "Wheel zoom moves the perspective camera closer")
+	var motion = InputEventMouseMotion.new()
+	motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
+	motion.relative = Vector2(40, 20)
+	var before_orbit: Vector3 = game._camera.position
+	game._busy = true
+	game._unhandled_input(motion)
+	check(not game._camera.position.is_equal_approx(before_orbit), "Middle drag orbits even during gameplay animation")
+	check(game._camera_pivot == initial_pivot, "Orbit keeps the board pivot fixed")
+	motion.relative = Vector2(0, 10000)
+	game._unhandled_input(motion)
+	check(game._camera.transform.is_finite(), "Overhead orbit keeps a valid camera transform")
+	motion.shift_pressed = true
+	motion.relative = Vector2(30, 15)
+	game._unhandled_input(motion)
+	check(not game._camera_pivot.is_equal_approx(initial_pivot), "Shift middle drag pans the camera")
+	press(game, KEY_F)
+	check(game._camera_pivot.is_equal_approx(initial_pivot), "Frame restores the authored board center")
+	check(game.session.snapshot() == initial_state, "Camera controls leave gameplay state unchanged")
+	game.queue_free()
+	await process_frame

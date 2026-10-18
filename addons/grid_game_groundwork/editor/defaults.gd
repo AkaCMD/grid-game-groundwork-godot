@@ -18,7 +18,7 @@ static func palette() -> Array[GGEntityDefinition]:
 				definition.color = Color("64d5d0")
 				definition.properties = {"player": true, "can_push": true, "strength": 5.0}
 			"crate":
-				definition.properties = {"crate": true, "pushable": true, "transmits_push": false, "weight": 1.0}
+				definition.properties = {"crate": true, "pushable": true, "transmits_push": true, "weight": 1.0}
 			"goal":
 				definition.solid = false
 				definition.movable = false

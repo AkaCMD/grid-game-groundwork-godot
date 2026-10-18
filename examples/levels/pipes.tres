@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="GGLevel" format=3]
+[gd_resource type="Resource" script_class="GGLevel" format=3 uid="uid://bwk3kmfh54u7e"]
 
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_kilpu"]
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="2_a0r1g"]
+[ext_resource type="Script" uid="uid://c3ebklv7aopjr" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_kilpu"]
+[ext_resource type="Script" uid="uid://dc0bwfls8ti8r" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="2_a0r1g"]
 [ext_resource type="PackedScene" path="res://examples/visuals/pipe.tscn" id="3_ddox0"]
-[ext_resource type="Script" path="res://examples/rules/pipe_rule.gd" id="4_s42sv"]
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/level.gd" id="5_1tnf5"]
+[ext_resource type="Script" uid="uid://cwcsto1sxr5ny" path="res://examples/rules/pipe_rule.gd" id="4_s42sv"]
+[ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="5_1tnf5"]
 [ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [sub_resource type="Resource" id="Resource_gvias"]
@@ -559,7 +559,7 @@ visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,
-"transmits_push": false,
+"transmits_push": true,
 "weight": 1.0
 }
 
@@ -573,7 +573,7 @@ visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,
-"transmits_push": false,
+"transmits_push": true,
 "weight": 3.0
 }
 

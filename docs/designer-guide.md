@@ -31,7 +31,7 @@ To customize one entity:
 
 Removing a key restores inheritance for that property. **Reset all overrides** clears the draft; click **Apply entity changes** to apply it. **Duplicate selected** copies overrides and orientation, starting one cell to the right and stacking if needed. Deleting or erasing removes the whole entity, including all occupied cells.
 
-Core property keys are `solid`, `movable`, and `gravity`. Other properties are defined by game rules. The example presets use `player`, `can_push`, `pushable`, `transmits_push`, `strength`, and `weight`. These belong to entities, not a level-wide chain-pushing toggle.
+Core property keys are `solid`, `movable`, and `gravity`. Other properties are defined by game rules. The example presets use `player`, `can_push`, `pushable`, `transmits_push`, `strength`, and `weight`. These belong to entities, not a level-wide chain-pushing toggle. Default crates, including L-shaped crates, transmit pushes, matching the original Unity project: a player can push a chain when all destination cells are clear. Set `transmits_push=false` on an entity to prevent it from pushing another entity ahead of it.
 
 Editor undo covers placements, brush strokes, selection edits, shape edits, floor fills, level settings, and whole-level transforms. Shared-default edits made in Godot's native Inspector use its native resource editing/undo workflow.
 

@@ -1,8 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://b2ivpgjdo4ks4"]
 
-[ext_resource type="Script" path="res://addons/grid_game_groundwork/runtime/game.gd" id="1"]
-[ext_resource type="Resource" path="res://examples/levels/sokoban.tres" id="2"]
+[ext_resource type="Script" uid="uid://b3s2hb3p314aw" path="res://addons/grid_game_groundwork/runtime/game.gd" id="1"]
+[ext_resource type="Resource" uid="uid://qd4q6gf423x6" path="res://examples/levels/sokoban.tres" id="2"]
 
-[node name="Sokoban" type="Node3D"]
+[node name="Sokoban" type="Node3D" unique_id=860787039]
 script = ExtResource("1")
 level = ExtResource("2")

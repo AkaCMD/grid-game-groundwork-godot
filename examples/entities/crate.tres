@@ -12,6 +12,6 @@ visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,
-"transmits_push": false,
+"transmits_push": true,
 "weight": 1.0
 }
