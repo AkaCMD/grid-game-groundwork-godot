@@ -140,6 +140,32 @@ func check_coverage(target: SubViewport, world: Node3D, camera: Camera3D, surfac
 	surfaces.clear()
 	custom.set_shader_parameter("opacity", 1.0)
 	check(surfaces.pick(roots, Vector3(0, 0, 4), Vector3.FORWARD) == &"front", "Changing final shader alpha immediately restores picking")
+	# Keep the same overlay while changing the original material and instance.
+	surfaces.show_entities(roots, [&"front"], GGEditorEntitySurfaces.BLUE, false)
+	var persistent_overlay = surfaces.highlights[0]
+	for opacity in [0.0, 1.0, 0.0, 1.0]:
+		custom.set_shader_parameter("opacity", opacity)
+		await settled()
+		var color = target.get_texture().get_image().get_pixelv(right)
+		check(color.r > 0.95 if opacity == 0.0 else color.b > color.r + 0.1, "Persistent highlight follows source opacity %s" % opacity)
+		check(surfaces.highlights[0] == persistent_overlay, "Uniform updates retain the same overlay instance")
+		check(surfaces.pick(roots, Vector3(0.2, 0, 4), Vector3.FORWARD) == (&"behind" if opacity == 0.0 else &"front"), "Persistent highlight coverage agrees with picking")
+	# Also read actual transparent-background alpha, without the entity behind.
+	target.transparent_bg = true
+	behind.hide()
+	for feedback in [GGEditorEntitySurfaces.BLUE, GGEditorEntitySurfaces.RED]:
+		surfaces.set_feedback(feedback, false)
+		for opacity in [0.0, 1.0]:
+			custom.set_shader_parameter("opacity", opacity)
+			await settled()
+			var alpha = target.get_texture().get_image().get_pixelv(right).a
+			check(alpha < 0.001 if opacity == 0 else alpha > 0.99, "Persistent blue/red highlight preserves final alpha %s" % opacity)
+			check(surfaces.highlights[0] == persistent_overlay, "Alpha pixel regression retains its highlight instance")
+	behind.show()
+	target.transparent_bg = false
+	surfaces.clear()
+	await check_shader_culling(target, camera, front, roots, surfaces)
+	front.material_override = custom
 	custom.shader.code = "shader_type spatial; render_mode unshaded, cull_disabled; uniform sampler2D sprite : filter_nearest, repeat_disable; void fragment() { ALBEDO = vec3(1.0); ALPHA = texture(sprite, UV).a; }"
 	custom.set_shader_parameter("sprite", texture)
 	check(surfaces.pick(roots, Vector3(-0.2, 0, 4), Vector3.FORWARD) == &"behind", "Custom shader alpha hole passes through")
@@ -148,6 +174,37 @@ func check_coverage(target: SubViewport, world: Node3D, camera: Camera3D, surfac
 	await settled()
 	tinted = target.get_texture().get_image()
 	check(tinted.get_pixelv(left).r > 0.95 and tinted.get_pixelv(right).b > tinted.get_pixelv(right).r + 0.1, "Custom shader highlights only its final visible coverage")
+	# Texture replacements, UV uniforms and instance uniforms must stay live too.
+	for feedback in [GGEditorEntitySurfaces.BLUE, GGEditorEntitySurfaces.RED]:
+		surfaces.set_feedback(feedback, false)
+		var retained_overlay = surfaces.highlights[0]
+		var opaque_pixels = Image.create(2, 1, false, Image.FORMAT_RGBA8)
+		opaque_pixels.fill(Color.WHITE)
+		custom.set_shader_parameter("sprite", ImageTexture.create_from_image(opaque_pixels))
+		await settled()
+		var color = target.get_texture().get_image().get_pixelv(left)
+		check(color.b > color.r + 0.1 if feedback == GGEditorEntitySurfaces.BLUE else color.r > color.b + 0.1, "Persistent feedback follows replacement texture")
+		custom.set_shader_parameter("sprite", texture)
+		await settled()
+		check(target.get_texture().get_image().get_pixelv(left).r > 0.95, "Replacement texture restores the transparent hole")
+		check(surfaces.highlights[0] == retained_overlay, "Texture changes preserve the overlay")
+	surfaces.clear()
+	custom.shader.code = "shader_type spatial; render_mode unshaded; uniform sampler2D sprite : filter_nearest, repeat_disable; uniform vec2 uv_offset = vec2(0.0); instance uniform float instance_opacity = 1.0; void fragment() { ALBEDO = vec3(1.0); ALPHA = texture(sprite, UV + uv_offset).a * instance_opacity; }"
+	custom.set_shader_parameter("sprite", texture)
+	surfaces.show_entities(roots, [&"front"], GGEditorEntitySurfaces.RED, false)
+	var instance_overlay = surfaces.highlights[0]
+	for offset in [Vector2(1, 0), Vector2.ZERO]:
+		custom.set_shader_parameter("uv_offset", offset)
+		await settled()
+		var color = target.get_texture().get_image().get_pixelv(left)
+		check(color.r > color.b + 0.1 if offset.x == 1 else color.r > 0.95 and color.b > 0.95, "Persistent feedback follows source UV uniform")
+	for opacity in [0.0, 1.0]:
+		front.set_instance_shader_parameter("instance_opacity", opacity)
+		await settled()
+		var color = target.get_texture().get_image().get_pixelv(right)
+		check(color.r > 0.95 and color.b > 0.95 if opacity == 0 else color.r > color.b + 0.1, "Persistent feedback follows instance uniform")
+		check(surfaces.pick(roots, Vector3(0.2, 0, 4), Vector3.FORWARD) == (&"behind" if opacity == 0 else &"front"), "Instance coverage agrees with picking")
+		check(surfaces.highlights[0] == instance_overlay, "Instance uniform changes preserve the overlay")
 	surfaces.clear()
 	custom.shader.code = "shader_type spatial; render_mode unshaded, cull_disabled; void fragment() { /* } ALPHA */ ALBEDO = vec3(1.0); if (UV.x < 0.5) { discard; } }"
 	check(surfaces.pick(roots, Vector3(-0.2, 0, 4), Vector3.FORWARD) == &"behind", "Shader discard passes through without an ALPHA assignment")
@@ -166,6 +223,13 @@ func check_coverage(target: SubViewport, world: Node3D, camera: Camera3D, surfac
 	await settled()
 	var custom_color = target.get_texture().get_image().get_pixelv(right)
 	check(custom_color.b > custom_color.r + 0.1, "Highlight uniforms do not replace the source shader's tint or breathing uniforms")
+	for hidden in [true, false]:
+		custom.set_shader_parameter("breathing", hidden)
+		custom.set_shader_parameter("tint", Color(1, 1, 1, 0 if hidden else 1))
+		surfaces.set_feedback(GGEditorEntitySurfaces.RED, false)
+		await settled()
+		var color = target.get_texture().get_image().get_pixelv(right)
+		check(color.r > 0.95 and color.b > 0.95 if hidden else color.r > color.b + 0.1, "Live source uniforms remain isolated from red feedback uniforms")
 	surfaces.clear()
 	custom.shader.code = "shader_type spatial; render_mode unshaded; void fragment() { ALBEDO = vec3(1.0); ALPHA = UV.x < 0.5 ? 0.25 : 0.75; ALPHA_SCISSOR_THRESHOLD = 0.5; }"
 	surfaces.show_entities(roots, [&"front"], GGEditorEntitySurfaces.BLUE, false)
@@ -189,3 +253,27 @@ func check_coverage(target: SubViewport, world: Node3D, camera: Camera3D, surfac
 	tinted = target.get_texture().get_image()
 	check(tinted.get_pixelv(left).b > tinted.get_pixelv(left).r + 0.1, "QUACK white background receives the complete surface highlight")
 	surfaces.clear()
+
+func check_shader_culling(target: SubViewport, camera: Camera3D, front: MeshInstance3D, roots: Dictionary, surfaces: GGEditorEntitySurfaces) -> void:
+	var material = ShaderMaterial.new()
+	material.shader = Shader.new()
+	front.material_override = material
+	for declaration in [
+		"uniform float cull_front_strength = 0.0;",
+		"uniform float cull_disabled_strength = 0.0; // render_mode cull_front;",
+		"/* render_mode cull_front; */",
+		"\n#if 0\nrender_mode cull_front;\n#endif\n",
+		"\n#define FACE cull_back\nrender_mode FACE;\n",
+	]:
+		material.shader.code = "shader_type spatial; render_mode unshaded; " + declaration + "\nvoid fragment() { ALBEDO = vec3(1.0); }"
+		check(surfaces.pick(roots, Vector3(0, 0, 4), Vector3.FORWARD) == &"front", "Only active render modes control front picking: " + declaration)
+		check(surfaces.pick({&"front": front}, Vector3(0, 0, -4), Vector3.BACK) == &"", "Default back culling rejects rear picking: " + declaration)
+		surfaces.show_entities(roots, [&"front"], GGEditorEntitySurfaces.BLUE, false)
+		await settled()
+		var point = Vector2i(camera.unproject_position(Vector3(0.2, 0, 1)))
+		var color = target.get_texture().get_image().get_pixelv(point)
+		check(color.b > color.r + 0.1, "Highlight retains active culling: " + declaration)
+		surfaces.clear()
+	material.shader.code = "shader_type spatial; render_mode unshaded, cull_front; void fragment() { ALBEDO = vec3(1.0); }"
+	check(surfaces.pick(roots, Vector3(0, 0, 4), Vector3.FORWARD) == &"behind", "Explicit front culling rejects front picking")
+	check(surfaces.pick({&"front": front}, Vector3(0, 0, -4), Vector3.BACK) == &"front", "Explicit front culling accepts rear picking")

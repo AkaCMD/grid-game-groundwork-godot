@@ -13,10 +13,21 @@ editor-only shader from the original fragment, preserving its uniforms, sampler
 hints, vertex stage, includes and discard/alpha logic, then applies the feedback
 color and strength. Scissor runs before the feedback strength is applied. Feedback
 uniform names avoid collisions with original uniforms. Original resources stay intact.
+While an overlay remains visible, each render frame synchronizes source material
+uniforms (including textures and UV parameters) and instance uniforms. Standard
+material alpha, UV, wrap/filter and culling settings are synchronized too. Feedback
+color/breathing use one shared setter and remain independent of source uniforms.
 
 Shaders without alpha/discard are opaque under Godot's spatial shader contract.
-Otherwise picking renders the candidate surface into a tiny transparent viewport
-along the ray, clipped just beyond each geometric intersection, and reads final
+Cull modes are matched as complete tokens only inside actual `render_mode`
+declarations, after stripping comments and quoted strings. If preprocessing remains
+(macros or conditional branches), geometry accepts either face and the renderer
+resolves active culling; this path also requires a graphical renderer for opaque
+shaders. Highlight derivation retains each cull declaration in its original
+preprocessor scope.
+
+For alpha/discard or preprocessor-dependent culling, picking renders the candidate
+surface into a tiny transparent viewport along the ray, clipped just beyond each geometric intersection, and reads final
 coverage. Transparent front faces can reveal later faces or other entities. The
 probe copies transforms and instance uniforms, synchronizes before reading, and
 is released at the end of each pick. It requires a graphical renderer and adds a

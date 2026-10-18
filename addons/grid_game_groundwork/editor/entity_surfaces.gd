@@ -16,6 +16,8 @@ var _probe_camera: Camera3D
 var _probe_mesh: MeshInstance3D
 
 func clear() -> void:
+	if RenderingServer.frame_pre_draw.is_connected(_sync_highlights):
+		RenderingServer.frame_pre_draw.disconnect(_sync_highlights)
 	for overlay in highlights:
 		if not is_instance_valid(overlay): continue
 		# Keep materials alive until MeshInstance3D finishes releasing its surfaces.
@@ -58,30 +60,52 @@ func show_entities(roots: Dictionary, ids: Array[StringName], color: Color, brea
 				else:
 					material.shader = _standard_highlight(original)
 				material.render_priority = 1
-				material.set_shader_parameter(material.get_meta("tint_parameter", &"tint"), color)
-				material.set_shader_parameter(material.get_meta("breathing_parameter", &"breathing"), breathing)
-				if original is BaseMaterial3D:
-					material.set_shader_parameter("face_cull", original.cull_mode)
-					if original.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
-						material.set_shader_parameter("base_alpha", original.albedo_color.a)
-						material.set_shader_parameter("alpha_cutoff", _cutoff(original))
-						material.set_shader_parameter("uv_scale", original.uv1_scale)
-						material.set_shader_parameter("uv_offset", original.uv1_offset)
-						if original.albedo_texture:
-							material.set_shader_parameter("use_alpha", true)
-							material.set_shader_parameter("alpha_texture", original.albedo_texture)
+				_set_material_feedback(material, color, breathing)
+				_sync_material(original, material)
 				overlay.set_surface_override_material(surface, material)
 			source.add_child(overlay)
 			_copy_instance_uniforms(source, overlay)
 			highlights.append(overlay)
+	if not highlights.is_empty():
+		RenderingServer.frame_pre_draw.connect(_sync_highlights)
 
 func set_feedback(color: Color, breathing: bool) -> void:
 	for overlay in highlights:
 		if not is_instance_valid(overlay): continue
 		for surface in range(overlay.mesh.get_surface_count()):
 			var material = overlay.get_surface_override_material(surface)
-			material.set_shader_parameter(material.get_meta("tint_parameter", &"tint"), color)
-			material.set_shader_parameter(material.get_meta("breathing_parameter", &"breathing"), breathing)
+			_set_material_feedback(material, color, breathing)
+
+static func _set_material_feedback(material: ShaderMaterial, color: Color, breathing: bool) -> void:
+	material.set_shader_parameter(material.get_meta("tint_parameter", &"tint"), color)
+	material.set_shader_parameter(material.get_meta("breathing_parameter", &"breathing"), breathing)
+
+func _sync_highlights() -> void:
+	# ShaderMaterial.set_shader_parameter does not emit Resource.changed.
+	# Sync at the render boundary, including instance uniforms changed by tools.
+	for overlay in highlights:
+		if not is_instance_valid(overlay): continue
+		var source = overlay.get_parent() as MeshInstance3D
+		if not source: continue
+		for surface in range(overlay.mesh.get_surface_count()):
+			_sync_material(source.get_active_material(surface), overlay.get_surface_override_material(surface))
+		_copy_instance_uniforms(source, overlay)
+
+func _sync_material(original: Material, material: ShaderMaterial) -> void:
+	if original is ShaderMaterial and original.shader:
+		# Only original uniforms are copied: editor feedback has distinct names.
+		for parameter in original.shader.get_shader_uniform_list():
+			material.set_shader_parameter(parameter.name, original.get_shader_parameter(parameter.name))
+	elif original is BaseMaterial3D:
+		material.shader = _standard_highlight(original)
+		material.set_shader_parameter("face_cull", original.cull_mode)
+		var transparent = original.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
+		material.set_shader_parameter("base_alpha", original.albedo_color.a if transparent else 1.0)
+		material.set_shader_parameter("alpha_cutoff", _cutoff(original) if transparent else 0.001)
+		material.set_shader_parameter("uv_scale", original.uv1_scale)
+		material.set_shader_parameter("uv_offset", original.uv1_offset)
+		material.set_shader_parameter("use_alpha", transparent and original.albedo_texture != null)
+		material.set_shader_parameter("alpha_texture", original.albedo_texture)
 
 func pick(roots: Dictionary, origin: Vector3, direction: Vector3) -> StringName:
 	var closest = INF
@@ -149,8 +173,8 @@ func _hit_surface(surface: Dictionary, material: Material, origin: Vector3, dire
 		if material is BaseMaterial3D:
 			visible = material.cull_mode == BaseMaterial3D.CULL_DISABLED or (front if material.cull_mode == BaseMaterial3D.CULL_BACK else not front)
 		if material is ShaderMaterial and material.shader:
-			var code = _shader_code(material.shader)
-			visible = true if "cull_disabled" in code else (not front if "cull_front" in code else front)
+			var cull = _shader_cull_mode(material.shader)
+			visible = cull == BaseMaterial3D.CULL_DISABLED or (front if cull == BaseMaterial3D.CULL_BACK else not front)
 		if visible and _opaque_at(material, uv) and (not coverage_test.is_valid() or coverage_test.call(hit.position)): return hit.position
 		cursor = hit.position + direction * 0.00001
 	return null
@@ -212,18 +236,20 @@ func _shader_highlight(original: ShaderMaterial) -> ShaderMaterial:
 			code = code.left(start + 1) + "ALPHA = 1.0;" + body + tint_exit + code.substr(end - 1)
 		else:
 			code += "\nvoid fragment() { ALPHA = 1.0; " + tint_exit + " }"
-		var modes = RegEx.create_from_string(r"render_mode\s+([^;]+);")
-		var match_modes = modes.search(code)
-		var kept: PackedStringArray = []
-		if match_modes:
-			for mode in match_modes.get_string(1).split(","):
+		var modes = RegEx.create_from_string(r"\brender_mode\s+([^;]+);")
+		# Preserve each declaration's preprocessor scope. Only replace feedback
+		# blend/depth modes, leaving cull modes (including macros) to Godot.
+		var declarations = modes.search_all(code)
+		declarations.reverse()
+		for declaration in declarations:
+			var kept: PackedStringArray = []
+			for mode in declaration.get_string(1).split(","):
 				mode = mode.strip_edges()
-				if not mode.begins_with("depth_") and not mode.begins_with("blend_"):
+				if not mode.begins_with("depth_") and not mode.begins_with("blend_") and mode != "unshaded":
 					kept.append(mode)
-		code = modes.sub(code, "", true)
-		if not kept.has("unshaded"): kept.append("unshaded")
-		kept.append_array(["blend_mix", "depth_draw_never"])
-		code += "\nrender_mode " + ", ".join(kept) + ";\n"
+			var replacement = "render_mode " + ", ".join(kept) + ";" if not kept.is_empty() else ""
+			code = code.left(declaration.get_start()) + replacement + code.substr(declaration.get_end())
+		code += "\nrender_mode unshaded, blend_mix, depth_draw_never;\n"
 		code = RegEx.create_from_string(r"shader_type\s+spatial\s*;").sub(code, "shader_type spatial;\nuniform vec4 %s : source_color; uniform bool %s = true;\n" % [tint_parameter, breathing_parameter])
 		var shader = Shader.new()
 		shader.code = code
@@ -232,8 +258,6 @@ func _shader_highlight(original: ShaderMaterial) -> ShaderMaterial:
 	material.shader = _shader_variants[key]
 	material.set_meta("tint_parameter", tint_parameter)
 	material.set_meta("breathing_parameter", breathing_parameter)
-	for parameter in original.shader.get_shader_uniform_list():
-		material.set_shader_parameter(parameter.name, original.get_shader_parameter(parameter.name))
 	return material
 
 func _standard_highlight(original: Material) -> Shader:
@@ -251,7 +275,8 @@ func _shader_covered(source: MeshInstance3D, surface: int, material: ShaderMater
 	# shader contract. In particular, QUACK's sprite alpha only affects ALBEDO.
 	# Includes require evaluation: they may contain alpha/discard instructions.
 	var coverage = RegEx.create_from_string(r"\b(ALPHA|discard)\b|#include")
-	if not material.shader or not coverage.search(_shader_code(material.shader)): return true
+	if not material.shader: return true
+	if not coverage.search(_shader_code(material.shader)) and "#" not in _shader_code(material.shader): return true
 	# Arbitrary shader programs cannot be evaluated from albedo textures on CPU.
 	# Render the actual surface along the pick ray, clipped just beyond this hit,
 	# and read final coverage. The tiny isolated viewport never changes the scene.
@@ -288,6 +313,20 @@ func _shader_covered(source: MeshInstance3D, surface: int, material: ShaderMater
 	RenderingServer.force_draw(false)
 	var image = _probe.get_texture().get_image()
 	return image != null and not image.is_empty() and image.get_pixel(1, 1).a > 0.001
+
+static func _shader_cull_mode(shader: Shader) -> int:
+	var code = _shader_code(shader)
+	# Preprocessor expressions/macros belong to Godot. Use two-sided geometry
+	# as the broad phase and let the actual coverage probe resolve culling.
+	if "#" in code: return BaseMaterial3D.CULL_DISABLED
+	# Ignore strings and match complete tokens only inside render_mode lists.
+	code = RegEx.create_from_string(r'"[^"\n]*"').sub(code, "", true)
+	for declaration in RegEx.create_from_string(r"\brender_mode\s+([^;]+);").search_all(code):
+		for mode in declaration.get_string(1).split(","):
+			match mode.strip_edges():
+				"cull_disabled": return BaseMaterial3D.CULL_DISABLED
+				"cull_front": return BaseMaterial3D.CULL_FRONT
+	return BaseMaterial3D.CULL_BACK
 
 static func _shader_code(shader: Shader) -> String:
 	return _expand_shader_code(shader.code, shader.resource_path.get_base_dir())
