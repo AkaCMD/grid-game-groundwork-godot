@@ -4,6 +4,10 @@ A reusable Godot addon for building 3D grid puzzles, with a visual level designe
 
 Requires **Godot 4.6+ Standard**, using the Compatibility renderer. Verified with Godot **4.7.2**. No .NET, physics engine integration, or third-party Godot addons are required.
 
+![Gameplay demo: movement, crate pushing, L-shaped crate pushing, falling, undo, and redo](docs/media/gameplay.gif)
+
+Move, push crates and L-shaped blocks, and drop onto the lower landing. Undo and redo restore the whole action, including falls.
+
 ## Start here
 
 1. Import `project.godot` into Godot and let its first import finish.
