@@ -16,6 +16,8 @@ Press **F5** to play Sokoban directly. Open `examples/pipes.tscn` and press **F6
 
 Levels default to a high-angle perspective view in both the editor and gameplay, matching the original project's demo: visible block sides, no diagonal board rotation, and north (negative Z) toward the top of the screen. Middle-drag in the editor to inspect stacking from another angle.
 
+The Sokoban example includes a lower landing area at the bottom of the board. From the start, press **S twice** to push the spare block down a two-cell drop. The opening at X=4 provides a one-cell step followed by another drop for the player. Press **Z** to undo a fall or **R** to restart; the spare block is excluded from the goal requirements.
+
 For a blank level, click **New level**. Select **Ground**, set **Height** to **-1**, choose a floor width/depth, and click **Fill ground at current height**. Then set height to **0** and paint a player, crates, and goals. Choose a game rule in the right panel to give the level its win conditions; the example rules are available as `GGSokobanRule` and `GGPipeRule` resources.
 
 See the [designer guide](docs/designer-guide.md) for the complete workflow and the [extension guide](docs/extending.md) for creating a game.
@@ -46,8 +48,10 @@ Player editors, community sharing/import formats, Unity level import, progressio
 | Level editor | Undo / Redo buttons | Undo or redo an entire brush stroke or edit |
 | Shape editor | Left click / drag | Add occupied cells at the current height |
 | Shape editor | Right click / Erase tool | Remove occupied cells |
-| Game | WASD / arrows | Move on the XZ grid |
+| Game | WASD / arrows | Move on the XZ grid; rapid taps buffer and accelerate movement |
 | Game | Z / Y / R | Undo / redo / restart |
+
+Movement buffers up to four fresh direction presses during an animation and plays them in order. Rapid taps shorten stage animations from `step_duration` (default 0.12 s) to `buffered_step_duration` (default 0.06 s); held key repeats keep the normal pace without filling the buffer. Undo, redo, and restart clear pending movement and run after the current action finishes. Both durations can be tuned on `GGGame`.
 
 ## Use in another project
 

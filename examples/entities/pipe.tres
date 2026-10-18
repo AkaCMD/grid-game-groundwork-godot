@@ -7,7 +7,7 @@
 script = ExtResource("1_fvk5i")
 definition_id = &"pipe"
 display_name = "Straight pipe"
-color = Color(0.75686276, 0.5803922, 0.9098039, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("2_5cw1o")
 properties = {
 "pipe": true,

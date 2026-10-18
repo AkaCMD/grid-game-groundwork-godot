@@ -8,7 +8,7 @@ script = ExtResource("1_vry41")
 definition_id = &"source"
 display_name = "Pipe source"
 movable = false
-color = Color(0.29803923, 0.9019608, 0.8745098, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("2_q44ix")
 properties = {
 "pipe": true,

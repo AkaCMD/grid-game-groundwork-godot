@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://examples/visuals/pipe.tscn" id="3_ddox0"]
 [ext_resource type="Script" path="res://examples/rules/pipe_rule.gd" id="4_s42sv"]
 [ext_resource type="Script" path="res://addons/grid_game_groundwork/data/level.gd" id="5_1tnf5"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [sub_resource type="Resource" id="Resource_gvias"]
 script = ExtResource("2_a0r1g")
@@ -12,7 +13,8 @@ definition_id = &"ground"
 display_name = "Ground"
 movable = false
 affected_by_gravity = false
-color = Color(0.20392157, 0.2784314, 0.37254903, 1)
+color = Color(0.909804, 0.909804, 0.8745099, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "ground": true
 }
@@ -29,7 +31,8 @@ definition_id = &"wall"
 display_name = "Wall"
 movable = false
 affected_by_gravity = false
-color = Color(0.3764706, 0.44313726, 0.5254902, 1)
+color = Color(0.3647059, 0.48627454, 0.28235295, 1)
+visual_scene = ExtResource("visual_block")
 properties = {}
 
 [sub_resource type="Resource" id="Resource_fbmgf"]
@@ -467,7 +470,8 @@ cell = Vector3i(6, 0, 6)
 script = ExtResource("2_a0r1g")
 definition_id = &"player"
 display_name = "Player"
-color = Color(0.39215687, 0.8352941, 0.8156863, 1)
+color = Color(0, 0, 0, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "can_push": true,
 "player": true,
@@ -485,7 +489,7 @@ script = ExtResource("2_a0r1g")
 definition_id = &"source"
 display_name = "Pipe source"
 movable = false
-color = Color(0.29803923, 0.9019608, 0.8745098, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "pipe": true,
@@ -504,7 +508,7 @@ script = ExtResource("2_a0r1g")
 definition_id = &"destination"
 display_name = "Pipe destination"
 movable = false
-color = Color(0.9411765, 0.54509807, 0.6627451, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "destination": true,
@@ -522,7 +526,7 @@ cell = Vector3i(4, 0, 2)
 script = ExtResource("2_a0r1g")
 definition_id = &"pipe"
 display_name = "Straight pipe"
-color = Color(0.75686276, 0.5803922, 0.9098039, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "pipe": true,
@@ -550,7 +554,8 @@ script = ExtResource("4_s42sv")
 script = ExtResource("2_a0r1g")
 definition_id = &"crate"
 display_name = "Crate"
-color = Color(0.9490196, 0.7137255, 0.36862746, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,
@@ -563,7 +568,8 @@ script = ExtResource("2_a0r1g")
 definition_id = &"crate_l"
 display_name = "L crate"
 shape = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, -1)])
-color = Color(0.8980392, 0.5254902, 0.33333334, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,
@@ -578,7 +584,8 @@ display_name = "Goal"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(0.65882355, 0.9372549, 0.4745098, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "goal": true
 }
@@ -587,7 +594,7 @@ properties = {
 script = ExtResource("2_a0r1g")
 definition_id = &"pipe_elbow"
 display_name = "Elbow pipe"
-color = Color(0.75686276, 0.5803922, 0.9098039, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "pipe": true,

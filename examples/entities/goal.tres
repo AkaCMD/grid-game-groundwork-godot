@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
 
 [ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_okujw"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [resource]
 script = ExtResource("1_okujw")
@@ -9,7 +10,8 @@ display_name = "Goal"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(0.65882355, 0.9372549, 0.4745098, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "goal": true
 }

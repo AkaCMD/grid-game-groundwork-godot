@@ -1,12 +1,14 @@
 [gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
 
 [ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_vj8x3"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [resource]
 script = ExtResource("1_vj8x3")
 definition_id = &"crate"
 display_name = "Crate"
-color = Color(0.9490196, 0.7137255, 0.36862746, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "crate": true,
 "pushable": true,

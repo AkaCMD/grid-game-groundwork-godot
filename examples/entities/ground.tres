@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="GGEntityDefinition" format=3]
 
 [ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="1_axnt7"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [resource]
 script = ExtResource("1_axnt7")
@@ -8,7 +9,8 @@ definition_id = &"ground"
 display_name = "Ground"
 movable = false
 affected_by_gravity = false
-color = Color(0.20392157, 0.2784314, 0.37254903, 1)
+color = Color(0.909804, 0.909804, 0.8745099, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "ground": true
 }

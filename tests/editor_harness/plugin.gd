@@ -26,10 +26,12 @@ func run() -> void:
 		get_tree().quit(1)
 		return
 	EditorInterface.set_main_screen_editor("Grid Levels")
-	panel.request_open(load("res://examples/levels/sokoban.tres"))
+	var example: GGLevel = load("res://examples/levels/sokoban.tres")
+	var example_count = example.entities.size()
+	panel.request_open(example)
 	for frame in range(10): await get_tree().process_frame
 	check(panel.viewport.level.title == "Garden of crates", "Example opens in the visual workspace")
-	check(panel.viewport.board.roots.size() == 78, "All example entities have visual instances")
+	check(panel.viewport.board.roots.size() == example_count, "All example entities have visual instances")
 	panel._new_level()
 	panel._choose_definition(0)
 	panel._height.value = -1
@@ -67,7 +69,7 @@ func run() -> void:
 	for frame in range(60): await get_tree().process_frame
 	check(EditorInterface.is_playing_scene(), "One-click playtest starts a game process")
 	EditorInterface.stop_playing_scene()
-	check(panel.authoring.level.entities.size() == 78, "Playtest leaves the authored level unchanged")
+	check(panel.authoring.level.entities.size() == example_count, "Playtest leaves the authored level unchanged")
 	for frame in range(30): await get_tree().process_frame
 	if DisplayServer.get_name() != "headless" and not OS.get_environment("GGG_EDITOR_SCREENSHOT").is_empty():
 		var image = EditorInterface.get_base_control().get_viewport().get_texture().get_image()

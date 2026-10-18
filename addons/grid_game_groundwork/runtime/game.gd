@@ -6,11 +6,18 @@ signal level_completed
 signal level_failed
 @export var level: GGLevel
 @export_range(0.01, 0.5) var step_duration: float = 0.12
+## Stage duration when fresh key presses are buffered during movement.
+@export_range(0.01, 0.5) var buffered_step_duration: float = 0.06
+const INPUT_BUFFER_LIMIT = 4
 var session = GGSession.new()
 var _view: GGBoardView
 var _label: Label
 var _busy = false
 var _status: StringName
+var _move_queue: Array[Vector3i] = []
+var _pending_history = ""
+var _active_tween: Tween
+var _fast_animation = false
 
 func _ready() -> void:
 	if not level:
@@ -95,7 +102,7 @@ func _build_hud() -> void:
 		row.add_child(button)
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if not event is InputEventKey or not event.pressed or _busy or not _view:
+	if not event is InputEventKey or not event.pressed or not _view:
 		return
 	var key = event.physical_keycode
 	if key in [KEY_Z, KEY_Y, KEY_R]:
@@ -110,11 +117,24 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_D, KEY_RIGHT: direction = Vector3i(1, 0, 0)
 	if direction != Vector3i.ZERO:
 		get_viewport().set_input_as_handled()
-		if session.move(session.player_id(), direction):
+		if session.status != &"playing":
+			return
+		if _busy:
+			# OS key repeats must not build a backlog or trigger tap acceleration.
+			if not event.echo and _pending_history.is_empty() and _move_queue.size() < INPUT_BUFFER_LIMIT:
+				_move_queue.append(direction)
+				_fast_animation = true
+				if _active_tween and _active_tween.is_valid():
+					_active_tween.set_speed_scale(_animation_speed())
+		elif session.move(session.player_id(), direction):
 			_animate()
 
 func _history_action(action: String) -> void:
-	if _busy or not _view:
+	if not _view:
+		return
+	_move_queue.clear()
+	if _busy:
+		_pending_history = action
 		return
 	var changed = true
 	match action:
@@ -124,15 +144,33 @@ func _history_action(action: String) -> void:
 	if changed:
 		_animate()
 
-func _animate() -> void:
+func _animation_speed() -> float:
+	return maxf(1.0, step_duration / maxf(0.01, buffered_step_duration)) if _fast_animation else 1.0
+
+func _animate(accelerated: bool = false) -> void:
 	_busy = true
+	_fast_animation = accelerated
 	var duration = minf(step_duration, 0.9 / maxf(1.0, session.stages.size()))
 	for stage in session.stages:
-		var tween = _view.show_state(stage, duration)
-		if tween and tween.is_valid():
-			await tween.finished
+		_active_tween = _view.show_state(stage, duration)
+		if _active_tween and _active_tween.is_valid():
+			_active_tween.set_speed_scale(_animation_speed())
+			await _active_tween.finished
+	_active_tween = null
 	_busy = false
+	if session.status != &"playing":
+		_move_queue.clear()
 	_update_status()
+	if not _pending_history.is_empty():
+		var action = _pending_history
+		_pending_history = ""
+		_history_action(action)
+		return
+	while not _move_queue.is_empty():
+		var direction: Vector3i = _move_queue.pop_front()
+		if session.move(session.player_id(), direction):
+			_animate(true)
+			return
 
 func _update_status() -> void:
 	match session.status:

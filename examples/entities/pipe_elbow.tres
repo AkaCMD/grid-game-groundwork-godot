@@ -7,7 +7,7 @@
 script = ExtResource("1_vv80x")
 definition_id = &"pipe_elbow"
 display_name = "Elbow pipe"
-color = Color(0.75686276, 0.5803922, 0.9098039, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("2_1db6c")
 properties = {
 "pipe": true,

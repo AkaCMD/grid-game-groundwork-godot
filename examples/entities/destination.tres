@@ -8,7 +8,7 @@ script = ExtResource("1_3u1sv")
 definition_id = &"destination"
 display_name = "Pipe destination"
 movable = false
-color = Color(0.9411765, 0.54509807, 0.6627451, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
 visual_scene = ExtResource("2_ajg34")
 properties = {
 "destination": true,
