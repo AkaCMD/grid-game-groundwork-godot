@@ -83,7 +83,7 @@ Shape changes affect all placements sharing the definition and can be undone. Ch
 
 ## Camera and shortcuts
 
-Focus the viewport before navigating. **WASD** flies relative to the view without holding a mouse button; **Q/E** moves along world Y. Right-drag looks around without moving. Right+wheel adjusts speed (default 8, range 0.25–128 cells/s). Cameras pass through entities and below the board.
+Focus the viewport before navigating. **WASD** flies relative to the view without holding a mouse button; **Q/E** moves along world Y. In Select mode with entities selected, each **Q/E** press lowers/raises the entire selection by one cell instead. Holding the key does not repeat the move. Relative positions are preserved; an invalid destination rejects the whole move, and each successful move is one undo action. Finish dragging before using this shortcut. Hold the right mouse button with **Q/E** to fly the camera while entities are selected. Right-drag looks around without moving. Right+wheel adjusts speed (default 8, range 0.25–128 cells/s). Cameras pass through entities and below the board.
 
 Flight and Shift+middle pan carry the placement plane vertically, snapping Height to whole cells. Orbit and zoom preserve Height. **Page Up/Down** changes Height independently by one cell; manual Height changes become the new starting plane.
 
@@ -97,11 +97,12 @@ Finish painting or moving entities before navigating. Navigation hides brush pre
 | Editor | Left click / drag | Use current tool |
 | Select | **Shift+click** | Toggle selection |
 | Select, one or more entities | **Delete** | Delete selection |
+| Select viewport, one or more entities, idle | **Q / E** | Lower/raise selection one cell per press |
 | Select | Drag an axis / plane handle | Move selection by whole cells |
 | Select, one entity | **End**, idle or dragging | Snap down to support |
 | Active move | **Esc** | Cancel the complete move |
 | Editor | Right click | Pick brush settings |
-| Editor viewport | **WASD**, **Q/E** | Fly relative to view; down/up along Y |
+| Editor viewport | **WASD**, **Q/E** (right+Q/E with selection) | Fly relative to view; down/up along Y |
 | Editor viewport | Right drag / right+wheel | Look / adjust flight speed |
 | Editor workspace | **Page Up / Page Down** | Raise/lower placement height |
 | Editor navigation | **Esc** | Stop and release cursor |

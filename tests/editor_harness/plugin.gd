@@ -59,6 +59,7 @@ func run() -> void:
 	await check_paint_surfaces(panel)
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
+	await check_selection_height(panel)
 	await check_surface_interaction(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
@@ -732,6 +733,122 @@ func selection_click(view: GGEditorViewport, cell: Vector3i, shift: bool = false
 	view.gui_input.emit(event)
 	event.pressed = false
 	view.gui_input.emit(event)
+
+func check_selection_height(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	for index in range(3):
+		var entity = GGEntityPlacement.new()
+		entity.entity_id = StringName("height_%d" % index)
+		entity.definition = fixture.palette[3]
+		entity.cell = Vector3i(0, [2, 3, 5][index], 0)
+		entity.quarter_turns = 1
+		entity.mirrored = true
+		entity.overrides = {"weight": 7}
+		fixture.entities.append(entity)
+	panel._open(fixture)
+	panel._set_mode(2)
+	panel._select(&"height_1")
+	var view = panel.viewport
+	view.grab_focus()
+	view.set_process(false)
+	var camera_origin = view.camera.position
+	var paint_height = view.layer
+	var history_size = panel.authoring._history.size()
+	await mode_key(KEY_E)
+	check(panel.authoring.find_entity(&"height_1").cell.y == 4, "E raises a single selection by one cell")
+	check(view._move_gizmo.position.y == 4 and panel._coords[1].value == 4 and view.board.roots[&"height_1"].position.y == 4, "Keyboard movement refreshes the gizmo, coordinates and visual")
+	await mode_key(KEY_E, 0, true)
+	view._process(1.0)
+	await mode_key(KEY_E, 0, false, false)
+	check(panel.authoring.find_entity(&"height_1").cell.y == 4 and panel.authoring._history.size() == history_size + 1, "Holding E, repeats and release add no movement or history")
+	check(view.camera.position == camera_origin and view.layer == paint_height and not view.is_navigating(), "Selection QE leaves the camera and paint height unchanged")
+	check(panel.authoring.undo() and panel.authoring.find_entity(&"height_1").cell.y == 3, "One undo restores a keyboard height move")
+	check(panel.authoring.redo() and panel.authoring.find_entity(&"height_1").cell.y == 4, "Redo reapplies a keyboard height move")
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	check(panel.authoring.find_entity(&"height_1").cell.y == 3, "Q lowers a single selection by one cell")
+	panel._select(&"height_0", true)
+	history_size = panel.authoring._history.size()
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	check(panel.authoring.find_entity(&"height_0").cell.y == 3 and panel.authoring.find_entity(&"height_1").cell.y == 4, "E moves a stacked selection together, allowing its vacated cells")
+	check(panel.authoring._history.size() == history_size + 1, "Group height movement records one undo action")
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	check(panel.authoring.find_entity(&"height_0").cell.y == 3 and panel.authoring.find_entity(&"height_1").cell.y == 4 and panel.authoring._history.size() == history_size + 1, "One blocked member rejects the whole height move without history")
+	check(not panel.authoring.last_error.is_empty(), "Blocked height movement reports the validation error")
+	check(panel.authoring.undo() and panel.authoring.find_entity(&"height_0").cell.y == 2 and panel.authoring.find_entity(&"height_1").cell.y == 3, "One undo restores the entire group's relative heights")
+	for id in [&"height_0", &"height_1"]:
+		var entity = panel.authoring.find_entity(id)
+		check(entity.quarter_turns == 1 and entity.mirrored and entity.overrides == {"weight": 7}, "QE preserves orientation and overrides")
+	history_size = panel.authoring._history.size()
+	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_SHIFT, KEY_MASK_META]:
+		# Exercise the viewport guard without invoking Godot's global Ctrl+Q quit command.
+		var modified = InputEventKey.new()
+		modified.physical_keycode = KEY_Q
+		modified.pressed = true
+		modified.ctrl_pressed = bool(modifiers & KEY_MASK_CTRL)
+		modified.alt_pressed = bool(modifiers & KEY_MASK_ALT)
+		modified.shift_pressed = bool(modifiers & KEY_MASK_SHIFT)
+		modified.meta_pressed = bool(modifiers & KEY_MASK_META)
+		view._input(modified)
+	panel._settings_title.grab_focus()
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	panel._select(&"height_1")
+	panel._coords[1].get_line_edit().grab_focus()
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	check(panel.authoring._history.size() == history_size and panel.authoring.find_entity(&"height_1").cell.y == 3, "Modified QE and text or coordinate editing do not move selection")
+	panel._confirm.popup_centered()
+	await get_tree().process_frame
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._confirm.hide()
+	view.grab_focus()
+	check(panel.authoring._history.size() == history_size, "Modal dialogs block selection QE")
+	await mode_key(KEY_W)
+	await mode_key(KEY_D)
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	check(panel.authoring.find_entity(&"height_1").cell.y == 4 and view._navigation_keys.has(KEY_W) and view._navigation_keys.has(KEY_D), "Raising selection preserves every held flight key")
+	await mode_key(KEY_W, 0, true)
+	camera_origin = view.camera.position
+	view._process(0.25)
+	var direction = (view.camera.basis.x - view.camera.basis.z).normalized()
+	check(view.camera.position.is_equal_approx(camera_origin + direction * view._fly_speed * 0.25), "Camera flight continues after E without repressing WASD")
+	await mode_key(KEY_W, 0, false, false)
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	camera_origin = view.camera.position
+	view._process(0.25)
+	check(panel.authoring.find_entity(&"height_1").cell.y == 3 and view.camera.position.is_equal_approx(camera_origin + view.camera.basis.x * view._fly_speed * 0.25), "Lowering selection preserves the remaining flight key after another is released")
+	await mode_key(KEY_D, 0, false, false)
+	camera_origin = view.camera.position
+	view._process(0.25)
+	check(not view.is_navigating() and view.camera.position == camera_origin, "Releasing the last flight key still stops immediately after QE")
+	history_size = panel.authoring._history.size()
+	var right = InputEventMouseButton.new()
+	right.button_index = MOUSE_BUTTON_RIGHT
+	right.pressed = true
+	right.position = view.size / 2
+	view.gui_input.emit(right)
+	camera_origin = view.camera.position
+	await mode_key(KEY_E)
+	view._process(0.25)
+	await mode_key(KEY_E, 0, false, false)
+	check(view.camera.position.is_equal_approx(camera_origin + Vector3.UP * view._fly_speed * 0.25) and panel.authoring._history.size() == history_size, "Right+E flies the camera even with a selection")
+	view._stop_navigation()
+	panel._select(&"")
+	camera_origin = view.camera.position
+	await mode_key(KEY_Q)
+	view._process(0.25)
+	await mode_key(KEY_Q, 0, false, false)
+	check(view.camera.position.is_equal_approx(camera_origin + Vector3.DOWN * view._fly_speed * 0.25), "QE without a selection retains camera flight")
+	view.set_process(true)
+	panel._open(previous)
 
 func check_multi_selection(panel: GGEditorPanel) -> void:
 	var previous = panel.authoring.level

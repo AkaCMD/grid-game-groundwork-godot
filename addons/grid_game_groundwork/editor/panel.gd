@@ -123,7 +123,8 @@ func _ready() -> void:
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.move_previewed.connect(_preview_entity_move)
 	viewport.move_finished.connect(_finish_entity_move)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Delete: delete selected   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
+	viewport.selection_height_requested.connect(_move_selection_height)
+	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Delete: delete selected   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: selection down/up (1 cell) or fly   •   Right+Q/E: fly down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.x = 310
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -445,6 +446,12 @@ func _finish_entity_move(id: StringName, cell: Vector3i, commit: bool) -> void:
 	else:
 		_set_status("Move cancelled; original position restored.")
 	_sync_coordinates()
+
+func _move_selection_height(offset: int) -> void:
+	if authoring.translate_entities(_selection, Vector3i(0, offset, 0)):
+		_set_status("Moved %d selected entities %s by one cell." % [_selection.size(), "up" if offset > 0 else "down"])
+	else:
+		_set_status(authoring.last_error)
 
 func _snap_selected_to_ground() -> void:
 	if _selection.size() > 1:

@@ -10,6 +10,7 @@ signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
 signal move_previewed(id: StringName, cell: Vector3i)
 signal move_finished(id: StringName, cell: Vector3i, commit: bool)
+signal selection_height_requested(offset: int)
 var camera: Camera3D
 var board: GGBoardView
 var world: Node3D
@@ -102,7 +103,8 @@ func _ready() -> void:
 	)
 
 func show_level(value: GGLevel) -> void:
-	_stop_navigation()
+	# Refreshing placements in the current level must not release held flight keys.
+	if value != level: _stop_navigation()
 	cancel_move()
 	_surfaces.reset()
 	_erase_target = &""
@@ -410,6 +412,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.ctrl_pressed or event.alt_pressed or event.meta_pressed:
 		_navigation_keys.clear()
+		return
+	if key in [KEY_Q, KEY_E] and _move_enabled and not _selection_origins.is_empty() and not _right_pressed and not _looking:
+		if event.pressed and not event.echo and not event.shift_pressed:
+			selection_height_requested.emit(1 if key == KEY_E else -1)
+		get_viewport().set_input_as_handled()
 		return
 	if key in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E]:
 		if event.pressed and not event.echo:
