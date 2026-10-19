@@ -5,6 +5,8 @@ Graphical runs move the native cursor and require exclusive input on the chosen
 screen. Headless runs use synthetic input and do not require a desktop.
 """
 import argparse
+import ctypes
+from ctypes import wintypes
 import os
 from pathlib import Path
 import shutil
@@ -31,30 +33,63 @@ ENTRY = '''func run() -> void:
 '''
 
 
+def native_window_api():
+    """Configure the Windows bridge only when a graphical Windows run needs it."""
+    user32 = ctypes.windll.user32
+    callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    signatures = {
+        "EnumWindows": ([callback, wintypes.LPARAM], wintypes.BOOL),
+        "GetWindowThreadProcessId": ([wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.DWORD),
+        "IsWindowVisible": ([wintypes.HWND], wintypes.BOOL),
+        "GetClientRect": ([wintypes.HWND, ctypes.POINTER(wintypes.RECT)], wintypes.BOOL),
+        "GetWindowRect": ([wintypes.HWND, ctypes.POINTER(wintypes.RECT)], wintypes.BOOL),
+        "ClientToScreen": ([wintypes.HWND, ctypes.POINTER(wintypes.POINT)], wintypes.BOOL),
+        "SetCursorPos": ([ctypes.c_int, ctypes.c_int], wintypes.BOOL),
+        "ShowWindow": ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
+        "SetWindowPos": ([wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                          ctypes.c_int, ctypes.c_int, ctypes.c_uint], wintypes.BOOL),
+        "SetProcessDPIAware": ([], wintypes.BOOL),
+    }
+    for name, (argtypes, restype) in signatures.items():
+        function = getattr(user32, name)
+        function.argtypes = argtypes
+        function.restype = restype
+    user32.SetProcessDPIAware()
+    return user32
+
+
+def visible_process_windows(user32, process_id):
+    """Return (client area, handle) pairs for readable visible process windows."""
+    windows = []
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def collect(hwnd, _):
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == process_id and user32.IsWindowVisible(hwnd):
+            rect = wintypes.RECT()
+            if user32.GetClientRect(hwnd, ctypes.byref(rect)):
+                width, height = rect.right - rect.left, rect.bottom - rect.top
+                # Exclude splash/tool windows for both placement and pointer conversion.
+                if width > 500 and height > 400:
+                    windows.append((width * height, hwnd))
+        return True
+    if not user32.EnumWindows(collect, 0):
+        raise SystemExit("INPUT_SETUP: could not enumerate Godot native windows")
+    return windows
+
+
+def select_editor_window(user32, process_id):
+    """Use the largest eligible client area, with the handle breaking area ties."""
+    windows = visible_process_windows(user32, process_id)
+    return max(windows)[1] if windows else None
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--warp-cursor":
-        import ctypes
-        from ctypes import wintypes
-        ctypes.windll.user32.SetProcessDPIAware()
-        user32 = ctypes.windll.user32
-        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-        user32.IsWindowVisible.argtypes = [wintypes.HWND]
-        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-        user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
-        windows = []
-        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-        def collect(hwnd, _):
-            pid = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if pid.value == os.getppid() and user32.IsWindowVisible(hwnd):
-                rect = wintypes.RECT()
-                user32.GetClientRect(hwnd, ctypes.byref(rect))
-                windows.append((rect.right * rect.bottom, hwnd))
-            return True
-        user32.EnumWindows(collect, 0)
-        if not windows:
+        user32 = native_window_api()
+        hwnd = select_editor_window(user32, os.getppid())
+        if hwnd is None:
             raise SystemExit("Godot native window was not found")
-        hwnd = max(windows)[1]
         x, y = int(sys.argv[2]), int(sys.argv[3])
         point = wintypes.POINT(x, y)
         if not user32.ClientToScreen(hwnd, ctypes.byref(point)):
@@ -107,17 +142,7 @@ def main():
                 environment["GGG_POINTER_HELPER"] = str(Path(__file__).resolve())
                 environment["GGG_POINTER_PYTHON"] = sys.executable
             if args.position is not None and os.name == "nt":
-                import ctypes
-                from ctypes import wintypes
-                user32 = ctypes.windll.user32
-                user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-                user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-                user32.IsWindowVisible.argtypes = [wintypes.HWND]
-                user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-                user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-                user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-                user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
-                user32.SetProcessDPIAware()
+                user32 = native_window_api()
                 process = subprocess.Popen(command, cwd=target, env=environment,
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                            text=True, encoding="utf-8")
@@ -128,22 +153,8 @@ def main():
                 placed = False
                 try:
                     for attempt in range(600):
-                        windows = []
-                        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-                        def collect(hwnd, _):
-                            pid = wintypes.DWORD()
-                            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                            title = ctypes.create_unicode_buffer(512)
-                            user32.GetWindowTextW(hwnd, title, 512)
-                            if pid.value == process.pid and user32.IsWindowVisible(hwnd):
-                                rect = wintypes.RECT()
-                                user32.GetClientRect(hwnd, ctypes.byref(rect))
-                                if rect.right > 500 and rect.bottom > 400:
-                                    windows.append(hwnd)
-                            return True
-                        user32.EnumWindows(collect, 0)
-                        if windows:
-                            hwnd = windows[0]
+                        hwnd = select_editor_window(user32, process.pid)
+                        if hwnd is not None:
                             user32.ShowWindow(hwnd, 9)  # Restore before moving.
                             user32.SetWindowPos(hwnd, 0, x, y, 1500, 900, 0x4004)
                             time.sleep(0.1)

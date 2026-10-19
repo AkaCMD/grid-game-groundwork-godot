@@ -49,6 +49,11 @@ establishes the window pointer using `Input.parse_input_event()` and
 `Window.push_input()`; the stationary shortcut-to-click gesture does not wait for another frame.
 The focused Windows runner uses `ClientToScreen` and `SetCursorPos` for native
 warping, and verifies the actual desktop window rectangle for `--position`.
+Placement and pointer conversion both choose the largest visible window for the
+Godot process whose client area is wider than 500 and taller than 400 pixels;
+equal areas use the window handle as a stable tie-breaker. This excludes splash
+and tool windows. Verify selection and failure handling without native input with
+`python tests/test_editor_input_runner.py`.
 It drains GUI process output while locating the window to avoid a full pipe
 blocking editor startup. Graphical runs without this bridge use Godot warping. Input uses the containing window's canvas coordinates, independent of desktop position.
 `INPUT_SETUP` failures abort that scenario and fail the run, with pointer, focus,
