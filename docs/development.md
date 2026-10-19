@@ -26,6 +26,41 @@ On a machine with a graphical display, capture the editor and run surface render
 python3 tools/check.py --godot /path/to/godot --editor-smoke --screenshot artifacts/editor.png
 ```
 
+The focused Paint tool-switch check can be repeated independently:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+python tools/check_editor_input.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --headless --repeat 3
+python tools/check_editor_input.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --position=-1900,30 --repeat 5
+```
+
+Choose `--screen` and `--position` for the display containing your test window;
+monitor indices and desktop coordinates vary. Graphical input tests warp the OS
+cursor and need exclusive cursor/focus access while each scenario runs. Working
+on another display can still change the shared cursor or foreground window. Run
+graphical tests sequentially and leave the mouse and keyboard alone until they
+finish. Headless input and separate surface rendering checks do not need native
+pointer access.
+
+The harness waits for three stable native pointer samples, then validates the
+pointer after motion and the Paint shortcut and before the first click. Motion
+establishes the window pointer using `Input.parse_input_event()` and
+`Window.push_input()`. Shortcuts and clicks enter that same window with
+`Window.push_input()`; the stationary shortcut-to-click gesture does not wait for another frame.
+The focused Windows runner uses `ClientToScreen` and `SetCursorPos` for native
+warping, and verifies the actual desktop window rectangle for `--position`.
+Placement and pointer conversion both choose the largest visible window for the
+Godot process whose client area is wider than 500 and taller than 400 pixels;
+equal areas use the window handle as a stable tie-breaker. This excludes splash
+and tool windows. Verify selection and failure handling without native input with
+`python tests/test_editor_input_runner.py`.
+It drains GUI process output while locating the window to avoid a full pipe
+blocking editor startup. Graphical runs without this bridge use Godot warping. Input uses the containing window's canvas coordinates, independent of desktop position.
+`INPUT_SETUP` failures abort that scenario and fail the run, with pointer, focus,
+backend and window diagnostics, including confirmation that clicks reached
+the real canvas `gui_input`; they do not count as Paint preview regressions.
+Preview fitting, first placement and undo assertions still exercise the addon.
+
 Surface checks can also run separately after import:
 
 ```sh

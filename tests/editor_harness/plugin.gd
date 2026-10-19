@@ -60,6 +60,7 @@ func run() -> void:
 	await check_camera_navigation(panel)
 	await check_paint_height_navigation(panel)
 	await check_paint_surfaces(panel)
+	await check_paint_mode_preview(panel)
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
 	await check_selection_height(panel)
@@ -247,11 +248,13 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0], [KEY_KP_2, 1], [KEY_KP_3, 2], [KEY_KP_1, 0]]:
 		await mode_key(binding[0])
 		check(panel._mode == binding[1], "Number row and keypad switch authoring modes")
-	panel._hover(Vector3i.ZERO)
-	await mode_key(KEY_2)
-	check(not panel.viewport._ghost.visible, "Erase immediately hides the brush preview")
-	await mode_key(KEY_1)
-	check(panel.viewport._ghost.visible, "Paint immediately restores the brush preview")
+	if await pointer_motion(panel.viewport, panel.viewport.size * 0.5):
+		pointer_key(panel.viewport, KEY_2)
+		if pointer_valid(panel.viewport, panel.viewport.size * 0.5, "Erase shortcut"):
+			check(not panel.viewport._ghost.visible, "Erase immediately hides the brush preview")
+		pointer_key(panel.viewport, KEY_1)
+		if pointer_valid(panel.viewport, panel.viewport.size * 0.5, "Paint shortcut"):
+			check(panel.viewport._ghost.visible, "Paint immediately restores the brush preview")
 	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_SHIFT, KEY_MASK_META]:
 		await mode_key(KEY_2, modifiers)
 		check(panel._mode == 0, "Modified number keys do not switch modes")
@@ -1393,3 +1396,168 @@ func check_paint_surfaces(panel: GGEditorPanel) -> void:
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
 	view.frame_level()
+
+# Establish the window pointer through Input, then route the stationary
+# shortcuts and clicks synchronously through that Window's real GUI handlers.
+# Never yield within a stationary gesture:
+# native motion may replace this position at the next process frame.
+func pointer_key(view: GGEditorViewport, code: Key) -> void:
+	var event = InputEventKey.new()
+	event.keycode = code
+	event.physical_keycode = code
+	event.pressed = true
+	view.get_window().push_input(event, true)
+	event = event.duplicate()
+	event.pressed = false
+	view.get_window().push_input(event, true)
+
+func pointer_button(view: GGEditorViewport, point: Vector2, pressed: bool) -> bool:
+	var event = InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	event.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	event.position = view.get_global_transform_with_canvas() * point
+	event.global_position = event.position
+	var received = [false]
+	var observe = func(input: InputEvent):
+		if input is InputEventMouseButton and input.button_index == MOUSE_BUTTON_LEFT and input.pressed == pressed and input.position.distance_to(point) < 1.5:
+			received[0] = true
+	view.gui_input.connect(observe)
+	view.get_window().push_input(event, true)
+	view.gui_input.disconnect(observe)
+	check(received[0], "INPUT_SETUP: first click did not reach the canvas; pressed=%s requested=%s actual=%s" % [pressed, point, view.get_local_mouse_position()])
+	return received[0]
+
+func pointer_valid(view: GGEditorViewport, point: Vector2, stage: String) -> bool:
+	var native = DisplayServer.get_name() != "headless"
+	var valid = view.get_local_mouse_position().distance_to(point) < 1.5
+	valid = valid and (not native or view.get_window().has_focus())
+	check(valid, "INPUT_SETUP: %s aborted; requested=%s actual=%s backend=%s focus=%s window=%s screen=%s canvas=%s" % [stage, point, view.get_local_mouse_position(), DisplayServer.get_name(), view.get_window().has_focus(), view.get_window().position, view.get_window().current_screen, view.get_global_transform_with_canvas()])
+	return valid
+
+func warp_pointer(view: GGEditorViewport, point: Vector2) -> void:
+	var helper = OS.get_environment("GGG_POINTER_HELPER")
+	if OS.get_name() == "Windows" and not helper.is_empty():
+		# The native bridge converts client pixels with ClientToScreen, so
+		# negative monitor origins do not depend on Godot screen transforms.
+		var window_point = view.get_global_transform_with_canvas() * point
+		OS.execute(OS.get_environment("GGG_POINTER_PYTHON"), [helper, "--warp-cursor", str(roundi(window_point.x)), str(roundi(window_point.y))])
+	else:
+		view.warp_mouse(point)
+
+func pointer_motion(view: GGEditorViewport, point: Vector2) -> bool:
+	# Settle deferred layout before converting canvas coordinates.
+	for frame in range(3): await get_tree().process_frame
+	if DisplayServer.get_name() != "headless":
+		# Graphical backends poll the OS cursor. Require three stable samples before
+		# starting the synthetic gesture. It needs exclusive desktop input.
+		view.get_window().grab_focus()
+		warp_pointer(view, point)
+		var stable = 0
+		for attempt in range(20):
+			await get_tree().create_timer(0.05).timeout
+			if view.get_local_mouse_position().distance_to(point) < 1.5 and view.get_window().has_focus():
+				stable += 1
+				if stable == 3: break
+			else:
+				stable = 0
+				warp_pointer(view, point)
+		if stable < 3:
+			check(false, "INPUT_SETUP: native pointer did not settle; requested=%s actual=%s backend=%s focus=%s window=%s screen=%s" % [point, view.get_local_mouse_position(), DisplayServer.get_name(), view.get_window().has_focus(), view.get_window().position, view.get_window().current_screen])
+			return false
+	var motion = InputEventMouseMotion.new()
+	motion.position = view.get_global_transform_with_canvas() * point
+	motion.global_position = motion.position
+	Input.parse_input_event(motion)
+	Input.flush_buffered_events()
+	view.get_window().push_input(motion.duplicate(), true)
+	if DisplayServer.get_name() != "headless": await get_tree().process_frame
+	return pointer_valid(view, point, "pointer motion")
+
+func check_paint_mode_preview(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var surface = GGEntityPlacement.new()
+	surface.entity_id = &"mode_surface"
+	surface.definition = fixture.palette[3]
+	fixture.entities.append(surface)
+	var shaped = fixture.palette[3].duplicate(true) as GGEntityDefinition
+	shaped.shape.assign([Vector3i.ZERO, Vector3i(0, -1, 1)])
+	fixture.palette.append(shaped)
+	panel._open(fixture)
+	var view = panel.viewport
+	view.grab_focus()
+	view.set_layer(0)
+	# Both previous tools, elevated surfaces, and a rotated/mirrored brush.
+	for scenario in [[1, 0, false], [2, 4, false], [1, 4, true], [2, 4, true]]:
+		surface = fixture.entities[0]
+		surface.cell = Vector3i(0, scenario[1], 0)
+		panel._refresh()
+		panel._choose_definition(fixture.palette.size() - 1 if scenario[2] else 3)
+		panel._turns.value = 1 if scenario[2] else 0
+		panel._mirror.button_pressed = scenario[2]
+		view.camera.position = Vector3(7, surface.cell.y + 6, 12)
+		view.camera.look_at(Vector3(surface.cell))
+		for frame in range(2): await get_tree().process_frame
+		pointer_key(view, KEY_2 if scenario[0] == 1 else KEY_3)
+		var point = view.camera.unproject_position(Vector3(surface.cell) + Vector3(0, 0.48, 0)).round()
+		if not await pointer_motion(view, point): continue
+		check(panel._mode == scenario[0], "Previous tool receives the pointer before switching to Paint")
+		check(view.entity_at(point) == surface.entity_id, "Select/Erase still pick the visible model")
+		pointer_key(view, KEY_1)
+		if not pointer_valid(view, point, "Paint shortcut"): continue
+		var expected = Vector3i(0, surface.cell.y + (2 if scenario[2] else 1), 0)
+		check(view._ghost != null and view._ghost.visible and view._ghost.position == Vector3(expected), "Switching to Paint recomputes the fitted ghost without moving the mouse")
+		# No motion between the shortcut and the click.
+		if not pointer_valid(view, point, "first Paint click"): continue
+		var pressed = pointer_button(view, point, true)
+		var released = pointer_button(view, point, false)
+		if not pressed or not released:
+			panel.stroke.finish()
+			if fixture.entities.size() > 1: panel.authoring.undo()
+			continue
+		check(fixture.entities.size() == 2 and fixture.entities.back().cell == expected, "The first stationary Paint click agrees with the tool-switch preview")
+		check(panel.authoring.undo() and fixture.entities.size() == 1, "Tool-switch paint remains one undo action")
+	await check_paint_miss(panel, fixture)
+	await check_paint_outside(panel, surface.cell)
+	panel._turns.value = 0
+	panel._mirror.button_pressed = false
+	view._yaw = 0.0
+	view._pitch = deg_to_rad(75.2)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
+	view.frame_level()
+
+func check_paint_miss(panel: GGEditorPanel, fixture: GGLevel) -> void:
+	var view = panel.viewport
+	view.camera.position = Vector3(0, 8, 12)
+	view.camera.look_at(Vector3(0, 8, 0))
+	pointer_key(view, KEY_2)
+	var point = (view.size * 0.5).floor()
+	if not await pointer_motion(view, point): return
+	check(view.input_cell_at(point) == null and view.entity_at(point) == &"", "Horizontal miss has neither a plane nor a surface target")
+	pointer_key(view, KEY_1)
+	if not pointer_valid(view, point, "miss shortcut"): return
+	check(not view._ghost or not view._ghost.visible, "Switching to Paint hides a stale ghost when the ray misses")
+	if not pointer_valid(view, point, "miss click"): return
+	var pressed = pointer_button(view, point, true)
+	var released = pointer_button(view, point, false)
+	if not pressed or not released:
+		panel.stroke.finish()
+		return
+	check(fixture.entities.size() == 1 and not panel.stroke.is_active(), "Clicking a missed Paint target neither places nor leaves a stroke active")
+
+func check_paint_outside(panel: GGEditorPanel, surface_cell: Vector3i) -> void:
+	var view = panel.viewport
+	view.camera.position = Vector3(7, 10, 12)
+	view.camera.look_at(Vector3(surface_cell))
+	if not await pointer_motion(view, view.size * 0.5): return
+	pointer_key(view, KEY_2)
+	var point = Vector2(-10, -10)
+	if not await pointer_motion(view, point): return
+	pointer_key(view, KEY_1)
+	if not pointer_valid(view, point, "outside shortcut"): return
+	check(not view._ghost or not view._ghost.visible, "Switching to Paint outside the canvas keeps the ghost hidden")
