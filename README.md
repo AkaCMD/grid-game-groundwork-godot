@@ -19,7 +19,9 @@ A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mec
 
 To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
-![Level painting, selection, movement, snap to ground and undo](docs/media/authoring.gif)
+![Current editor: painting, Shift multi-selection, Q/E height changes, group dragging, Delete, undo/redo, and tool shortcuts](docs/media/authoring.gif)
+
+The demo shows **Shift+click** multi-selection, **Q/E** group height changes, group dragging, **Delete**, **Ctrl+Z / Ctrl+Shift+Z**, **Page Up/Down**, and **1/2/3** tool switching.
 
 The editor keeps painting tools visible, groups shared definitions on the left, and separates selected-entity properties from level settings on the right. Tool hints and operation results stay close to the canvas.
 

@@ -19,7 +19,9 @@
 
 直接运行项目可玩推箱子；打开 `examples/pipes.tscn` 或 `examples/quack.tscn` 后运行当前场景可玩其他示例。推箱子开局按两次 **S**，可将箱子推落到下层平台。
 
-![关卡绘制、选择、移动、贴地和撤销](docs/media/authoring.gif)
+![新版编辑器操作：绘制、Shift 多选、Q/E 升降、整组拖动、Delete、撤销重做与工具快捷键](docs/media/authoring.gif)
+
+演示包含 **Shift+点击**多选、**Q/E** 整组升降、整组拖动、**Delete**、**Ctrl+Z / Ctrl+Shift+Z**、**Page Up/Down** 和 **1/2/3** 工具切换。
 
 绘制工具始终可见，共享实体定义集中在左侧，右侧以页签分开选中实体属性与关卡设置；操作提示和结果反馈紧邻画布。
 
