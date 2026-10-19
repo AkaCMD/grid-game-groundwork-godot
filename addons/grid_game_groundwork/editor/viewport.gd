@@ -2,22 +2,16 @@
 class_name GGEditorViewport
 extends SubViewportContainer
 
-signal pressed(cell: Vector3i, entity_id: StringName, button: int, shift: bool)
-signal dragged(cell: Vector3i, entity_id: StringName)
-signal stroke_started
-signal stroke_ended
+signal entity_picked(entity_id: StringName, button: int, shift: bool)
 signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
-signal move_previewed(id: StringName, cell: Vector3i)
-signal move_finished(id: StringName, cell: Vector3i, commit: bool)
 signal selection_height_requested(offset: int)
+var selection: GGEditorSelection
+var stroke: GGEditorStroke
 var camera: Camera3D
 var board: GGBoardView
 var world: Node3D
 var level: GGLevel
-var paint_cell_query: Callable
-var _stroke_solids: Array[Vector3i] = []
-var _stroke_cells: Dictionary = {}
 var layer: int = 0
 var _paint_height = 0.0
 var _grid: MeshInstance3D
@@ -25,20 +19,12 @@ var _ghost: Node3D
 var _surfaces = GGEditorEntitySurfaces.new()
 var _erase_enabled = false
 var _erase_target: StringName = &""
-var _last_drag_entity: StringName = &""
 var _pivot = Vector3(3, 0, 3)
 var _yaw = 0.0
 var _pitch = deg_to_rad(75.2)
 var _zoom = 12.0
-var _last_cell = Vector3i(99999, 99999, 99999)
-var _drawing = false
 var _move_gizmo: GGMoveGizmo
-var _selection_id: StringName
-var _selection_cell: Vector3i
-var _selection_origins: Dictionary = {}
 var _move_enabled = false
-var _move_target: Vector3i
-var _move_valid = true
 var _move_pointer: Vector2
 var _navigation_keys: Dictionary = {}
 var _fly_speed = 8.0
@@ -87,9 +73,12 @@ func _ready() -> void:
 	_move_gizmo.camera = camera
 	world.add_child(_move_gizmo)
 	_move_gizmo.hide()
+	selection.changed.connect(_show_selection)
+	selection.preview_changed.connect(_show_move_preview)
 	set_layer(0)
 	gui_input.connect(_input_on_view)
 	get_window().focus_exited.connect(cancel_move)
+	get_window().focus_exited.connect(stroke.finish)
 	get_window().focus_exited.connect(_stop_navigation)
 	get_window().focus_exited.connect(_clear_erase_hover)
 	focus_exited.connect(_stop_navigation)
@@ -98,8 +87,7 @@ func _ready() -> void:
 		if _ghost: _ghost.visible = false
 		if is_moving(): return
 		_move_gizmo.highlight(-1)
-		_drawing = false
-		stroke_ended.emit()
+		stroke.finish()
 	)
 
 func show_level(value: GGLevel) -> void:
@@ -110,6 +98,7 @@ func show_level(value: GGLevel) -> void:
 	_erase_target = &""
 	level = value
 	board.rebuild(level)
+	_show_selection()
 
 func frame_level() -> void:
 	_stop_navigation()
@@ -169,37 +158,12 @@ func cell_at(point: Vector2) -> Variant:
 	return Vector3i(roundi(hit.x), layer, roundi(hit.z))
 
 # Paint uses logical cell faces, keeping custom visual geometry out of occupancy rules.
-func solid_cells() -> Array[Vector3i]:
-	var cells: Array[Vector3i] = []
-	if level:
-		for entity in level.entities:
-			if entity.resolved_properties().get("solid", true):
-				cells.append_array(entity.occupied_cells())
-	return cells
-
-func surface_at(point: Vector2) -> Dictionary:
-	var origin = camera.project_ray_origin(point)
-	var direction = camera.project_ray_normal(point)
-	var nearest = INF
-	var result: Dictionary = {}
-	var cells = _stroke_solids if _drawing else solid_cells()
-	for cell in cells:
-		var hit = AABB(Vector3(cell) - Vector3.ONE * 0.5, Vector3.ONE).intersects_ray(origin, direction)
-		if hit == null: continue
-		var distance = origin.distance_squared_to(hit)
-		if distance >= nearest: continue
-		var local: Vector3 = hit - Vector3(cell)
-		var axis = local.abs().max_axis_index()
-		var normal = Vector3i.ZERO
-		normal[axis] = 1 if local[axis] > 0 else -1
-		nearest = distance
-		result = {"cell": cell, "normal": normal}
-	return result
 
 func input_cell_at(point: Vector2) -> Variant:
-	if not _move_enabled and not _erase_enabled and paint_cell_query.is_valid():
-		return paint_cell_query.call(point)
-	return cell_at(point)
+	return stroke.preview(camera.project_ray_origin(point), camera.project_ray_normal(point), layer)
+
+func _sample_stroke(point: Vector2) -> void:
+	stroke.sample(camera.project_ray_origin(point), camera.project_ray_normal(point), layer, entity_at(point) if _erase_enabled else &"")
 
 func entity_at(point: Vector2) -> StringName:
 	if not level: return &""
@@ -216,8 +180,8 @@ func _update_highlights() -> void:
 	if _erase_enabled:
 		if _erase_target != &"": ids.append(_erase_target)
 	else:
-		ids.assign(_selection_origins.keys())
-	_surfaces.show_entities(board.roots, ids, GGEditorEntitySurfaces.RED if _erase_enabled or not _move_valid else GGEditorEntitySurfaces.BLUE, _erase_enabled or _move_valid)
+		ids = selection.ids()
+	_surfaces.show_entities(board.roots, ids, GGEditorEntitySurfaces.RED if _erase_enabled or not selection.is_valid() else GGEditorEntitySurfaces.BLUE, _erase_enabled or selection.is_valid())
 
 func _clear_erase_hover() -> void:
 	if _erase_target == &"": return
@@ -258,63 +222,36 @@ func hide_ghost() -> void:
 	if _ghost:
 		_ghost.visible = false
 
-func select_entity(id: StringName) -> void:
-	var ids: Array[StringName] = []
-	if id != &"": ids.append(id)
-	select_entities(ids)
-
-func select_entities(ids: Array[StringName]) -> void:
-	cancel_move()
-	# The editor owns surface feedback; custom selection hooks remain runtime-only.
+func _show_selection() -> void:
+	if not _move_gizmo: return
+	# Custom selection hooks remain runtime-only; editor feedback uses surfaces.
 	board.set_selected_entities([])
-	_selection_origins.clear()
-	_selection_id = ids.back() if not ids.is_empty() else &""
-	_move_gizmo.hide()
-	_move_valid = true
-	if level:
-		for entity in level.entities:
-			if entity.entity_id == _selection_id: _selection_cell = entity.cell
-			if ids.has(entity.entity_id): _selection_origins[entity.entity_id] = entity.cell
 	_update_highlights()
-	_move_gizmo.position = Vector3(_selection_cell)
-	_move_gizmo.visible = _move_enabled and not _selection_origins.is_empty()
+	_show_move_preview()
+	_move_gizmo.visible = _move_enabled and not selection.ids().is_empty()
 	_move_gizmo.update_view()
 
 func set_move_enabled(enabled: bool) -> void:
 	if not enabled: cancel_move()
 	_move_enabled = enabled
-	_move_gizmo.visible = enabled and not _selection_origins.is_empty()
+	_move_gizmo.visible = enabled and not selection.ids().is_empty()
 
 func is_moving() -> bool:
-	return _move_gizmo != null and _move_gizmo.active_handle != -1
+	return selection != null and selection.is_moving()
 
-func preview_move(cell: Vector3i, valid: bool) -> void:
-	_move_target = cell
-	_move_valid = valid
-	_surfaces.set_feedback(GGEditorEntitySurfaces.BLUE if valid else GGEditorEntitySurfaces.RED, valid)
-	for id in _selection_origins:
-		if board.roots.has(id):
-			board.roots[id].position = Vector3(_selection_origins[id] + cell - _selection_cell)
-	_move_gizmo.position = Vector3(cell)
+func _show_move_preview() -> void:
+	if not selection.is_moving(): _move_gizmo.end_drag()
+	_surfaces.set_feedback(GGEditorEntitySurfaces.RED if _erase_enabled or not selection.is_valid() else GGEditorEntitySurfaces.BLUE, _erase_enabled or selection.is_valid())
+	var positions = selection.positions()
+	for id in positions:
+		if board.roots.has(id): board.roots[id].position = Vector3(positions[id])
+	_move_gizmo.position = Vector3(selection.position())
 
 func cancel_move() -> void:
-	if is_moving(): _finish_move(false)
-
-func move_position() -> Vector3i:
-	return _move_target if is_moving() else _selection_cell
+	if selection: selection.finish_move(false)
 
 func rebase_move(cell: Vector3i) -> bool:
-	if not is_moving() or not _move_gizmo.rebase_drag(_move_pointer, cell):
-		return false
-	move_previewed.emit(_selection_id, cell)
-	return true
-
-func _finish_move(commit: bool) -> void:
-	var target = _move_target
-	var accepted = commit and _move_valid and target != _selection_cell
-	_move_gizmo.end_drag()
-	preview_move(_selection_cell, true)
-	move_finished.emit(_selection_id, target, accepted)
+	return is_moving() and _move_gizmo.rebase_drag(_move_pointer, cell)
 
 func is_navigating() -> bool:
 	return _looking or not _navigation_keys.is_empty()
@@ -352,14 +289,13 @@ func _stop_navigation() -> void:
 
 func _exit_tree() -> void:
 	_stop_navigation()
+	if stroke: stroke.finish()
 
 func _release_right(point: Vector2) -> void:
 	var pick = _right_pressed and not _right_used and Rect2(Vector2.ZERO, size).has_point(point)
 	_end_look()
 	if pick and not is_drawing():
-		var cell = cell_at(point)
-		# Picking an entity also works when the view ray cannot reach the edit plane.
-		pressed.emit(cell if cell != null else Vector3i.ZERO, entity_at(point), MOUSE_BUTTON_RIGHT, false)
+		entity_picked.emit(entity_at(point), MOUSE_BUTTON_RIGHT, false)
 
 func _look_camera(relative: Vector2) -> void:
 	# Free look rotates in place; keep the orbit pivot compatible with middle-drag.
@@ -413,7 +349,7 @@ func _input(event: InputEvent) -> void:
 	if event.ctrl_pressed or event.alt_pressed or event.meta_pressed:
 		_navigation_keys.clear()
 		return
-	if key in [KEY_Q, KEY_E] and _move_enabled and not _selection_origins.is_empty() and not _right_pressed and not _looking:
+	if key in [KEY_Q, KEY_E] and _move_enabled and not selection.ids().is_empty() and not _right_pressed and not _looking:
 		if event.pressed and not event.echo and not event.shift_pressed:
 			selection_height_requested.emit(1 if key == KEY_E else -1)
 		get_viewport().set_input_as_handled()
@@ -434,10 +370,11 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree():
 		_stop_navigation()
 		cancel_move()
+		if stroke: stroke.finish()
 		_clear_erase_hover()
 
 func is_drawing() -> bool:
-	return _drawing or is_moving()
+	return (stroke != null and stroke.is_active()) or is_moving()
 
 func _input_on_view(event: InputEvent) -> void:
 	if _handle_look_input(event):
@@ -450,12 +387,12 @@ func _input_on_view(event: InputEvent) -> void:
 				cancel_move()
 			else:
 				var target = _move_gizmo.target_at(event.position)
-				if target != null: move_previewed.emit(_selection_id, target)
+				if target != null: selection.preview_move(target)
 		elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			_move_pointer = event.position
 			var target = _move_gizmo.target_at(event.position)
-			if target != null: move_previewed.emit(_selection_id, target)
-			_finish_move(true)
+			if target != null: selection.preview_move(target)
+			selection.finish_move(true)
 		accept_event()
 		return
 	if event is InputEventMouseButton:
@@ -475,10 +412,9 @@ func _input_on_view(event: InputEvent) -> void:
 			return
 		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not event.shift_pressed:
 			var handle = _move_gizmo.pick(event.position)
-			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, _selection_cell):
+			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, selection.position()):
 				grab_focus()
-				_move_target = _selection_cell
-				_move_valid = true
+				selection.begin_move()
 				_move_pointer = event.position
 				accept_event()
 				return
@@ -491,23 +427,19 @@ func _input_on_view(event: InputEvent) -> void:
 			accept_event()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-			_drawing = false
-			stroke_ended.emit()
+			stroke.finish()
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
-			_stroke_solids = solid_cells()
-			_stroke_cells.clear()
+			stroke.begin()
 			var cell = input_cell_at(event.position)
-			# Entity tools work even when the ray cannot reach the placement plane.
+			# Entity tools also work when the ray cannot reach the paint plane.
 			if cell != null or _move_enabled or _erase_enabled:
-				_drawing = true
-				_last_cell = cell if cell != null else Vector3i.ZERO
-				_stroke_cells[_last_cell] = true
-				stroke_started.emit()
-				_last_drag_entity = entity_at(event.position)
+				var id = entity_at(event.position)
+				_sample_stroke(event.position)
+				entity_picked.emit(id, event.button_index, event.shift_pressed)
 				_update_erase_hover(event.position)
-				pressed.emit(_last_cell, _last_drag_entity, event.button_index, event.shift_pressed)
-				_update_erase_hover(event.position)
+			else:
+				stroke.finish()
 			accept_event()
 	elif event is InputEventMouseMotion:
 		if _right_pressed:
@@ -537,17 +469,12 @@ func _input_on_view(event: InputEvent) -> void:
 		var cell = input_cell_at(event.position)
 		if cell != null: hovered.emit(cell)
 		elif _ghost: _ghost.visible = false
-		if _drawing and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-			var id = entity_at(event.position)
-			if _erase_enabled and id != &"" and (id != _last_drag_entity or cell != _last_cell):
-				_last_drag_entity = id
-				_last_cell = cell if cell != null else Vector3i.ZERO
-				dragged.emit(_last_cell, id)
+		if stroke.is_active():
+			if event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+				_sample_stroke(event.position)
 				_update_erase_hover(event.position)
-			elif not _erase_enabled and cell != null and cell != _last_cell and not _stroke_cells.has(cell):
-				_stroke_cells[cell] = true
-				_last_cell = cell
-				dragged.emit(cell, id)
+			else:
+				stroke.finish()
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F:
 		frame_level()
 		accept_event()

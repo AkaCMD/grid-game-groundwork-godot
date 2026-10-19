@@ -11,7 +11,14 @@ python3 tools/check.py --godot /path/to/godot --editor-smoke
 
 The runner accepts `--godot`, the `GODOT` environment variable, or `godot` on PATH. Use Godot Standard with Compatibility rendering. The project declares Godot 4.7; the documented test version is 4.7.2.
 
-The first command imports/typechecks scripts and runs session, authoring/save-load, QUACK and runtime checks. The optional editor smoke check uses a disposable project to exercise editor operations, navigation, focus recovery, saving/reopening and playtest launch.
+The first command imports/typechecks scripts and runs session, authoring/save-load, editor selection, authoring stroke, QUACK and runtime checks. Selection and stroke checks exercise their modules directly without an editor window, including preview cancellation, atomic group edits, surface fitting, stroke revisits and undo grouping. The optional editor smoke check uses a disposable project to exercise editor operations, navigation, focus recovery, saving/reopening and playtest launch.
+
+On Windows, a Steam installation can be used directly (adjust the Steam library path):
+
+```powershell
+$env:PYTHONUTF8 = "1"
+python tools/check.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --editor-smoke
+```
 
 On a machine with a graphical display, capture the editor and run surface rendering checks too:
 

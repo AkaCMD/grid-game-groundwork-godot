@@ -35,6 +35,15 @@ An entity that allows other entities to occupy its cells, such as a goal, switch
 **Entity override**:
 An explicitly authored property value for one entity that replaces the corresponding default from its entity definition. Properties without overrides continue to inherit the shared defaults.
 
+**Editor selection**:
+An ordered group of entities chosen for authoring edits. The last selected entity anchors group movement. Selection is temporary editor state and is not restored by undoing an edit.
+
+**Move preview**:
+A temporary proposed displacement of the editor selection. It may show an invalid destination, but changes the authored level only when accepted at a valid destination. Cancelling restores the original positions.
+
+**Authoring stroke**:
+A continuous pointer gesture that paints or erases entities, or edits an entity shape, as one undoable edit. Surface painting uses the occupied cells present when the stroke begins, so it does not stack repeatedly on entities created during that same stroke.
+
 **Stacking**:
 The arrangement of entities above other entities at different heights in the grid.
 

@@ -4,6 +4,7 @@ extends RefCounted
 ## Public authoring boundary, shared by the editor UI and save/load tests.
 
 signal changed
+signal stroke_ended
 var level: GGLevel
 var dirty = false
 var last_error: String = ""
@@ -13,6 +14,7 @@ var _stroke = false
 var _stroke_recorded = false
 
 func open(value: GGLevel) -> void:
+	end_stroke()
 	level = value
 	_history.clear()
 	_future.clear()
@@ -125,12 +127,15 @@ func _restore(state: Dictionary) -> void:
 	_notify()
 
 func begin_stroke() -> void:
+	end_stroke()
 	_stroke = true
 	_stroke_recorded = false
 
 func end_stroke() -> void:
+	var was_active = _stroke
 	_stroke = false
 	_stroke_recorded = false
+	if was_active: stroke_ended.emit()
 
 func _record() -> void:
 	if not _stroke or not _stroke_recorded:

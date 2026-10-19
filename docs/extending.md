@@ -76,6 +76,14 @@ Use Standard GDScript and the Compatibility renderer for desktop and browser bui
 
 The accepted design is recorded in `docs/adr/`. Before adding mechanics, add behavior checks through `GGSession`; before changing storage or editing semantics, use `GGLevelAuthoring` and a real save/reload round trip. `python3 tools/check.py` runs both boundaries and runtime checks.
 
+## Editor selection and authoring strokes
+
+`GGEditorSelection` owns the editor selection and move preview. Construct it with the existing `GGLevelAuthoring`; the panel and viewport share this one instance. Selection changes and authored edits reconcile its ordered IDs and original positions. `begin_move`, `preview_move` and `finish_move` stage a group displacement, validate it, and commit at most one edit. Delete, duplicate, keyboard translation and snap-to-ground use the same lifecycle and cancel stale previews. The viewport renders `positions()` and `position()`; these queries and `ids()` do not expose mutable internal collections. The `changed` and `preview_changed` signals update presentation; `feedback` reports author-facing outcomes. During End snapping, the viewport can reject a gizmo rebase before the proposed position changes.
+
+`GGEditorStroke` owns an authoring stroke, using the same authoring instance. Configure the brush/mode, call `begin`, then use `preview` and `sample` with world rays and the edit height; `finish` ends the undo group. The module fits the transformed Entity shape to logical occupied-cell faces and keeps the starting occupancy and visited placements stable throughout the stroke. Erase receives the Entity ID picked from visible meshes; shape editing uses the local cell plane. Input code supplies camera rays and renders the resulting preview without recalculating placement rules. Authoring ends strokes on undo, redo and level open, so delayed samples cannot resume a finished edit. Identical configuration during a refresh preserves an active stroke; changing the brush or mode finishes it.
+
+Keep camera projection, focus and input-delivery checks in the actual editor harness. Test selection/preview and complete stroke behavior through these modules with real `GGLevelAuthoring`, preserving its validation and save/load tests. Gameplay actor selection remains separate from editor selection.
+
 ## Actor selection and composed movement
 
 `session.select_actor(entity_id)` accepts an existing entity with the `player` property. `session.player_id()` returns the selected actor, falling back to the first remaining player. Selection lives outside snapshots: undo, redo and restart preserve it while that entity exists; starting a new level clears it. Runtime left click picks the nearest occupied cell under the cursor, so foreground terrain occludes actors. Click selection is disabled during action animation. There is no Tab cycling.
