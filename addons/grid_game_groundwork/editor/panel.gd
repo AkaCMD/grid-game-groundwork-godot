@@ -33,7 +33,6 @@ var _pending: Callable
 var _confirm: ConfirmationDialog
 var _file: EditorFileDialog
 var _file_action: String
-var _last_hover = Vector3i.ZERO
 var _updating = false
 var _definition_refresh_pending = false
 
@@ -335,6 +334,12 @@ func _configure_stroke() -> void:
 
 func _paint_height_changed(value: int) -> void:
 	_height.set_value_no_signal(value)
+	_refresh_hover()
+
+func _refresh_hover() -> void:
+	# Tool changes must resolve the current ray through the shared stroke,
+	# rather than reuse coordinates produced by the previous tool.
+	viewport.hide_ghost()
 	var point = viewport.get_local_mouse_position()
 	if not Rect2(Vector2.ZERO, viewport.size).has_point(point):
 		return
@@ -343,7 +348,6 @@ func _paint_height_changed(value: int) -> void:
 		_hover(cell)
 
 func _hover(cell: Vector3i) -> void:
-	_last_hover = cell
 	if not _definition or _mode.selected != 0 or _shape_mode.button_pressed:
 		viewport.hide_ghost()
 		return
@@ -500,7 +504,7 @@ func _set_mode(index: int) -> void:
 	_configure_stroke()
 	viewport.set_move_enabled(index == 2 and not _shape_mode.button_pressed)
 	viewport.set_erase_enabled(index == 1 and not _shape_mode.button_pressed)
-	_hover(_last_hover)
+	_refresh_hover()
 
 func _input(event: InputEvent) -> void:
 	if viewport and viewport.is_navigating():

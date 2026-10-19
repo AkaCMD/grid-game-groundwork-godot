@@ -57,6 +57,7 @@ func run() -> void:
 	await check_camera_navigation(panel)
 	await check_paint_height_navigation(panel)
 	await check_paint_surfaces(panel)
+	await check_paint_mode_preview(panel)
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
 	await check_selection_height(panel)
@@ -127,7 +128,7 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0], [KEY_KP_2, 1], [KEY_KP_3, 2], [KEY_KP_1, 0]]:
 		await mode_key(binding[0])
 		check(panel._mode.selected == binding[1], "Number row and keypad switch authoring modes")
-	panel._hover(Vector3i.ZERO)
+	await pointer_motion(panel.viewport, panel.viewport.size * 0.5)
 	await mode_key(KEY_2)
 	check(not panel.viewport._ghost.visible, "Erase immediately hides the brush preview")
 	await mode_key(KEY_1)
@@ -1142,4 +1143,91 @@ func check_paint_surfaces(panel: GGEditorPanel) -> void:
 	view._pitch = deg_to_rad(75.2)
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
+	view.frame_level()
+
+# Update the editor's actual pointer position, not only the gui_input signal:
+# mode changes have no mouse event from which to recover a position.
+func pointer_motion(view: GGEditorViewport, point: Vector2) -> void:
+	# Graphical backends also poll the OS cursor, which can overwrite a
+	# synthetic motion on the next frame. Keep both pointer sources aligned.
+	if DisplayServer.get_name() != "headless":
+		view.get_window().grab_focus()
+		for attempt in range(10):
+			view.warp_mouse(point)
+			await get_tree().create_timer(0.05).timeout
+			if view.get_local_mouse_position().distance_to(point) < 1.5: break
+	var motion = InputEventMouseMotion.new()
+	motion.position = view.get_global_transform_with_canvas() * point
+	motion.global_position = motion.position
+	Input.parse_input_event(motion)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check(view.get_local_mouse_position().distance_to(point) < 1.5, "Editor pointer reaches the requested canvas position")
+
+func check_paint_mode_preview(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var surface = GGEntityPlacement.new()
+	surface.entity_id = &"mode_surface"
+	surface.definition = fixture.palette[3]
+	fixture.entities.append(surface)
+	var shaped = fixture.palette[3].duplicate(true) as GGEntityDefinition
+	shaped.shape.assign([Vector3i.ZERO, Vector3i(0, -1, 1)])
+	fixture.palette.append(shaped)
+	panel._open(fixture)
+	var view = panel.viewport
+	view.grab_focus()
+	view.set_layer(0)
+	# Both previous tools, elevated surfaces, and a rotated/mirrored brush.
+	for scenario in [[1, 0, false], [2, 4, false], [1, 4, true], [2, 4, true]]:
+		surface = fixture.entities[0]
+		surface.cell = Vector3i(0, scenario[1], 0)
+		panel._refresh()
+		panel._choose_definition(fixture.palette.size() - 1 if scenario[2] else 3)
+		panel._turns.value = 1 if scenario[2] else 0
+		panel._mirror.button_pressed = scenario[2]
+		view.camera.position = Vector3(7, surface.cell.y + 6, 12)
+		view.camera.look_at(Vector3(surface.cell))
+		await mode_key(KEY_2 if scenario[0] == 1 else KEY_3)
+		var point = view.camera.unproject_position(Vector3(surface.cell) + Vector3(0, 0.48, 0)).round()
+		await pointer_motion(view, point)
+		check(panel._mode.selected == scenario[0], "Previous tool receives the pointer before switching to Paint")
+		check(view.entity_at(point) == surface.entity_id, "Select/Erase still pick the visible model")
+		await mode_key(KEY_1)
+		var expected = Vector3i(0, surface.cell.y + (2 if scenario[2] else 1), 0)
+		check(view._ghost != null and view._ghost.visible and view._ghost.position == Vector3(expected), "Switching to Paint recomputes the fitted ghost without moving the mouse")
+		# No motion between the shortcut and the click.
+		camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+		camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+		check(fixture.entities.size() == 2 and fixture.entities.back().cell == expected, "The first stationary Paint click agrees with the tool-switch preview")
+		check(panel.authoring.undo() and fixture.entities.size() == 1, "Tool-switch paint remains one undo action")
+	# A stale ghost must disappear when the new Paint ray has no target.
+	view.camera.position = Vector3(0, 8, 12)
+	view.camera.look_at(Vector3(0, 8, 0))
+	await mode_key(KEY_2)
+	var point = view.size * 0.5
+	await pointer_motion(view, point)
+	check(view.input_cell_at(point) == null and view.entity_at(point) == &"", "Horizontal miss has neither a plane nor a surface target")
+	await mode_key(KEY_1)
+	check(not view._ghost or not view._ghost.visible, "Switching to Paint hides a stale ghost when the ray misses")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.size() == 1 and not panel.stroke.is_active(), "Clicking a missed Paint target neither places nor leaves a stroke active")
+	# Moving outside the canvas cannot resurrect the last preview.
+	view.camera.position = Vector3(7, 10, 12)
+	view.camera.look_at(Vector3(surface.cell))
+	await pointer_motion(view, view.size * 0.5)
+	await mode_key(KEY_2)
+	await pointer_motion(view, Vector2(-10, -10))
+	await mode_key(KEY_1)
+	check(not view._ghost or not view._ghost.visible, "Switching to Paint outside the canvas keeps the ghost hidden")
+	panel._turns.value = 0
+	panel._mirror.button_pressed = false
+	view._yaw = 0.0
+	view._pitch = deg_to_rad(75.2)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
 	view.frame_level()
