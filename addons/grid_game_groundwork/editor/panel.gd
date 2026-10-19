@@ -261,6 +261,9 @@ func _refresh() -> void:
 	if not is_instance_valid(viewport) or not authoring.level:
 		return
 	_updating = true
+	# Inspector edits bypass authoring.changed. Reconcile through the selection
+	# owner before rebuilding visuals so stale origins cannot overwrite them.
+	selection.reconcile()
 	var level = authoring.level
 	_title.text = "%s%s" % [level.title, " *" if authoring.dirty else ""]
 	_settings_title.text = level.title
