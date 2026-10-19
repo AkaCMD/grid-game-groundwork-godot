@@ -1,5 +1,7 @@
 # Grid Game Groundwork for Godot
 
+![英文版 Grid Levels 编辑器：常驻编辑工具、实体定义列表与上下文属性](docs/media/editor.png)
+
 [English](README.md) | **简体中文**
 
 用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、即时试玩，并用 GDScript 扩展玩法。附带推箱子、管道连接和 QUACK!!! on ICE 三个示例。
@@ -11,13 +13,13 @@
 ## 快速开始
 
 1. 在 Godot 中导入 `project.godot`，打开顶部的 **Grid Levels**。若未显示，在 **项目 → 项目设置 → 插件** 中启用 **Grid Game Groundwork**。
-2. 点击 **Open…**，打开 `examples/levels/sokoban.tres`、`pipes.tres` 或 `quack.tres`。
+2. 点击 **File → Open…**，打开 `examples/levels/sokoban.tres`、`pipes.tres` 或 `quack.tres`。
 3. 在左侧选择实体。按 **1 / 2 / 3** 切换绘制、擦除、选择；拖动选中实体的轴或平面手柄可按格移动，单选时按 **End** 向下贴地。
-4. 点击 **Save** 保存，再点击 **Playtest ▶** 试玩；**Stop ■** 返回编辑。试玩不会改变设计好的关卡，未保存的编辑仍需保存。
+4. 点击 **Save** 保存，再点击 **Playtest** 试玩；**Stop** 返回编辑。试玩不会改变设计好的关卡，未保存的编辑仍需保存。
 
 直接运行项目可玩推箱子；打开 `examples/pipes.tscn` 或 `examples/quack.tscn` 后运行当前场景可玩其他示例。推箱子开局按两次 **S**，可将箱子推落到下层平台。
 
-![关卡绘制、选择、移动、贴地和撤销](docs/media/authoring.gif)
+绘制工具始终可见，共享实体定义集中在左侧，右侧以页签分开选中实体属性与关卡设置；操作提示和结果反馈紧邻画布。
 
 ## 功能一览
 

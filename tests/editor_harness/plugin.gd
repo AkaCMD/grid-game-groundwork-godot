@@ -25,6 +25,7 @@ func run() -> void:
 	if not panel:
 		get_tree().quit(1)
 		return
+	await check_workspace_layout(panel)
 	await check_workspace_shortcuts(panel)
 	var example: GGLevel = load("res://examples/levels/sokoban.tres")
 	var example_count = example.entities.size()
@@ -111,6 +112,43 @@ func mode_key(code: Key, modifiers: int = 0, echo: bool = false, pressed: bool =
 	Input.parse_input_event(event)
 	await get_tree().process_frame
 
+func focus_control(panel: GGEditorPanel, control: Control) -> void:
+	# Property fields now live on separate tabs; focus the visible field as a user would.
+	for index in range(panel._tabs.get_tab_count()):
+		if panel._tabs.get_tab_control(index).is_ancestor_of(control):
+			panel._tabs.current_tab = index
+	control.grab_focus()
+
+func check_workspace_layout(panel: GGEditorPanel) -> void:
+	EditorInterface.set_main_screen_editor("Grid Levels")
+	await get_tree().process_frame
+	panel._tool_buttons[1].pressed.emit()
+	check(panel._mode == 1 and not panel._brush_controls.visible, "Erase button switches tools and hides irrelevant brush controls")
+	panel._tool_buttons[0].pressed.emit()
+	check(panel._mode == 0 and panel._brush_controls.visible, "Paint button restores brush controls")
+	panel._tabs.current_tab = 1
+	panel._settings_title.text = "Draft title"
+	panel._tabs.current_tab = 0
+	panel._tabs.current_tab = 1
+	check(panel._settings_title.text == "Draft title" and panel.authoring.level.title != "Draft title", "Switching property tabs preserves unapplied settings without committing them")
+	panel._floor_height.value = -3
+	check(panel._height.value == -3 and panel.viewport.layer == -3, "Floor height edits change the shared placement plane")
+	panel._height.value = 0
+	check(panel._floor_height.value == 0, "Toolbar height edits synchronize the floor controls")
+	panel._set_status("Validation result must remain visible")
+	panel._hover(Vector3i(3, 0, 4))
+	check(panel._status.text == "Validation result must remain visible" and panel._pointer_status.text.contains("(3, 0, 4)"), "Pointer feedback cannot overwrite operation results")
+	panel._set_mode(2)
+	panel._shape_mode.button_pressed = true
+	check(panel._mode == 0 and panel._shape_banner.visible and panel._tool_buttons[2].disabled, "Shape entry explains its scope and switches Select to a supported tool")
+	check(panel._tabs.current_tab == 0 and panel._tabs.is_tab_disabled(1), "Shape editing keeps unrelated level operations out of the current context")
+	panel._shape_mode.button_pressed = false
+	check(not panel._shape_banner.visible and not panel._tabs.is_tab_disabled(1), "Returning to level restores authoring controls")
+	check(panel._duplicate_button.disabled and panel._delete_button.disabled and not panel._single_entity.visible, "Empty selection offers guidance instead of unusable entity controls")
+	panel._sync_play_state()
+	check(panel._stop_button.disabled, "Stop is disabled when no scene is running")
+	panel._new_level()
+
 func check_workspace_shortcuts(panel: GGEditorPanel) -> void:
 	for screen in ["3D", "2D"]:
 		EditorInterface.set_main_screen_editor(screen)
@@ -120,13 +158,13 @@ func check_workspace_shortcuts(panel: GGEditorPanel) -> void:
 		await get_tree().process_frame
 		for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0]]:
 			await mode_key(binding[0])
-			check(panel._mode.selected == binding[1], "Entering Grid Levels enables number shortcuts without a canvas click")
+			check(panel._mode == binding[1], "Entering Grid Levels enables number shortcuts without a canvas click")
 
 func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	panel.viewport.grab_focus()
 	for binding in [[KEY_2, 1], [KEY_3, 2], [KEY_1, 0], [KEY_KP_2, 1], [KEY_KP_3, 2], [KEY_KP_1, 0]]:
 		await mode_key(binding[0])
-		check(panel._mode.selected == binding[1], "Number row and keypad switch authoring modes")
+		check(panel._mode == binding[1], "Number row and keypad switch authoring modes")
 	panel._hover(Vector3i.ZERO)
 	await mode_key(KEY_2)
 	check(not panel.viewport._ghost.visible, "Erase immediately hides the brush preview")
@@ -134,47 +172,49 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	check(panel.viewport._ghost.visible, "Paint immediately restores the brush preview")
 	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_SHIFT, KEY_MASK_META]:
 		await mode_key(KEY_2, modifiers)
-		check(panel._mode.selected == 0, "Modified number keys do not switch modes")
+		check(panel._mode == 0, "Modified number keys do not switch modes")
 	await mode_key(KEY_2, 0, true)
 	await mode_key(KEY_2, 0, false, false)
-	check(panel._mode.selected == 0, "Key repeat and release do not switch modes")
-	panel._settings_title.grab_focus()
+	check(panel._mode == 0, "Key repeat and release do not switch modes")
+	focus_control(panel, panel._settings_title)
 	await mode_key(KEY_2)
-	check(panel._mode.selected == 0, "Title entry does not switch modes")
+	check(panel._mode == 0, "Title entry does not switch modes")
 	panel._height.get_line_edit().grab_focus()
 	await mode_key(KEY_KP_2)
-	check(panel._mode.selected == 0, "Coordinate entry does not switch modes")
+	check(panel._mode == 0, "Coordinate entry does not switch modes")
 	panel._mirror.grab_focus()
 	await mode_key(KEY_2)
-	check(panel._mode.selected == 1, "Shortcuts work outside the canvas within the panel")
+	check(panel._mode == 1, "Shortcuts work outside the canvas within the panel")
 	panel._confirm.popup_centered()
 	await get_tree().process_frame
 	await mode_key(KEY_3)
-	check(panel._mode.selected == 1, "Modal dialogs block mode shortcuts")
+	check(panel._mode == 1, "Modal dialogs block mode shortcuts")
 	panel._confirm.hide()
 	panel.viewport.grab_focus()
 	panel.stroke.begin()
 	await mode_key(KEY_3)
-	check(panel._mode.selected == 1, "An active stroke blocks mode shortcuts")
+	check(panel._mode == 1, "An active stroke blocks mode shortcuts")
 	panel.stroke.finish()
 	await mode_key(KEY_3)
-	check(panel._mode.selected == 2, "Switching resumes after the stroke")
+	check(panel._mode == 2, "Switching resumes after the stroke")
 	panel._shape_mode.button_pressed = true
 	await mode_key(KEY_1)
 	await mode_key(KEY_3)
-	check(panel._mode.selected == 0, "Shape editing ignores Select")
+	check(panel._mode == 0, "Shape editing ignores Select")
 	await mode_key(KEY_2)
-	check(panel._mode.selected == 1, "Shape editing supports Erase")
+	check(panel._mode == 1, "Shape editing supports Erase")
 	await mode_key(KEY_1)
-	check(panel._mode.selected == 0, "Shape editing supports Paint")
+	check(panel._mode == 0, "Shape editing supports Paint")
 	panel._shape_mode.button_pressed = false
+	check(panel._mode == 2, "Leaving shape editing restores the previous level tool")
+	panel._set_mode(0)
 	panel.hide()
 	await mode_key(KEY_2)
-	check(panel._mode.selected == 0, "Hidden panel ignores mode shortcuts")
+	check(panel._mode == 0, "Hidden panel ignores mode shortcuts")
 	panel.show()
 	EditorInterface.get_inspector().grab_focus()
 	await mode_key(KEY_2)
-	check(panel._mode.selected == 0, "Focus outside the panel ignores mode shortcuts")
+	check(panel._mode == 0, "Focus outside the panel ignores mode shortcuts")
 	panel.viewport.grab_focus()
 
 func camera_mouse(view: GGEditorViewport, button: MouseButton, pressed: bool, point: Vector2) -> void:
@@ -249,12 +289,12 @@ func check_camera_navigation(panel: GGEditorPanel) -> void:
 	await mode_key(KEY_W, 0, true)
 	check(not view.is_navigating(), "Key repeat cannot restart navigation after cancellation")
 	for field in [panel._settings_title, panel._height.get_line_edit(), EditorInterface.get_inspector()]:
-		field.grab_focus()
+		focus_control(panel, field)
 		await mode_key(KEY_W)
 		check(not view.is_navigating(), "Text, coordinate and Inspector focus do not navigate")
 	view.grab_focus()
 	await mode_key(KEY_W)
-	panel._settings_title.grab_focus()
+	focus_control(panel, panel._settings_title)
 	check(not view.is_navigating(), "Moving focus out of the viewport stops held navigation")
 	view.grab_focus()
 	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_META]:
@@ -273,6 +313,8 @@ func check_camera_navigation(panel: GGEditorPanel) -> void:
 	panel.hide()
 	check(not view.is_navigating(), "Hiding the workspace stops navigation")
 	panel.show()
+	# Let native hover and container layout settle before beginning another gesture.
+	for frame in range(2): await get_tree().process_frame
 	view.grab_focus()
 	panel.stroke.begin()
 	await mode_key(KEY_W)
@@ -413,7 +455,7 @@ func check_paint_height_navigation(panel: GGEditorPanel) -> void:
 	check(view.camera.position.is_equal_approx(camera_origin), "Paint height shortcuts keep the camera in place")
 	await mode_key(KEY_PAGEUP, 0, true)
 	check(view.layer == -3, "Paint height shortcuts ignore key repeat")
-	panel._settings_title.grab_focus()
+	focus_control(panel, panel._settings_title)
 	await mode_key(KEY_PAGEUP)
 	check(view.layer == -3, "Text fields retain Page Up without changing paint height")
 	view.grab_focus()
@@ -532,6 +574,7 @@ func check_move_gizmo(panel: GGEditorPanel) -> void:
 	blocker.cell = original + Vector3i(3, 0, 0)
 	fixture.entities.append(blocker)
 	panel._refresh()
+	for frame in range(2): await get_tree().process_frame
 	grabbed = gizmo_press(panel, 0)
 	gizmo_motion(panel, grabbed + Vector3.RIGHT)
 	for frame in range(4): await get_tree().process_frame
@@ -540,7 +583,7 @@ func check_move_gizmo(panel: GGEditorPanel) -> void:
 	gizmo_motion(panel, grabbed + Vector3(3, 0, 0))
 	for frame in range(4): await get_tree().process_frame
 	check(view.get_global_rect() == valid_rect and panel._status.size.y == valid_status_height, "Invalid destination status must not resize or move the editing viewport")
-	check(panel._status.tooltip_text.contains("Invalid destination:") and panel._status.tooltip_text.contains("Release to restore"), "Full invalid destination details remain available in the tooltip")
+	check(panel._status.tooltip_text.contains("Invalid destination:") and panel._status.tooltip_text.contains("Release to restore"), "Full invalid destination details remain available in the tooltip: %s (moving=%s, position=%s)" % [panel._status.tooltip_text, view.is_moving(), panel.selection.position()])
 	check(not panel.selection.is_valid() and surface_feedback_is(view, GGEditorEntitySurfaces.RED, false), "Solid overlap displays a red invalid preview")
 	gizmo_release(panel, grabbed + Vector3(3, 0, 0))
 	check(panel.authoring.find_entity(entity.entity_id).cell == original and view.board.roots[entity.entity_id].position == Vector3(original), "Invalid release restores the starting position")
@@ -675,7 +718,7 @@ func check_end_snap(panel: GGEditorPanel) -> void:
 	await mode_key(KEY_ESCAPE)
 	# End must continue to work as a text-navigation key in input fields.
 	for focus in [panel._settings_title, panel._coords[0].get_line_edit()]:
-		focus.grab_focus()
+		focus_control(panel, focus)
 		await mode_key(KEY_END)
 		check(panel.authoring.find_entity(entity.entity_id).cell == original, "End does not snap while editing a text or coordinate field")
 	view.grab_focus()
@@ -796,7 +839,7 @@ func check_selection_height(panel: GGEditorPanel) -> void:
 		modified.shift_pressed = bool(modifiers & KEY_MASK_SHIFT)
 		modified.meta_pressed = bool(modifiers & KEY_MASK_META)
 		view._input(modified)
-	panel._settings_title.grab_focus()
+	focus_control(panel, panel._settings_title)
 	await mode_key(KEY_Q)
 	await mode_key(KEY_Q, 0, false, false)
 	panel._select(&"height_1")
@@ -908,9 +951,9 @@ func check_multi_selection(panel: GGEditorPanel) -> void:
 	await mode_key(KEY_ESCAPE)
 	check(view.board.roots[&"member_0"].position == Vector3(0, 2, 0) and view.board.roots[&"member_1"].position == Vector3(3, 2, 0), "Esc restores every member's visual position")
 	panel._select(&"member_0")
-	panel._settings_title.grab_focus()
+	focus_control(panel, panel._settings_title)
 	await mode_key(KEY_DELETE)
-	panel._coords[0].get_line_edit().grab_focus()
+	focus_control(panel, panel._coords[0].get_line_edit())
 	check(panel._coords[0].editable and panel._coords[0].get_line_edit().has_focus(), "Delete protection is tested with an editable coordinate input focused")
 	await mode_key(KEY_DELETE)
 	check(fixture.entities.size() == 3, "Delete in text and property inputs preserves selected entities")

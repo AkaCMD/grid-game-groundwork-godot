@@ -9,7 +9,33 @@ var viewport: GGEditorViewport
 var _palette: ItemList
 var _status: Label
 var _title: Label
-var _mode: OptionButton
+var _mode = 0
+var _level_mode = 0
+var _tool_buttons: Array[Button] = []
+var _brush_controls: HBoxContainer
+var _brush_label: Label
+var _hint: Label
+var _pointer_status: Label
+var _shape_banner: HBoxContainer
+var _shape_label: Label
+var _definition_label: Label
+var _definition_buttons: Array[Button] = []
+var _tabs: TabContainer
+var _single_entity: VBoxContainer
+var _selection_actions: HBoxContainer
+var _duplicate_button: Button
+var _delete_button: Button
+var _play_button: Button
+var _stop_button: Button
+var _floor_height: SpinBox
+var _floor_button: Button
+var _floor_hint: Label
+var _status_detail: AcceptDialog
+var _help: AcceptDialog
+var _icon_buttons: Dictionary = {}
+var _muted_labels: Array[Label] = []
+var _heading_labels: Array[Label] = []
+var _scale = 1.0
 var _height: SpinBox
 var _turns: SpinBox
 var _mirror: CheckBox
@@ -38,140 +64,44 @@ var _updating = false
 var _definition_refresh_pending = false
 
 func _ready() -> void:
-	add_theme_constant_override("separation", 8)
-	var header = HBoxContainer.new()
-	add_child(header)
-	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 22)
-	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(_title)
-	_button(header, "New level", func(): _guard(_new_level))
-	_button(header, "Open…", func(): _guard(func(): _dialog("open_level")))
-	_button(header, "Save", save_current)
-	_button(header, "Save as…", func(): _dialog("save_level"))
-	_button(header, "Playtest ▶", _playtest)
-	_button(header, "Stop ■", func(): EditorInterface.stop_playing_scene())
-	var toolbar = HBoxContainer.new()
-	add_child(toolbar)
-	_mode = OptionButton.new()
-	for text in ["Paint (1)", "Erase (2)", "Select (3)"]: _mode.add_item(text)
-	_mode.item_selected.connect(_set_mode)
-	toolbar.add_child(_mode)
-	_height = _spin(toolbar, "Height", -64, 128, 0)
-	_height.allow_lesser = true
-	_height.allow_greater = true
-	_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
-	_turns = _spin(toolbar, "Quarter turns", 0, 3, 0)
-	_mirror = CheckBox.new()
-	_mirror.text = "Mirror brush"
-	toolbar.add_child(_mirror)
-	_button(toolbar, "Undo", authoring.undo)
-	_button(toolbar, "Redo", authoring.redo)
-	_button(toolbar, "Frame", func(): viewport.frame_level())
-	_button(toolbar, "Validate", _validate)
+	_scale = EditorInterface.get_editor_scale()
+	add_theme_constant_override("separation", int(8 * _scale))
+	_build_header()
+	_build_tools()
 	var split = HSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(split)
-	var left = VBoxContainer.new()
-	left.custom_minimum_size.x = 190
-	split.add_child(left)
-	_label(left, "ENTITY PALETTE")
-	_palette = ItemList.new()
-	_palette.custom_minimum_size.y = 180
-	_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_palette.item_selected.connect(_choose_definition)
-	left.add_child(_palette)
-	var asset_row = HBoxContainer.new()
-	left.add_child(asset_row)
-	_button(asset_row, "+ Entity", _new_definition)
-	_button(asset_row, "Import…", func(): _dialog("import_definition"))
-	_button(left, "Edit definition in Inspector", func():
-		if _definition: EditorInterface.edit_resource(_definition)
-	)
-	_button(left, "Save definition as…", func():
-		if _definition: _dialog("save_definition")
-	)
-	_shape_mode = CheckButton.new()
-	_shape_mode.text = "Edit occupied cells"
-	_shape_mode.toggled.connect(func(value):
-		if value: _select(&"")
-		_refresh_view()
-		viewport.frame_level()
-	)
-	left.add_child(_shape_mode)
-	_label(left, "FLOOR FILL")
-	_floor_width = _spin(left, "Width", 1, 64, 8)
-	_floor_depth = _spin(left, "Depth", 1, 64, 8)
-	_button(left, "Fill ground at current height", _fill_floor)
-	_label(left, "Starts at X=0, Z=0.\nExisting solid cells are skipped.")
-	_button(left, "Rotate entire level 90°", func(): authoring.transform_level(false))
-	_button(left, "Mirror entire level on X", func(): authoring.transform_level(true))
+	_build_palette(_scroll_column(split, 200))
 	var center_right = HSplitContainer.new()
 	center_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(center_right)
-	var center = VBoxContainer.new()
+	var center = _column(center_right)
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_right.add_child(center)
 	viewport = GGEditorViewport.new()
 	viewport.selection = selection
 	viewport.stroke = stroke
 	center.add_child(viewport)
+	viewport.custom_minimum_size = Vector2(260, 280) * _scale
 	viewport.entity_picked.connect(_pick_entity)
 	viewport.hovered.connect(_hover)
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.selection_height_requested.connect(_move_selection_height)
-	_label(center, "1: Paint   •   2: Erase   •   3: Select   •   Shift+click: toggle selection   •   Delete: delete selected   •   Drag axis / plane: move (1-cell snap)   •   End: snap down   •   Esc: cancel   •   WASD: fly   •   Q/E: selection down/up (1 cell) or fly   •   Right+Q/E: fly down/up   •   PgUp/PgDn: paint height   •   Right drag: look   •   Right+wheel: speed   •   Right click: eyedropper   •   Middle: orbit   •   Shift+middle: pan   •   Wheel: zoom   •   F: frame")
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size.x = 310
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	center_right.add_child(scroll)
-	var right = VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(right)
-	_label(right, "LEVEL")
-	_settings_title = LineEdit.new()
-	right.add_child(_settings_title)
-	_gravity = CheckBox.new()
-	_gravity.text = "Enable gravity"
-	right.add_child(_gravity)
-	_void = _spin(right, "Fall-out height", -256, -1, -8)
-	_button(right, "Apply level settings", func(): authoring.edit_settings(_settings_title.text, _gravity.button_pressed, int(_void.value)))
-	_label(right, "Game rule (optional)")
-	_rule_picker = EditorResourcePicker.new()
-	_rule_picker.base_type = "GGGameRule"
-	_rule_picker.resource_changed.connect(func(resource):
-		if not _updating: authoring.set_rule(resource)
-	)
-	_rule_picker.resource_selected.connect(func(resource, _inspect): EditorInterface.edit_resource(resource))
-	right.add_child(_rule_picker)
-	_label(right, "SELECTED ENTITY")
-	_entity_label = _label(right, "Use Select, then click an entity.")
-	for axis in ["X", "Y", "Z"]:
-		_coords.append(_spin(right, axis, -1024, 1024, 0))
-		_coords.back().allow_greater = true
-		_coords.back().allow_lesser = true
-	_entity_turns = _spin(right, "Quarter turns", 0, 3, 0)
-	_entity_mirror = CheckBox.new()
-	_entity_mirror.text = "Mirrored"
-	right.add_child(_entity_mirror)
-	_label(right, "Property overrides\nOnly add values that differ from the definition.")
-	_inspector = EditorInspector.new()
-	_inspector.custom_minimum_size.y = 200
-	_inspector.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(_inspector)
-	_inspector.edit(_overrides)
-	_apply_button = _button(right, "Apply entity changes", _apply_entity)
-	_reset_button = _button(right, "Reset all overrides", func():
-		_overrides = GGPropertyOverrides.new()
-		_inspector.edit(_overrides)
-	)
-	_button(right, "Duplicate selected", _duplicate)
-	_button(right, "Delete selected", _delete_selected)
-	_status = Label.new()
-	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_status.clip_text = true
-	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	add_child(_status)
+	var hint_row = _row(center)
+	_hint = _line_label(hint_row)
+	_muted_labels.append(_hint)
+	_button(hint_row, "Help", func(): _help.popup_centered(), "Help", "Camera controls and all keyboard shortcuts")
+	_tabs = TabContainer.new()
+	_tabs.custom_minimum_size.x = 280 * _scale
+	_tabs.use_hidden_tabs_for_min_size = false
+	center_right.add_child(_tabs)
+	var selected = _scroll_column(_tabs, 0)
+	selected.get_parent().name = "Selected entity"
+	_build_selection(selected)
+	var level = _scroll_column(_tabs, 0)
+	level.get_parent().name = "Level"
+	_build_level_settings(level)
+	_build_status()
+	_build_help()
 	_file = EditorFileDialog.new()
 	_file.add_filter("*.tres", "Godot resources")
 	_file.file_selected.connect(_file_selected)
@@ -193,13 +123,196 @@ func _ready() -> void:
 	selection.feedback.connect(_set_status)
 	authoring.changed.connect(_refresh)
 	EditorInterface.get_inspector().property_edited.connect(_inspector_property_edited)
+	EditorInterface.get_base_control().theme_changed.connect(_refresh_theme)
+	_refresh_theme()
 	_new_level()
 
-func _button(parent: Node, text: String, action: Callable) -> Button:
+func _build_header() -> void:
+	var header = _flow(self)
+	_title = _line_label(header)
+	_title.custom_minimum_size.x = 150 * _scale
+	var files = _row(header)
+	var menu = MenuButton.new()
+	menu.text = "File"
+	menu.tooltip_text = "New, open, or save a copy of a level"
+	files.add_child(menu)
+	menu.get_popup().add_item("New level", 0)
+	menu.get_popup().add_item("Open…", 1)
+	menu.get_popup().add_separator()
+	menu.get_popup().add_item("Save as…", 2)
+	menu.get_popup().id_pressed.connect(func(id):
+		match id:
+			0: _guard(_new_level)
+			1: _guard(func(): _dialog("open_level"))
+			2: _dialog("save_level")
+	)
+	_button(files, "Save", save_current, "Save", "Save level and shared configuration (Ctrl/Cmd+S)")
+	var play = _row(header)
+	_play_button = _button(play, "Playtest", _playtest, "Play", "Test a temporary copy, including unsaved edits")
+	_stop_button = _button(play, "Stop", func(): EditorInterface.stop_playing_scene(), "Stop", "Stop the running scene")
+	_stop_button.disabled = true
+	var timer = Timer.new()
+	timer.wait_time = 0.25
+	timer.autostart = true
+	timer.timeout.connect(_sync_play_state)
+	add_child(timer)
+
+func _build_tools() -> void:
+	var toolbar = _flow(self)
+	var tools = _row(toolbar)
+	var group = ButtonGroup.new()
+	var names = ["Paint (1)", "Erase (2)", "Select (3)"]
+	var icons = ["Edit", "Eraser", "ToolSelect"]
+	for index in range(3):
+		var button = _button(tools, names[index], _set_mode.bind(index), icons[index])
+		button.toggle_mode = true
+		button.button_group = group
+		_tool_buttons.append(button)
+	var history = _row(toolbar)
+	_button(history, "Undo", authoring.undo, "Undo", "Undo authoring edit (Ctrl/Cmd+Z)")
+	_button(history, "Redo", authoring.redo, "Redo", "Redo authoring edit (Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y)")
+	var view_tools = _row(toolbar)
+	_button(view_tools, "Frame", func(): viewport.frame_level(), "ZoomMore", "Frame the whole level (F)")
+	_button(view_tools, "Validate", _validate, "StatusSuccess", "Check definitions, occupied cells, and level configuration")
+	var context = _flow(self)
+	_height = _spin(context, "Height", -64, 128, 0)
+	_height.allow_lesser = true
+	_height.allow_greater = true
+	_height.tooltip_text = "Placement plane (Page Up / Page Down); also used by Fill ground"
+	_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
+	_brush_controls = _row(context)
+	_turns = _spin(_brush_controls, "Quarter turns", 0, 3, 0)
+	_mirror = CheckBox.new()
+	_mirror.text = "Mirror brush"
+	_brush_controls.add_child(_mirror)
+	_brush_label = _line_label(context)
+	_brush_label.custom_minimum_size.x = 120 * _scale
+	_muted_labels.append(_brush_label)
+	_shape_banner = _row(self)
+	_shape_label = _line_label(_shape_banner)
+	_button(_shape_banner, "Return to level", func(): _shape_mode.button_pressed = false, "Back")
+
+func _build_palette(left: VBoxContainer) -> void:
+	_heading(left, "Entity definitions")
+	_palette = ItemList.new()
+	_palette.custom_minimum_size = Vector2(0, 180) * _scale
+	_palette.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_palette.fixed_icon_size = Vector2i(Vector2(16, 16) * _scale)
+	_palette.item_selected.connect(_choose_definition)
+	left.add_child(_palette)
+	var assets = _row(left)
+	_button(assets, "Entity", _new_definition, "Add", "Create a shared entity definition")
+	_button(assets, "Import…", func(): _dialog("import_definition"), "Load")
+	left.add_child(HSeparator.new())
+	_definition_label = _heading(left, "Definition")
+	_note(left, "Shared defaults affect all entities using this definition.")
+	_definition_buttons.append(_button(left, "Edit in Inspector", func():
+		if _definition: EditorInterface.edit_resource(_definition)
+	, "Edit", "Edit this definition's shared defaults in Godot Inspector"))
+	_shape_mode = CheckButton.new()
+	_shape_mode.text = "Edit occupied cells"
+	_shape_mode.toggled.connect(_toggle_shape)
+	left.add_child(_shape_mode)
+	var options = _fold(left, "Definition options")
+	_definition_buttons.append(_button(options, "Save definition as…", func():
+		if _definition: _dialog("save_definition")
+	, "Save"))
+
+func _build_selection(right: VBoxContainer) -> void:
+	_entity_label = _label(right, "Use Select (3), then click an entity.")
+	_entity_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_single_entity = _column(right)
+	_heading(_single_entity, "Transform")
+	for axis in ["X", "Y", "Z"]:
+		_coords.append(_spin(_single_entity, axis, -1024, 1024, 0))
+		_coords.back().allow_greater = true
+		_coords.back().allow_lesser = true
+	_entity_turns = _spin(_single_entity, "Quarter turns", 0, 3, 0)
+	_entity_mirror = CheckBox.new()
+	_entity_mirror.text = "Mirrored"
+	_single_entity.add_child(_entity_mirror)
+	var overrides = _fold(_single_entity, "Property overrides")
+	_note(overrides, "Only add values that differ from the definition.")
+	_inspector = EditorInspector.new()
+	_inspector.custom_minimum_size.y = 170 * _scale
+	overrides.add_child(_inspector)
+	_inspector.edit(_overrides)
+	_reset_button = _button(overrides, "Reset all overrides", func():
+		_overrides = GGPropertyOverrides.new()
+		_inspector.edit(_overrides)
+	, "Reload", "Clear the draft overrides; click Apply entity changes to commit")
+	_apply_button = _button(_single_entity, "Apply entity changes", _apply_entity, "Apply")
+	_note(_single_entity, "Property edits take effect when applied.")
+	_selection_actions = _row(right)
+	_duplicate_button = _button(_selection_actions, "Duplicate", _duplicate, "Duplicate", "Duplicate the selected entities")
+	_delete_button = _button(_selection_actions, "Delete", _delete_selected, "Remove", "Delete selected entities (Delete); undo restores them")
+
+func _build_level_settings(right: VBoxContainer) -> void:
+	_heading(right, "Level settings")
+	_label(right, "Title")
+	_settings_title = LineEdit.new()
+	right.add_child(_settings_title)
+	_gravity = CheckBox.new()
+	_gravity.text = "Enable gravity"
+	right.add_child(_gravity)
+	_void = _spin(right, "Fall-out height", -256, -1, -8)
+	_button(right, "Apply level settings", func(): authoring.edit_settings(_settings_title.text, _gravity.button_pressed, int(_void.value)), "Apply")
+	_note(right, "Title, gravity and fall-out height take effect when applied.")
+	right.add_child(HSeparator.new())
+	_label(right, "Game rule (optional)")
+	_rule_picker = EditorResourcePicker.new()
+	_rule_picker.base_type = "GGGameRule"
+	_rule_picker.resource_changed.connect(func(resource):
+		if not _updating: authoring.set_rule(resource)
+	)
+	_rule_picker.resource_selected.connect(func(resource, _inspect): EditorInterface.edit_resource(resource))
+	right.add_child(_rule_picker)
+	_note(right, "Rule changes apply immediately.")
+	var floor = _fold(right, "Fill ground")
+	_floor_hint = _note(floor, "Select a single-cell Ground definition in the palette.")
+	_floor_height = _spin(floor, "Height", -64, 128, 0)
+	_floor_height.allow_lesser = true
+	_floor_height.allow_greater = true
+	_floor_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
+	_floor_width = _spin(floor, "Width", 1, 64, 8)
+	_floor_depth = _spin(floor, "Depth", 1, 64, 8)
+	_floor_button = _button(floor, "Fill ground", _fill_floor, "Grid", "Fill using the selected Ground definition at the current height")
+	_note(floor, "Starts at X=0, Z=0. Existing solid cells are skipped. Height is shared with the placement plane.")
+	var transform = _fold(right, "Transform entire level")
+	_note(transform, "Affects all entities. Each operation can be undone.")
+	_button(transform, "Rotate level 90°", func(): authoring.transform_level(false), "RotateRight")
+	_button(transform, "Mirror level on X", func(): authoring.transform_level(true), "MirrorX")
+
+func _build_status() -> void:
+	add_child(HSeparator.new())
+	var row = _row(self)
+	_status = _line_label(row)
+	_pointer_status = _line_label(row)
+	_pointer_status.size_flags_stretch_ratio = 0.6
+	_pointer_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_muted_labels.append(_pointer_status)
+	_button(row, "Details", func():
+		_status_detail.dialog_text = _status.tooltip_text
+		_status_detail.popup_centered(Vector2i(Vector2(600, 200) * _scale))
+	, "Info", "Read the full last operation result")
+	_status_detail = AcceptDialog.new()
+	_status_detail.title = "Operation result"
+	_status_detail.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_status_detail)
+
+func _build_help() -> void:
+	_help = AcceptDialog.new()
+	_help.title = "Grid Levels — keyboard shortcuts"
+	_help.dialog_text = "TOOLS\n1 / 2 / 3: Paint / Erase / Select    •    Right click: pick brush\nShift+click: toggle selection    •    Delete: delete selected\nDrag axis / plane: move in whole cells    •    End: snap down\nQ / E: selected entities down / up    •    Esc: cancel move\nPage Up / Down: placement height\n\nCAMERA (viewport focus)\nWASD: fly    •    Q / E: fly down / up when no entity is selected\nRight+Q / E: fly with a selection    •    Right drag: look\nRight+wheel: speed    •    Middle: orbit    •    Shift+middle: pan\nWheel: zoom    •    F: frame    •    Esc: stop navigation\n\nAUTHORING\nCtrl/Cmd+S: save    •    Ctrl/Cmd+Z: undo\nCtrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo\n\nSHAPE EDITING\n1 / 2: add / remove occupied cells    •    Height: choose layer\nShape changes affect all entities sharing the definition.\n\nPLAYTEST\nWASD / arrows: move    •    Z / Y / R: undo / redo / restart"
+	add_child(_help)
+
+func _button(parent: Node, text: String, action: Callable, icon_name: String = "", tip: String = "") -> Button:
 	var button = Button.new()
 	button.text = text
+	button.tooltip_text = tip
 	button.pressed.connect(action)
 	parent.add_child(button)
+	if not icon_name.is_empty(): _icon_buttons[button] = icon_name
 	return button
 
 func _label(parent: Node, text: String) -> Label:
@@ -207,9 +320,83 @@ func _label(parent: Node, text: String) -> Label:
 	label.text = text
 	if text.length() > 48:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label.custom_minimum_size.x = 160
 	parent.add_child(label)
 	return label
+
+func _line_label(parent: Node) -> Label:
+	var label = _label(parent, "")
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	return label
+
+func _heading(parent: Node, text: String) -> Label:
+	var label = _label(parent, text)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_heading_labels.append(label)
+	return label
+
+func _note(parent: Node, text: String) -> Label:
+	var label = _label(parent, text)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_muted_labels.append(label)
+	return label
+
+func _column(parent: Node) -> VBoxContainer:
+	var column = VBoxContainer.new()
+	column.add_theme_constant_override("separation", int(8 * _scale))
+	parent.add_child(column)
+	return column
+
+func _row(parent: Node) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", int(6 * _scale))
+	parent.add_child(row)
+	return row
+
+func _flow(parent: Node) -> HFlowContainer:
+	var flow = HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", int(18 * _scale))
+	flow.add_theme_constant_override("v_separation", int(6 * _scale))
+	parent.add_child(flow)
+	return flow
+
+func _scroll_column(parent: Node, minimum_width: float) -> VBoxContainer:
+	var scroll = ScrollContainer.new()
+	scroll.custom_minimum_size.x = minimum_width * _scale
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	parent.add_child(scroll)
+	var column = _column(scroll)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	return column
+
+func _fold(parent: Node, title: String) -> VBoxContainer:
+	var fold = FoldableContainer.new()
+	fold.title = title
+	fold.folded = true
+	parent.add_child(fold)
+	return _column(fold)
+
+func _refresh_theme() -> void:
+	var base = EditorInterface.get_base_control()
+	for button in _icon_buttons:
+		var icon_name: String = _icon_buttons[button]
+		if base.has_theme_icon(icon_name, "EditorIcons"):
+			button.icon = base.get_theme_icon(icon_name, "EditorIcons")
+	for label in _muted_labels:
+		label.add_theme_color_override("font_color", base.get_theme_color("font_color", "Editor").lerp(base.get_theme_color("disabled_font_color", "Editor"), 0.35))
+	for label in _heading_labels:
+		label.add_theme_font_override("font", base.get_theme_font("bold", "EditorFonts"))
+	_title.add_theme_font_size_override("font_size", base.get_theme_font_size("font_size", "Label") + int(4 * _scale))
+	_shape_label.add_theme_color_override("font_color", base.get_theme_color("warning_color", "Editor"))
+	for button in _tool_buttons:
+		button.add_theme_color_override("font_pressed_color", base.get_theme_color("accent_color", "Editor"))
+
+func _sync_play_state() -> void:
+	var playing = EditorInterface.is_playing_scene()
+	_stop_button.disabled = not playing
+	_play_button.disabled = playing
 
 func _set_status(message: String) -> void:
 	# Status changes must not resize the canvas during a drag. Preserve the
@@ -218,15 +405,14 @@ func _set_status(message: String) -> void:
 	_status.tooltip_text = message
 
 func _spin(parent: Node, title: String, minimum: int, maximum: int, initial: int) -> SpinBox:
-	var row = HBoxContainer.new()
-	parent.add_child(row)
+	var row = _row(parent)
 	var label = _label(row, title)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var spin = SpinBox.new()
 	spin.min_value = minimum
 	spin.max_value = maximum
 	spin.value = initial
-	spin.custom_minimum_size.x = 70
+	spin.custom_minimum_size.x = 76 * _scale
 	row.add_child(spin)
 	return spin
 
@@ -245,6 +431,7 @@ func request_open(level: GGLevel) -> void:
 func _open(level: GGLevel) -> void:
 	selection.select(&"")
 	_definition = null
+	if _shape_mode.button_pressed: _mode = _level_mode
 	_shape_mode.set_pressed_no_signal(false)
 	authoring.open(level)
 	_choose_definition(0)
@@ -263,14 +450,17 @@ func _refresh() -> void:
 	_updating = true
 	var level = authoring.level
 	_title.text = "%s%s" % [level.title, " *" if authoring.dirty else ""]
+	_title.tooltip_text = "%s\n%s" % [level.title, level.resource_path if not level.resource_path.is_empty() else "Unsaved level"]
 	_settings_title.text = level.title
 	_gravity.set_pressed_no_signal(level.gravity_enabled)
 	_void.set_value_no_signal(level.void_height)
 	_rule_picker.edited_resource = level.game_rule
 	_palette.clear()
 	for definition in level.palette:
-		_palette.add_item(definition.display_name)
-		_palette.set_item_custom_fg_color(_palette.item_count - 1, definition.color.lightened(0.2))
+		var swatch = Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		swatch.fill(definition.color)
+		_palette.add_item(definition.display_name, ImageTexture.create_from_image(swatch))
+		_palette.set_item_tooltip(_palette.item_count - 1, "%s\n%s" % [definition.display_name, definition.definition_id])
 		if definition == _definition:
 			_palette.select(_palette.item_count - 1)
 		if not definition.changed.is_connected(_definition_changed):
@@ -310,8 +500,50 @@ func _refresh_view() -> void:
 		viewport.show_level(preview)
 	else:
 		viewport.show_level(authoring.level)
-	viewport.set_move_enabled(_mode.selected == 2 and not _shape_mode.button_pressed)
-	viewport.set_erase_enabled(_mode.selected == 1 and not _shape_mode.button_pressed)
+	viewport.set_move_enabled(_mode == 2 and not _shape_mode.button_pressed)
+	viewport.set_erase_enabled(_mode == 1 and not _shape_mode.button_pressed)
+	_update_context()
+
+func _toggle_shape(enabled: bool) -> void:
+	if enabled:
+		_level_mode = _mode
+		_select(&"")
+		if _mode == 2: _mode = 0
+	else:
+		_mode = _level_mode
+	_refresh_view()
+	viewport.frame_level()
+	viewport.grab_focus()
+
+func _update_context() -> void:
+	var shape = _shape_mode.button_pressed
+	for index in range(_tool_buttons.size()):
+		_tool_buttons[index].set_pressed_no_signal(_mode == index)
+		_tool_buttons[index].disabled = shape and index == 2
+	_tool_buttons[0].text = "Add cells (1)" if shape else "Paint (1)"
+	_tool_buttons[1].text = "Remove (2)" if shape else "Erase (2)"
+	_brush_controls.visible = _mode == 0 and not shape
+	_brush_label.text = "Brush: " + _definition.display_name if _definition else "Choose an entity definition"
+	_brush_label.tooltip_text = _brush_label.text
+	_brush_label.visible = _mode == 0 and not shape
+	_shape_banner.visible = shape
+	_shape_label.text = "Shared shape: %s — affects all instances" % _definition.display_name if _definition else "Choose a definition"
+	_shape_label.tooltip_text = _shape_label.text
+	if selection.ids().is_empty():
+		_entity_label.text = "Editing the shared definition. Use Add cells / Remove, then Return to level to select entities." if shape else "Use Select (3), then click an entity."
+	_definition_label.text = _definition.display_name + " · Definition" if _definition else "Definition"
+	_shape_mode.disabled = not _definition
+	for button in _definition_buttons: button.disabled = not _definition
+	if shape and _tabs.current_tab == 1: _tabs.current_tab = 0
+	_tabs.set_tab_disabled(1, shape)
+	var can_fill = _definition and _definition.shape.size() == 1 and _definition.defaults().get("ground", false)
+	_floor_button.disabled = not can_fill or shape
+	_floor_hint.text = "Using %s from the palette." % _definition.display_name if can_fill else "Select a single-cell Ground definition in the palette."
+	if shape:
+		_hint.text = "Click / drag: %s cells · Height: choose layer" % ("add" if _mode == 0 else "remove")
+	else:
+		_hint.text = ["Click / drag: paint · Right click: pick brush", "Click / drag: erase an entire entity", "Shift+click: multi-select · Drag: move · End: snap down"][_mode]
+	_hint.tooltip_text = _hint.text + "\nSee Help for camera controls and all shortcuts."
 
 func _choose_definition(index: int) -> void:
 	if index >= 0 and index < authoring.level.palette.size():
@@ -327,14 +559,15 @@ func _pick_entity(id: StringName, button: int, shift: bool) -> void:
 			_choose_definition(authoring.level.palette.find(entity.definition))
 			_turns.value = entity.quarter_turns
 			_mirror.button_pressed = entity.mirrored
-	elif _mode.selected == 2:
+	elif _mode == 2:
 		selection.select(id, shift)
 
 func _configure_stroke() -> void:
-	stroke.configure(_definition, _mode.selected, int(_turns.value), _mirror.button_pressed, _shape_mode.button_pressed)
+	stroke.configure(_definition, _mode, int(_turns.value), _mirror.button_pressed, _shape_mode.button_pressed)
 
 func _paint_height_changed(value: int) -> void:
 	_height.set_value_no_signal(value)
+	_floor_height.set_value_no_signal(value)
 	var point = viewport.get_local_mouse_position()
 	if not Rect2(Vector2.ZERO, viewport.size).has_point(point):
 		return
@@ -344,17 +577,22 @@ func _paint_height_changed(value: int) -> void:
 
 func _hover(cell: Vector3i) -> void:
 	_last_hover = cell
-	if not _definition or _mode.selected != 0 or _shape_mode.button_pressed:
+	_pointer_status.text = "Cell %s · Height %d" % [cell, int(_height.value)]
+	_pointer_status.tooltip_text = _pointer_status.text
+	if not _definition or _mode != 0 or _shape_mode.button_pressed:
 		viewport.hide_ghost()
 		return
 	viewport.show_ghost(_definition, cell, int(_turns.value), _mirror.button_pressed)
-	_set_status("Brush: %s   •   Place at %s   •   %d entities" % [_definition.display_name, cell, authoring.level.entities.size()])
 
 func _select(id: StringName, toggle: bool = false) -> void:
 	selection.select(id, toggle)
 
 func _update_selection() -> void:
 	var single = selection.ids().size() == 1
+	_single_entity.visible = single
+	_selection_actions.visible = not selection.ids().is_empty()
+	_duplicate_button.disabled = selection.ids().is_empty()
+	_delete_button.disabled = selection.ids().is_empty()
 	for coord in _coords: coord.editable = single
 	_entity_turns.editable = single
 	_entity_mirror.disabled = not single
@@ -496,10 +734,14 @@ func _new_definition() -> void:
 	name_input.grab_focus()
 
 func _set_mode(index: int) -> void:
-	_mode.select(index)
+	if viewport.is_drawing() or (_shape_mode.button_pressed and index == 2):
+		_update_context()
+		return
+	_mode = index
 	_configure_stroke()
 	viewport.set_move_enabled(index == 2 and not _shape_mode.button_pressed)
 	viewport.set_erase_enabled(index == 1 and not _shape_mode.button_pressed)
+	_update_context()
 	_hover(_last_hover)
 
 func _input(event: InputEvent) -> void:
@@ -526,7 +768,7 @@ func _input(event: InputEvent) -> void:
 	if is_instance_valid(modal) and modal != get_window() and modal.visible:
 		return
 	if key == KEY_DELETE:
-		if _mode.selected == 2 and not _shape_mode.button_pressed and not selection.ids().is_empty():
+		if _mode == 2 and not _shape_mode.button_pressed and not selection.ids().is_empty():
 			_delete_selected()
 			get_viewport().set_input_as_handled()
 		return
@@ -536,7 +778,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if key == KEY_END:
-		if _mode.selected == 2 and not _shape_mode.button_pressed and (not viewport.is_drawing() or viewport.is_moving()):
+		if _mode == 2 and not _shape_mode.button_pressed and (not viewport.is_drawing() or viewport.is_moving()):
 			_snap_selected_to_ground()
 			get_viewport().set_input_as_handled()
 		return

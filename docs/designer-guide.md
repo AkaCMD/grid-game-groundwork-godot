@@ -4,9 +4,11 @@
 
 ## Create, save and playtest
 
-Open **Grid Levels** in Godot. Use **New level** for a default palette, or **Open…** for an existing `.tres`. Choose a definition in the palette, paint, **Save** / **Save as…**, then **Playtest ▶**. **Stop ■** returns to editing.
+Open **Grid Levels** in Godot. Use **File → New level** for a default palette, or **File → Open…** for an existing `.tres`. Choose a definition in the palette, paint, **Save** / **File → Save as…**, then **Playtest**. **Stop** returns to editing.
 
 Playtest uses a temporary copy, including unsaved edits. Movement, falls and gameplay history never change the authored level. Save to keep your edits after closing Godot. A `*` marks unsaved changes; opening or creating another level asks before discarding them. The workspace remembers the last saved level across editor sessions.
+
+The left sidebar holds entity definitions. The visible **Paint / Erase / Select** buttons show the current tool; brush rotation and mirroring appear in Paint. The right sidebar separates **Selected entity** from **Level** settings. Both sidebars scroll and can be resized. Below the viewport, a short tool hint and **Help** replace the full shortcut list. Operation results stay in the bottom status line while pointer coordinates update separately; **Details** opens the complete result. Stop is disabled when no scene is running.
 
 ## Paint and build
 
@@ -22,9 +24,9 @@ Godot's **Y axis is height**; horizontal gameplay uses **XZ**. All occupied cell
 
 Paint snaps to solid occupied-cell faces, including elevated tops and sides. Empty space uses the **Height** plane. Solid placements rise to the first free height if they overlap another solid; non-solid entities such as goals can share cells. Each stroke uses its starting surfaces and paints each target once, preventing accidental towers. Release and start another stroke to add a layer. One stroke is one undo action.
 
-For a floor, choose a single-cell definition with `ground=true`, set **Height**, **Width** and **Depth**, then **Fill ground at current height**. The rectangle begins at `X=0, Z=0` and skips occupied solid cells. One fill is one undo action.
+In **Level → Fill ground**, choose a single-cell definition with `ground=true`, set **Height**, **Width** and **Depth**, then **Fill ground**. Height stays synchronized with the toolbar placement plane. The rectangle begins at `X=0, Z=0` and skips occupied solid cells. One fill is one undo action.
 
-**Rotate entire level 90°** and **Mirror entire level on X** transform positions and orientations together; the result can be saved and undone.
+Under **Level → Transform entire level**, **Rotate level 90°** and **Mirror level on X** transform positions and orientations together; the result can be saved and undone.
 
 ## Select and move
 
@@ -33,7 +35,7 @@ For a floor, choose a single-cell definition with `ground=true`, set **Height**,
 - Drag an **X/Y/Z arrow** along one world axis, or an **XY/XZ/YZ square** within a plane. X is red, Y green, Z blue. Edge-on handles hide; orbit to reach them.
 - Movement snaps to whole cells. A group preserves relative spacing, shapes, orientations and overrides. Only the destination is checked, so dragging can cross obstacles.
 - A valid release commits immediately as one undo action. Invalid destinations turn steady red and restore the whole group on release. **Esc**, hiding the workspace or losing window focus cancels an unfinished move. No movement adds no history.
-- **Duplicate selected** copies the group one cell right, lifting the copies together to the first free height if needed, and selects them. A failed duplicate creates nothing. **Delete selected** or **Delete** in Select mode removes the group. Each operation is one undo action.
+- **Duplicate** copies the group one cell right, lifting the copies together to the first free height if needed, and selects them. A failed duplicate creates nothing. **Delete** or **Delete** in Select mode removes the group. Each operation is one undo action.
 
 Selection itself is not undoable; undoing deletion restores entities without selecting them. Opening another level or entering shape editing clears selection. Multi-selection disables individual coordinates, orientation, overrides and End snap.
 
@@ -53,14 +55,14 @@ Select/Erase pick the nearest visible model surface, including geometry outside 
 
 ## Definitions, overrides and shapes
 
-The palette holds reusable **entity definitions**, shared by placements. Use **+ Entity** to create one, **Import…** to add an existing definition, **Edit definition in Inspector** to change defaults, and **Save definition as…** to save a reusable `.tres`. Definitions can also remain embedded in a level. Saving a level saves its externally referenced definitions and game-rule configuration too.
+The palette holds reusable **entity definitions**, shared by placements. Use **+ Entity** to create one, **Import…** to add an existing definition, **Edit in Inspector** to change defaults, and **Definition options → Save definition as…** to save a reusable `.tres`. Definitions can also remain embedded in a level. Saving a level saves its externally referenced definitions and game-rule configuration too.
 
 A definition supplies its occupied cells, solid/movable/gravity flags, color, optional **Visual Scene**, and game-specific properties. Changes affect every placement inheriting that value.
 
 To change just one entity:
 
-1. Select it and edit X/Y/Z, **Quarter turns**, or **Mirrored** on the right.
-2. In **Overrides**, add only keys to replace, with typed values, such as `weight` as a float `4.0`.
+1. Select it and edit X/Y/Z, **Quarter turns**, or **Mirrored** in the **Selected entity** tab.
+2. Expand **Property overrides** and add only keys to replace, with typed values, such as `weight` as a float `4.0`.
 3. Click **Apply entity changes**. Invalid destinations are rejected.
 
 Removing an override key restores inheritance. **Reset all overrides** clears the draft; click Apply to commit. Duplication preserves overrides and orientation.
@@ -77,7 +79,7 @@ Game-specific keys are interpreted by rules. Chain pushing is configured per ent
 
 ### Edit occupied cells
 
-Choose a definition and enable **Edit occupied cells**. **1** adds cells; **2** removes them by click/drag at **Height**; **3** is ignored. Change height to build a 3D shape. The last cell cannot be removed. Disable the toggle to return to the level.
+Choose a definition and enable **Edit occupied cells**. **1** adds cells; **2** removes them by click/drag at **Height**; **3** is ignored. Change height to build a 3D shape. The last cell cannot be removed. Use **Return to level** (or disable the toggle) to restore the previous level tool. A banner identifies the shared definition; Select and the Level tab are disabled in shape editing.
 
 Shape changes affect all placements sharing the definition and can be undone. Check for new overlaps with **Validate**. Artwork is separate: assign a `Node3D` **Visual Scene** whose origin matches the entity origin. Meshes and colliders do not define occupied cells.
 
@@ -122,7 +124,7 @@ Editor undo covers strokes, entity edits, group moves/copies/deletes, shapes, fl
 
 ## Rules, validation and play
 
-Set title, **Enable gravity** and **Fall-out height**, then click **Apply level settings**. Choose an optional **Game rule** resource; inspect it to configure its push rule.
+In the **Level** tab, set title, **Enable gravity** and **Fall-out height**, then click **Apply level settings**. Choose an optional **Game rule** resource; inspect it to configure its push rule. Rule changes apply immediately; the other level settings require Apply.
 
 Ground must be placed explicitly. With gravity enabled, support beneath any one occupied cell holds the entire rigid entity; overhangs do not tip. Unsupported stacks fall together. Players falling out fail; other entities are removed from that attempt. Undo can restore them.
 

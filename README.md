@@ -1,5 +1,7 @@
 # Grid Game Groundwork for Godot
 
+![Grid Levels editor in English: visible editing tools, entity definitions, and contextual properties](docs/media/editor.png)
+
 **English** | [简体中文](README.zh-CN.md)
 
 A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, pipes, and QUACK!!! on ICE.
@@ -11,13 +13,13 @@ A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mec
 ## Quick start
 
 1. Import `project.godot` in Godot and open **Grid Levels** in the top toolbar. If missing, enable **Grid Game Groundwork** in **Project → Project Settings → Plugins**.
-2. Click **Open…** and choose `examples/levels/sokoban.tres`, `pipes.tres`, or `quack.tres`.
+2. Click **File → Open…** and choose `examples/levels/sokoban.tres`, `pipes.tres`, or `quack.tres`.
 3. Choose an entity from the palette. Use **1 / 2 / 3** to paint, erase, or select. Drag the selection's axis or plane handles to move by whole cells; **End** snaps a single selected entity down to support.
-4. Click **Save**, then **Playtest ▶**. Click **Stop ■** to return to editing. Play never changes your authored level; unsaved edits still need saving.
+4. Click **Save**, then **Playtest**. Click **Stop** to return to editing. Play never changes your authored level; unsaved edits still need saving.
 
 To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
-![Level painting, selection, movement, snap to ground and undo](docs/media/authoring.gif)
+The editor keeps painting tools visible, groups shared definitions on the left, and separates selected-entity properties from level settings on the right. Tool hints and operation results stay close to the canvas.
 
 ## Features
 
