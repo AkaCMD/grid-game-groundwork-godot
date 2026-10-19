@@ -28,6 +28,7 @@ func run() -> void:
 	await check_workspace_layout(panel)
 	await check_workspace_shortcuts(panel)
 	await check_text_dialogs(panel)
+	await check_inspector_selection_refresh(panel)
 	var example: GGLevel = load("res://examples/levels/sokoban.tres")
 	var example_count = example.entities.size()
 	panel.request_open(example)
@@ -99,6 +100,86 @@ func run() -> void:
 	await check_quack(panel)
 	print("EDITOR_SMOKE: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
+
+func inspector_edit(resource: Resource, property: String, value: Variant, panel: GGEditorPanel) -> void:
+	EditorInterface.edit_resource(resource)
+	await get_tree().process_frame
+	var inspector = EditorInterface.get_inspector()
+	check(inspector.get_edited_object() == resource, "Native Inspector targets the authored resource")
+	resource.set(property, value)
+	# Reproduce the native Inspector's notification, rather than invoking
+	# selection.reconcile or the panel's refresh helpers from the test.
+	inspector.property_edited.emit(property)
+	check(panel._definition_refresh_pending, "Inspector edit schedules the panel refresh without authoring.changed")
+	for frame in range(2): await get_tree().process_frame
+
+func check_inspector_selection_refresh(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var view = panel.viewport
+	var camera_state = [view._pivot, view._yaw, view._pitch, view._zoom]
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var entity = GGEntityPlacement.new()
+	entity.entity_id = &"inspector_selection"
+	entity.definition = fixture.palette[3]
+	entity.quarter_turns = 1
+	entity.mirrored = true
+	entity.overrides = {"weight": 7.0}
+	fixture.entities.append(entity)
+	panel._open(fixture)
+	panel._set_mode(2)
+	panel._select(entity.entity_id)
+	await inspector_edit(entity, "cell", Vector3i(5, 0, 0), panel)
+	check(entity.cell == Vector3i(5, 0, 0) and panel.selection.position() == entity.cell, "Inspector cell edit reconciles the selected movement anchor")
+	check(view.board.roots[entity.entity_id].position == Vector3(entity.cell) and view._move_gizmo.position == Vector3(entity.cell), "Inspector refresh keeps the model and gizmo at the authored cell")
+	check(panel._coords[0].value == 5 and panel.authoring.dirty, "Inspector refresh updates coordinate fields and dirty state")
+	view._pivot = Vector3(5, 0, 0)
+	view._yaw = 0.65
+	view._pitch = 0.65
+	view._zoom = 12.0
+	view._camera_position()
+	view.grab_focus()
+	await get_tree().process_frame
+	var history_size = panel.authoring._history.size()
+	var grabbed = gizmo_press(panel, 0)
+	gizmo_motion(panel, grabbed + Vector3.RIGHT)
+	check(panel.selection.position() == Vector3i(6, 0, 0) and entity.cell == Vector3i(5, 0, 0), "Drag after Inspector refresh previews from the new anchor without changing authored data")
+	gizmo_release(panel, grabbed + Vector3.RIGHT)
+	check(entity.cell == Vector3i(6, 0, 0) and panel.authoring._history.size() == history_size + 1, "Drag after Inspector edit commits exactly one authoring action")
+	check(panel.authoring.undo() and panel.authoring.find_entity(entity.entity_id).cell == Vector3i(5, 0, 0), "One undo restores the Inspector-authored cell")
+	check(panel.authoring.redo() and panel.authoring.find_entity(entity.entity_id).cell == Vector3i(6, 0, 0), "Redo restores the accepted move after Inspector editing")
+	# History restores placements from copies; inspect the current resource.
+	entity = panel.authoring.find_entity(entity.entity_id)
+	check(entity.quarter_turns == 1 and entity.mirrored and entity.overrides == {"weight": 7.0}, "Inspector refresh and movement preserve orientation and overrides")
+	grabbed = gizmo_press(panel, 0)
+	gizmo_motion(panel, grabbed + Vector3.RIGHT)
+	history_size = panel.authoring._history.size()
+	await inspector_edit(entity, "cell", Vector3i(8, 0, 0), panel)
+	check(not panel.selection.is_moving() and view._move_gizmo.active_handle == -1, "Inspector refresh cancels a stale selection preview and gizmo drag")
+	check(panel.selection.position() == entity.cell and view.board.roots[entity.entity_id].position == Vector3(entity.cell) and view._move_gizmo.position == Vector3(entity.cell), "Cancelling stale preview retains the externally edited position")
+	gizmo_release(panel, grabbed + Vector3.RIGHT)
+	check(entity.cell == Vector3i(8, 0, 0) and panel.authoring._history.size() == history_size, "Release after Inspector cancellation cannot commit the stale preview")
+	panel.selection.begin_move()
+	panel.selection.preview_move(Vector3i(10, 0, 0))
+	await inspector_edit(entity, "entity_id", &"renamed_selection", panel)
+	check(panel.selection.ids().is_empty() and panel.selection.positions().is_empty() and not panel.selection.is_moving(), "Inspector Entity ID change cancels preview and prunes the invalid selection")
+	check(not view._move_gizmo.visible and view.board.roots.has(entity.entity_id) and not panel._coords[0].editable, "Renamed entity rebuilds with no stale gizmo or editable selection fields")
+	panel._select(entity.entity_id)
+	panel.selection.begin_move()
+	panel.selection.preview_move(Vector3i(10, 0, 0))
+	var empty_entities: Array[GGEntityPlacement] = []
+	await inspector_edit(fixture, "entities", empty_entities, panel)
+	check(panel.selection.ids().is_empty() and not panel.selection.is_moving() and view.board.roots.is_empty() and not view._move_gizmo.visible, "Inspector deletion removes invalid selection and cancels its preview")
+	check(panel.authoring._history.size() == history_size, "Inspector reconciliation never records an authoring move")
+	EditorInterface.get_inspector().edit(null)
+	panel._open(previous)
+	panel._set_mode(0)
+	view._pivot = camera_state[0]
+	view._yaw = camera_state[1]
+	view._pitch = camera_state[2]
+	view._zoom = camera_state[3]
+	view._camera_position()
+	print("INSPECTOR_SELECTION_SMOKE completed")
 
 func mode_key(code: Key, modifiers: int = 0, echo: bool = false, pressed: bool = true) -> void:
 	var event = InputEventKey.new()

@@ -471,6 +471,9 @@ func _refresh() -> void:
 	if not is_instance_valid(viewport) or not authoring.level:
 		return
 	_updating = true
+	# Inspector edits bypass authoring.changed. Reconcile through the selection
+	# owner before rebuilding visuals so stale origins cannot overwrite them.
+	selection.reconcile()
 	var level = authoring.level
 	_title.text = "%s%s" % [level.title, " *" if authoring.dirty else ""]
 	_title.tooltip_text = "%s\n%s" % [level.title, level.resource_path if not level.resource_path.is_empty() else "Unsaved level"]
