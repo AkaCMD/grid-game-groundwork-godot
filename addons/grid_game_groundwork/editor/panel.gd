@@ -31,7 +31,9 @@ var _floor_height: SpinBox
 var _floor_button: Button
 var _floor_hint: Label
 var _status_detail: AcceptDialog
+var _status_text: RichTextLabel
 var _help: AcceptDialog
+var _help_text: RichTextLabel
 var _icon_buttons: Dictionary = {}
 var _muted_labels: Array[Label] = []
 var _heading_labels: Array[Label] = []
@@ -89,7 +91,7 @@ func _ready() -> void:
 	var hint_row = _row(center)
 	_hint = _line_label(hint_row)
 	_muted_labels.append(_hint)
-	_button(hint_row, "Help", func(): _help.popup_centered(), "Help", "Camera controls and all keyboard shortcuts")
+	_button(hint_row, "Help", func(): _popup_text_dialog(_help, Vector2(600, 520)), "Help", "Camera controls and all keyboard shortcuts")
 	_tabs = TabContainer.new()
 	_tabs.custom_minimum_size.x = 280 * _scale
 	_tabs.use_hidden_tabs_for_min_size = false
@@ -292,19 +294,40 @@ func _build_status() -> void:
 	_pointer_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_muted_labels.append(_pointer_status)
 	_button(row, "Details", func():
-		_status_detail.dialog_text = _status.tooltip_text
-		_status_detail.popup_centered(Vector2i(Vector2(600, 200) * _scale))
+		_status_text.text = _status.tooltip_text
+		_popup_text_dialog(_status_detail, Vector2(600, 420))
 	, "Info", "Read the full last operation result")
 	_status_detail = AcceptDialog.new()
-	_status_detail.title = "Operation result"
-	_status_detail.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_status_detail)
+	_status_text = _build_dialog_text(_status_detail, "Operation result")
 
 func _build_help() -> void:
 	_help = AcceptDialog.new()
-	_help.title = "Grid Levels — keyboard shortcuts"
-	_help.dialog_text = "TOOLS\n1 / 2 / 3: Paint / Erase / Select    •    Right click: pick brush\nShift+click: toggle selection    •    Delete: delete selected\nDrag axis / plane: move in whole cells    •    End: snap down\nQ / E: selected entities down / up    •    Esc: cancel move\nPage Up / Down: placement height\n\nCAMERA (viewport focus)\nWASD: fly    •    Q / E: fly down / up when no entity is selected\nRight+Q / E: fly with a selection    •    Right drag: look\nRight+wheel: speed    •    Middle: orbit    •    Shift+middle: pan\nWheel: zoom    •    F: frame    •    Esc: stop navigation\n\nAUTHORING\nCtrl/Cmd+S: save    •    Ctrl/Cmd+Z: undo\nCtrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo\n\nSHAPE EDITING\n1 / 2: add / remove occupied cells    •    Height: choose layer\nShape changes affect all entities sharing the definition.\n\nPLAYTEST\nWASD / arrows: move    •    Z / Y / R: undo / redo / restart"
-	add_child(_help)
+	_help_text = _build_dialog_text(_help, "Grid Levels — keyboard shortcuts")
+	_help_text.text = "TOOLS\n1 / 2 / 3: Paint / Erase / Select    •    Right click: pick brush\nShift+click: toggle selection    •    Delete: delete selected\nDrag axis / plane: move in whole cells    •    End: snap down\nQ / E: selected entities down / up    •    Esc: cancel move\nPage Up / Down: placement height\n\nCAMERA (viewport focus)\nWASD: fly    •    Q / E: fly down / up when no entity is selected\nRight+Q / E: fly with a selection    •    Right drag: look\nRight+wheel: speed    •    Middle: orbit    •    Shift+middle: pan\nWheel: zoom    •    F: frame    •    Esc: stop navigation\n\nAUTHORING\nCtrl/Cmd+S: save    •    Ctrl/Cmd+Z: undo\nCtrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo\n\nSHAPE EDITING\n1 / 2: add / remove occupied cells    •    Height: choose layer\nShape changes affect all entities sharing the definition.\n\nPLAYTEST\nWASD / arrows: move    •    Z / Y / R: undo / redo / restart"
+
+func _build_dialog_text(dialog: AcceptDialog, title: String) -> RichTextLabel:
+	dialog.title = title
+	var text = RichTextLabel.new()
+	# Keep the body's minimum size independent of the text length. RichTextLabel
+	# wraps and scrolls internally, including at increased editor scale.
+	text.fit_content = false
+	text.selection_enabled = true
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dialog.add_child(text)
+	dialog.about_to_popup.connect(func(): text.scroll_to_line(0))
+	add_child(dialog)
+	return text
+
+func _popup_text_dialog(dialog: AcceptDialog, preferred_size: Vector2) -> void:
+	var bounds = Rect2i(get_viewport().get_visible_rect())
+	if not dialog.is_embedded():
+		bounds = Rect2i(get_window().position, get_window().size)
+		var screen = DisplayServer.screen_get_usable_rect(get_window().current_screen)
+		if screen.has_area(): bounds = bounds.intersection(screen)
+	# Leave space for window decorations as well as the editor around the popup.
+	var dialog_size = Vector2i((preferred_size * _scale).min(Vector2(bounds.size) * 0.85))
+	dialog.min_size = dialog_size
+	dialog.popup(Rect2i(bounds.position + (bounds.size - dialog_size) / 2, dialog_size))
 
 func _button(parent: Node, text: String, action: Callable, icon_name: String = "", tip: String = "") -> Button:
 	var button = Button.new()
@@ -505,6 +528,8 @@ func _refresh_view() -> void:
 	_update_context()
 
 func _toggle_shape(enabled: bool) -> void:
+	# Shape entry can also switch tabs and hide the currently focused field.
+	viewport.grab_focus()
 	if enabled:
 		_level_mode = _mode
 		_select(&"")
@@ -513,7 +538,15 @@ func _toggle_shape(enabled: bool) -> void:
 		_mode = _level_mode
 	_refresh_view()
 	viewport.frame_level()
-	viewport.grab_focus()
+
+func _set_context_visible(control: Control, shown: bool) -> void:
+	if not shown:
+		var focus = get_viewport().gui_get_focus_owner()
+		if focus and (focus == control or control.is_ancestor_of(focus)):
+			# Hiding a focused descendant clears Godot's focus owner. Transfer it
+			# first so the next shortcut remains scoped to this workspace.
+			viewport.grab_focus()
+	control.visible = shown
 
 func _update_context() -> void:
 	var shape = _shape_mode.button_pressed
@@ -522,11 +555,11 @@ func _update_context() -> void:
 		_tool_buttons[index].disabled = shape and index == 2
 	_tool_buttons[0].text = "Add cells (1)" if shape else "Paint (1)"
 	_tool_buttons[1].text = "Remove (2)" if shape else "Erase (2)"
-	_brush_controls.visible = _mode == 0 and not shape
+	_set_context_visible(_brush_controls, _mode == 0 and not shape)
 	_brush_label.text = "Brush: " + _definition.display_name if _definition else "Choose an entity definition"
 	_brush_label.tooltip_text = _brush_label.text
 	_brush_label.visible = _mode == 0 and not shape
-	_shape_banner.visible = shape
+	_set_context_visible(_shape_banner, shape)
 	_shape_label.text = "Shared shape: %s — affects all instances" % _definition.display_name if _definition else "Choose a definition"
 	_shape_label.tooltip_text = _shape_label.text
 	if selection.ids().is_empty():
@@ -589,8 +622,8 @@ func _select(id: StringName, toggle: bool = false) -> void:
 
 func _update_selection() -> void:
 	var single = selection.ids().size() == 1
-	_single_entity.visible = single
-	_selection_actions.visible = not selection.ids().is_empty()
+	_set_context_visible(_single_entity, single)
+	_set_context_visible(_selection_actions, not selection.ids().is_empty())
 	_duplicate_button.disabled = selection.ids().is_empty()
 	_delete_button.disabled = selection.ids().is_empty()
 	for coord in _coords: coord.editable = single

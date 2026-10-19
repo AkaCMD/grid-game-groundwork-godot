@@ -27,6 +27,7 @@ func run() -> void:
 		return
 	await check_workspace_layout(panel)
 	await check_workspace_shortcuts(panel)
+	await check_text_dialogs(panel)
 	var example: GGLevel = load("res://examples/levels/sokoban.tres")
 	var example_count = example.entities.size()
 	panel.request_open(example)
@@ -185,6 +186,15 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	panel._mirror.grab_focus()
 	await mode_key(KEY_2)
 	check(panel._mode == 1, "Shortcuts work outside the canvas within the panel")
+	# Do not refocus between presses: hiding Mirror brush used to clear focus
+	# after the first switch and silently reject every subsequent shortcut.
+	for binding in [[KEY_1, 0], [KEY_3, 2], [KEY_KP_1, 0]]:
+		await mode_key(binding[0])
+		check(panel._mode == binding[1], "Consecutive shortcuts survive hiding the focused brush controls")
+	panel._mirror.grab_focus()
+	for binding in [[KEY_KP_3, 2], [KEY_KP_2, 1], [KEY_1, 0], [KEY_2, 1]]:
+		await mode_key(binding[0])
+		check(panel._mode == binding[1], "Keypad shortcuts also retain focus after leaving Paint")
 	panel._confirm.popup_centered()
 	await get_tree().process_frame
 	await mode_key(KEY_3)
@@ -216,6 +226,122 @@ func check_mode_shortcuts(panel: GGEditorPanel) -> void:
 	await mode_key(KEY_2)
 	check(panel._mode == 0, "Focus outside the panel ignores mode shortcuts")
 	panel.viewport.grab_focus()
+	await check_context_focus(panel)
+
+func check_context_focus(panel: GGEditorPanel) -> void:
+	panel._set_mode(2)
+	var ids = panel.authoring.level.entities.map(func(entity): return entity.entity_id)
+	panel._select(ids[0])
+	focus_control(panel, panel._entity_mirror)
+	panel._select(ids[1], true)
+	check(not panel._single_entity.visible, "Multi-selection hides the focused single-entity controls")
+	for binding in [[KEY_1, 0], [KEY_2, 1], [KEY_3, 2]]:
+		await mode_key(binding[0])
+		check(panel._mode == binding[1], "Shortcuts survive hiding single-entity controls")
+	panel._delete_button.grab_focus()
+	await mode_key(KEY_DELETE)
+	check(not panel._selection_actions.visible, "Deleting from a focused selection action hides that action")
+	for binding in [[KEY_1, 0], [KEY_3, 2]]:
+		await mode_key(binding[0])
+		check(panel._mode == binding[1], "Shortcuts survive hiding the focused selection actions")
+	panel.authoring.undo()
+	focus_control(panel, panel._settings_title)
+	panel._shape_mode.button_pressed = true
+	check(panel.get_viewport().gui_get_focus_owner() == panel.viewport, "Shape entry transfers focus before hiding the Level tab")
+	var back = find_button(panel._shape_banner, "Return to level")
+	back.grab_focus()
+	back.pressed.emit()
+	for binding in [[KEY_1, 0], [KEY_2, 1], [KEY_3, 2]]:
+		await mode_key(binding[0])
+		check(panel._mode == binding[1], "Returning from the focused shape banner preserves consecutive shortcuts")
+	panel._set_mode(0)
+
+func find_button(node: Node, text: String) -> Button:
+	if node is Button and node.text == text: return node
+	for child in node.get_children():
+		var button = find_button(child, text)
+		if button: return button
+	return null
+
+func settle_layout() -> void:
+	for frame in range(5): await get_tree().process_frame
+
+func check_dialog_body(dialog: AcceptDialog, body: RichTextLabel, last_line: String, must_scroll: bool = false) -> void:
+	await settle_layout()
+	var usable = Rect2i(get_viewport().get_visible_rect()) if dialog.is_embedded() else Rect2i(get_window().position, get_window().size)
+	check(usable.encloses(Rect2i(dialog.position, dialog.size)), "Text popup fits inside its parent window or embedder")
+	if not dialog.is_embedded() and DisplayServer.get_name() != "headless":
+		check(DisplayServer.screen_get_usable_rect(dialog.current_screen).encloses(Rect2i(dialog.position, dialog.size)), "Native popup stays within the usable screen")
+	check(dialog.size.x <= get_window().size.x and dialog.size.y <= get_window().size.y, "Text popup stays within the editor window dimensions")
+	check(Rect2(Vector2.ZERO, Vector2(dialog.size)).encloses(dialog.get_ok_button().get_global_rect()), "Dialog OK button stays accessible")
+	check(body.text.ends_with(last_line), "The complete final line is preserved in the scrollable body")
+	var bar = body.get_v_scroll_bar()
+	if must_scroll or body.get_content_height() > body.size.y:
+		check(bar.visible and bar.max_value > bar.page, "Overflowing dialog text has an active vertical scrollbar")
+	check(is_zero_approx(bar.value), "Opening a text dialog starts at the first line")
+	body.scroll_to_line(body.get_line_count() - 1)
+	await settle_layout()
+	check(is_equal_approx(bar.value, maxf(0, bar.max_value - bar.page)), "Scrolling reaches the final line of the full text")
+	var screenshot = OS.get_environment("GGG_EDITOR_SCREENSHOT")
+	if DisplayServer.get_name() != "headless" and not screenshot.is_empty():
+		var suffix = "details" if dialog.title == "Operation result" else "help"
+		var image = dialog.get_texture().get_image()
+		image.save_png(screenshot.get_basename() + "-%s-%d.png" % [suffix, get_window().size.y])
+	dialog.hide()
+	await settle_layout()
+
+func check_text_dialogs(panel: GGEditorPanel) -> void:
+	var window = get_window()
+	var previous_size = window.size
+	var previous_min_size = window.min_size
+	var previous_mode = window.mode
+	var distraction_free = EditorInterface.distraction_free_mode
+	EditorInterface.distraction_free_mode = true
+	window.mode = Window.MODE_WINDOWED
+	# Godot scales its own window minimum to 1536×900 at 150%. Relax it only
+	# for this test so the requested 1024×600 popup constraint is exercised.
+	window.min_size = Vector2i.ZERO
+	var messages = PackedStringArray()
+	for index in range(80):
+		messages.append("Entity crate_%d has an invalid overlapping solid cell at (1, 0, 0)." % index)
+	var complete = "\n".join(messages)
+	for dimensions in [Vector2i(1440, 940), Vector2i(1024, 600)]:
+		window.size = dimensions
+		await settle_layout()
+		check(window.size == dimensions, "Dialog regression runs at the requested compact window size")
+		panel._set_status("Short result")
+		await settle_layout()
+		var canvas_rect = panel.viewport.get_global_rect()
+		panel._set_status(complete)
+		panel._hover(Vector3i(3, 0, 4))
+		await settle_layout()
+		check(panel._status.tooltip_text == complete and not panel._status.text.contains("\n"), "Long diagnostics retain a complete tooltip and a single-line status")
+		check(panel._pointer_status.text.contains("(3, 0, 4)"), "Live coordinates stay independent of long operation results")
+		check(panel.viewport.get_global_rect() == canvas_rect, "Long feedback does not resize or move the canvas")
+		find_button(panel, "Details").pressed.emit()
+		var mode = panel._mode
+		await mode_key(KEY_3)
+		check(panel._mode == mode, "Details remains modal to authoring shortcuts")
+		check(panel._status_text.text == complete, "Details contains every diagnostic without truncation")
+		await check_dialog_body(panel._status_detail, panel._status_text, messages[-1], true)
+		check(panel.viewport.get_global_rect() == canvas_rect, "Opening and scrolling Details leaves the canvas unchanged")
+		# Reopen after scrolling: the next read must start at the first result.
+		find_button(panel, "Details").pressed.emit()
+		await settle_layout()
+		check(is_zero_approx(panel._status_text.get_v_scroll_bar().value), "Reopening Details resets its scroll position")
+		panel._status_detail.hide()
+		find_button(panel, "Help").pressed.emit()
+		await mode_key(KEY_2)
+		check(panel._mode == mode, "Help remains modal to authoring shortcuts")
+		await check_dialog_body(panel._help, panel._help_text, "WASD / arrows: move    •    Z / Y / R: undo / redo / restart")
+		check(panel.viewport.get_global_rect() == canvas_rect, "Opening and scrolling Help leaves the canvas unchanged")
+		print("EDITOR_DIALOGS: scale=", panel._scale, " window=", window.size, " details=", panel._status_detail.size, " help=", panel._help.size)
+	window.min_size = previous_min_size
+	window.size = previous_size
+	window.mode = previous_mode
+	EditorInterface.distraction_free_mode = distraction_free
+	panel.viewport.grab_focus()
+	await settle_layout()
 
 func camera_mouse(view: GGEditorViewport, button: MouseButton, pressed: bool, point: Vector2) -> void:
 	var event = InputEventMouseButton.new()
