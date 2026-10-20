@@ -17,6 +17,11 @@ func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i)
 	## Override to compose multiple steps into one complete action.
 	return session.step(actor_id, direction)
 
+func carried_entities(_session: GGSession, _actor_id: StringName, _direction: Vector3i) -> Array:
+	## Optional companions moved simultaneously, without pushing their obstacles.
+	## Recomputed each step; the game decides which companions to leave behind.
+	return []
+
 func blocks_entity(session: GGSession, _actor_id: StringName, obstacle_id: StringName, _direction: Vector3i) -> bool:
 	## Used for both horizontal collision and support during gravity.
 	return session.entities[obstacle_id].properties.get("solid", true)

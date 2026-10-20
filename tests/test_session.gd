@@ -9,8 +9,13 @@ class CountingRule extends GGGameRule:
 var checks = 0
 var failures = 0
 
+class CarryRule extends GGGameRule:
+	func carried_entities(_session: GGSession, _actor_id: StringName, _direction: Vector3i) -> Array:
+		return [&"rider"]
+
 func _init() -> void:
 	_test_history()
+	_test_carrying()
 	_test_permissions_and_strength()
 	_test_support_and_fallout()
 	_test_non_solid_overlap()
@@ -24,6 +29,22 @@ func check(value: bool, message: String) -> void:
 	if not value:
 		failures += 1
 		push_error(message)
+
+func _test_carrying() -> void:
+	var actor = definition(&"actor")
+	var rider = definition(&"rider")
+	var session = setup([placed(&"actor", actor, Vector3i.ZERO), placed(&"rider", rider, Vector3i.UP)], false, CarryRule.new())
+	var before = session.snapshot()
+	check(session.move(&"actor", Vector3i.RIGHT), "Carrying does not require push permissions")
+	check(session.entities[&"rider"].cell == Vector3i(1, 1, 0), "Rule-selected companion moves in the same step")
+	check(session.stages[0].entities[&"rider"].cell == Vector3i(1, 1, 0), "Companions share the displacement animation stage")
+	check(session.undo() and session.snapshot() == before, "Carrying is part of action history")
+	var wall = definition(&"wall")
+	wall.movable = false
+	session = setup([placed(&"actor", actor, Vector3i.ZERO), placed(&"rider", rider, Vector3i.UP), placed(&"wall", wall, Vector3i(1, 1, 0))], false, CarryRule.new())
+	before = session.snapshot()
+	check(not session.move(&"actor", Vector3i.RIGHT) and session.snapshot() == before, "A blocked companion cannot move through a wall or partially move the group")
+	check(not session.undo(), "Rejected carrying adds no history")
 
 func definition(id: StringName, properties: Dictionary = {}, shape: Array = [Vector3i.ZERO]) -> GGEntityDefinition:
 	var result = GGEntityDefinition.new()

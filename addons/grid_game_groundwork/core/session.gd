@@ -88,6 +88,15 @@ func step(actor_id: StringName, direction: Vector3i) -> bool:
 		return false
 	if not _rule.allows_push(self, actor_id, moving.keys(), direction):
 		return false
+	var carried = _rule.carried_entities(self, actor_id, direction)
+	for id in carried:
+		if not entities.has(id) or not entities[id].properties.get("movable", false):
+			return false
+		moving[id] = true
+	for id in carried:
+		for blocker in blockers(id, direction):
+			if not moving.has(blocker):
+				return false
 	for id in moving:
 		entities[id].cell += direction
 	stages.append(snapshot())
