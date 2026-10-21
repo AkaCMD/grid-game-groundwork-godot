@@ -7,6 +7,7 @@ func _init() -> void:
 	_test_shapes_and_transforms()
 	_test_save_and_overrides()
 	_test_validation()
+	_test_exact_paint()
 	_test_group_delete()
 	_test_group_duplicate()
 	_test_group_move()
@@ -123,6 +124,19 @@ func _test_validation() -> void:
 	var missing = GGEntityPlacement.new()
 	editor.level.entities.append(missing)
 	check(not editor.level.validate().is_empty(), "Missing definitions produce validation messages")
+
+func _test_exact_paint() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	editor.paint(crate, Vector3i.ZERO)
+	var history = editor._history.size()
+	editor.dirty = false
+	check(not editor.paint_exact(crate, Vector3i.ZERO) and editor.last_error.contains("overlap"), "Exact paint refuses solid overlap instead of auto-stacking")
+	check(not editor.dirty and editor._history.size() == history and editor.level.entities.size() == 1, "Rejected exact paint has no side effects")
+	check(editor.paint_exact(crate, Vector3i.ZERO, 1, true, {"solid": false, "weight": 7}), "Exact paint respects a non-solid override")
+	check(editor.level.entities.back().cell == Vector3i.ZERO and editor.level.entities.back().mirrored, "Exact paint retains position, orientation and overrides")
+	check(not editor.paint_exact(crate, Vector3i(2, -8, 0), 0, false, {"solid": false}), "Non-solid exact paint also respects the fall-out height")
+	check(not editor.paint_exact(crate, Vector3i.ZERO, 1, true, {"solid": false}), "Exact paint preserves non-solid duplicate prevention")
 
 func _test_move_preview() -> void:
 	var editor = author()

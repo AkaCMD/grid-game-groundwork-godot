@@ -24,6 +24,8 @@ Godot's **Y axis is height**; horizontal gameplay uses **XZ**. All occupied cell
 
 Paint snaps to occupied-cell faces of all entities, including elevated tops and sides. Non-solid entities such as bread also provide paint surfaces and can be stacked. Empty space uses the **Height** plane. Solid placements rise to the first free height if they overlap another solid; non-solid entities such as goals can share cells. Each stroke uses its starting surfaces and paints each target once, preventing accidental towers. Release and start another stroke to add a layer. One stroke is one undo action.
 
+**Q/E** lowers/raises the Paint preview by one world-Y cell per press. It adjusts a height offset from the surface under the pointer (or the Height plane in empty space), so moving to a higher surface keeps the offset. The tool hint and pointer coordinates show the offset. After Q/E adjustment, the complete shape must fit at the preview position: overlap or cells at/below the fall-out height show a red invalid preview and prevent placement, without automatic lifting. This also applies when the offset returns to zero. Release the mouse before adjusting; holding Q/E does not repeat. The offset persists across strokes and clears when leaving Paint, choosing a different definition or opening a level. Rotation and mirroring preserve it.
+
 In **Level → Fill ground**, choose a single-cell definition with `ground=true`, set **Height**, **Width** and **Depth**, then **Fill ground**. Height stays synchronized with the toolbar placement plane. The rectangle begins at `X=0, Z=0` and skips occupied solid cells. One fill is one undo action.
 
 Under **Level → Transform entire level**, **Rotate level 90°** and **Mirror level on X** transform positions and orientations together; the result can be saved and undone.
@@ -85,7 +87,7 @@ Shape changes affect all placements sharing the definition and can be undone. Ch
 
 ## Camera and shortcuts
 
-Focus the viewport before navigating. **WASD** flies relative to the view without holding a mouse button; **Q/E** moves along world Y. In Select mode with entities selected, each **Q/E** press lowers/raises the entire selection by one cell instead. Holding the key does not repeat the move. Relative positions are preserved; an invalid destination rejects the whole move, and each successful move is one undo action. Finish dragging before using this shortcut. Hold the right mouse button with **Q/E** to fly the camera while entities are selected. Right-drag looks around without moving. Right+wheel adjusts speed (default 8, range 0.25–128 cells/s). Cameras pass through entities and below the board.
+Focus the viewport before navigating. **WASD** flies relative to the view without holding a mouse button. In Paint, **Q/E** adjusts the brush height offset; **right+Q/E** flies the camera along world Y. In Erase or Select with no selection, **Q/E** flies directly. In Select mode with entities selected, each **Q/E** press lowers/raises the entire selection by one cell instead. Holding the key does not repeat the move. Relative positions are preserved; an invalid destination rejects the whole move, and each successful move is one undo action. Finish dragging before using this shortcut. Hold the right mouse button with **Q/E** to fly the camera while entities are selected. Right-drag looks around without moving. Right+wheel adjusts speed (default 8, range 0.25–128 cells/s). Cameras pass through entities and below the board.
 
 Flight and Shift+middle pan carry the placement plane vertically, snapping Height to whole cells. Orbit and zoom preserve Height. **Page Up/Down** changes Height independently by one cell; manual Height changes become the new starting plane.
 
@@ -99,12 +101,13 @@ Finish painting or moving entities before navigating. Navigation hides brush pre
 | Editor | Left click / drag | Use current tool |
 | Select | **Shift+click** | Toggle selection |
 | Select, one or more entities | **Delete** | Delete selection |
+| Paint viewport, idle | **Q / E** | Lower/raise brush height offset one cell per press |
 | Select viewport, one or more entities, idle | **Q / E** | Lower/raise selection one cell per press |
 | Select | Drag an axis / plane handle | Move selection by whole cells |
 | Select, one entity | **End**, idle or dragging | Snap down to support |
 | Active move | **Esc** | Cancel the complete move |
 | Editor | Right click | Pick brush settings |
-| Editor viewport | **WASD**, **Q/E** (right+Q/E with selection) | Fly relative to view; down/up along Y |
+| Editor viewport | **WASD**, **Q/E** (right+Q/E in Paint or with selection) | Fly relative to view; down/up along Y |
 | Editor viewport | Right drag / right+wheel | Look / adjust flight speed |
 | Editor workspace | **Page Up / Page Down** | Raise/lower placement height |
 | Editor navigation | **Esc** | Stop and release cursor |

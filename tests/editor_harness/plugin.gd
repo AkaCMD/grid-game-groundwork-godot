@@ -64,6 +64,7 @@ func run() -> void:
 	await check_move_gizmo(panel)
 	await check_multi_selection(panel)
 	await check_selection_height(panel)
+	await check_paint_height_offset(panel)
 	await check_surface_interaction(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
@@ -467,6 +468,8 @@ func check_camera_navigation(panel: GGEditorPanel) -> void:
 	var rotation = view.camera.rotation
 	var origin = view.camera.position
 	var speed = view._fly_speed
+	# Direct Q/E flight remains available outside Paint and selected Select.
+	panel._set_mode(1)
 	for binding in [[KEY_W, -view.camera.basis.z], [KEY_S, view.camera.basis.z], [KEY_A, -view.camera.basis.x], [KEY_D, view.camera.basis.x], [KEY_Q, Vector3.DOWN], [KEY_E, Vector3.UP]]:
 		origin = view.camera.position
 		await mode_key(binding[0])
@@ -477,6 +480,7 @@ func check_camera_navigation(panel: GGEditorPanel) -> void:
 		origin = view.camera.position
 		view._process(0.25)
 		check(view.camera.position.is_equal_approx(origin), "Releasing a navigation key stops immediately")
+	panel._set_mode(0)
 	await mode_key(KEY_W)
 	await mode_key(KEY_D)
 	origin = view.camera.position
@@ -630,10 +634,12 @@ func check_paint_height_navigation(panel: GGEditorPanel) -> void:
 	var view = panel.viewport
 	view.grab_focus()
 	view.set_process(false)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, view.size * 0.5)
 	await mode_key(KEY_Q)
 	# Small frame steps must accumulate rather than rounding each movement away.
 	for frame in range(160): view._process(0.01)
 	await mode_key(KEY_Q, 0, false, false)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, view.size * 0.5)
 	check(view.layer == -13, "Descending below the original plane moves the paint height with the camera")
 	check(panel._height.value == view.layer, "Height control follows the camera's paint plane")
 	var point = view.size * 0.5
@@ -653,9 +659,11 @@ func check_paint_height_navigation(panel: GGEditorPanel) -> void:
 	check(view.layer == height, "Free look and zoom preserve paint height")
 	panel._height.value = -5
 	view.grab_focus()
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, view.size * 0.5)
 	await mode_key(KEY_E)
 	view._process(0.25)
 	await mode_key(KEY_E, 0, false, false)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, view.size * 0.5)
 	check(view.layer == -3 and panel._height.value == -3, "Manual height rebases subsequent camera movement")
 	var camera_origin = view.camera.position
 	await mode_key(KEY_PAGEUP)
@@ -1104,6 +1112,120 @@ func check_selection_height(panel: GGEditorPanel) -> void:
 	check(view.camera.position.is_equal_approx(camera_origin + Vector3.DOWN * view._fly_speed * 0.25), "QE without a selection retains camera flight")
 	view.set_process(true)
 	panel._open(previous)
+
+func check_paint_height_offset(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	for index in range(2):
+		var entity = GGEntityPlacement.new()
+		entity.entity_id = StringName("paint_height_%d" % index)
+		entity.definition = fixture.palette[3]
+		entity.cell = Vector3i(index * 3, 4 + index * 2, 0)
+		fixture.entities.append(entity)
+	panel._open(fixture)
+	panel._set_mode(2)
+	panel._select(&"paint_height_0")
+	panel._set_mode(0)
+	panel._choose_definition(3)
+	var view = panel.viewport
+	view._yaw = 0
+	view._pitch = deg_to_rad(75.2)
+	view.frame_level()
+	view.set_process(false)
+	view.grab_focus()
+	var point = view.camera.unproject_position(Vector3(0, 4.48, 0)).round()
+	if not await pointer_motion(view, point): return
+	var base: Vector3i = view.input_cell_at(point)
+	var camera_origin = view.camera.position
+	var height = view.layer
+	var history = panel.authoring._history.size()
+	await mode_key(KEY_E)
+	check(panel.stroke.height_offset() == 1 and view._ghost != null and view._ghost.position == Vector3(base + Vector3i.UP), "Paint E immediately raises the stationary-pointer ghost by one world-Y cell")
+	check(panel._hint.text.contains("offset +1") and panel._pointer_status.text.contains("Offset +1"), "Paint offset stays visible in the tool hint and coordinates")
+	await mode_key(KEY_E, 0, true)
+	await mode_key(KEY_E, 0, false, false)
+	view._process(0.25)
+	check(panel.stroke.height_offset() == 1 and view.camera.position == camera_origin and view.layer == height and panel.authoring._history.size() == history, "Paint QE ignores repeats and release, preserves camera/Height and creates no history")
+	check(panel.authoring.find_entity(&"paint_height_0").cell == Vector3i(0, 4, 0), "Paint QE leaves retained selected entities in place")
+	var upper_point = view.camera.unproject_position(Vector3(3, 6.48, 0)).round()
+	if not await pointer_motion(view, upper_point): return
+	check(view._ghost.position == Vector3(3, 8, 0), "Moving the pointer to a higher surface keeps the same offset")
+	if not await pointer_motion(view, point): return
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	check(panel.stroke.height_offset() == 1, "QE cannot alter an in-progress paint stroke")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.size() == 3 and fixture.entities.back().cell == base + Vector3i.UP, "Click commits the exact offset preview")
+	check(panel.authoring.undo() and fixture.entities.size() == 2, "Offset paint is undoable")
+	check(panel.authoring.redo() and fixture.entities.back().cell == base + Vector3i.UP, "Offset paint redo retains exact coordinates")
+	panel.authoring.undo()
+	view.grab_focus()
+	if not await pointer_motion(view, point): return
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	await mode_key(KEY_Q)
+	await mode_key(KEY_Q, 0, false, false)
+	check(view._ghost != null and view._ghost.position == Vector3(base + Vector3i.DOWN) and ghost_has_color(view._ghost, Color(1.0, 0.2, 0.2, 0.6)), "Solid overlap retains a red preview at the requested lower height")
+	check(panel._pointer_status.text.contains("Invalid") and panel._pointer_status.tooltip_text.contains("overlap"), "Invalid paint coordinates explain the collision")
+	history = panel.authoring._history.size()
+	var future = panel.authoring._future.size()
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.size() == 2 and panel.authoring._history.size() == history and panel.authoring._future.size() == future, "Invalid clicking never lifts the entity or adds/discards history")
+	for modifiers in [KEY_MASK_CTRL, KEY_MASK_ALT, KEY_MASK_SHIFT, KEY_MASK_META]:
+		var modified = InputEventKey.new()
+		modified.physical_keycode = KEY_Q
+		modified.pressed = true
+		modified.ctrl_pressed = bool(modifiers & KEY_MASK_CTRL)
+		modified.alt_pressed = bool(modifiers & KEY_MASK_ALT)
+		modified.shift_pressed = bool(modifiers & KEY_MASK_SHIFT)
+		modified.meta_pressed = bool(modifiers & KEY_MASK_META)
+		view._input(modified)
+	focus_control(panel, panel._settings_title)
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._height.get_line_edit().grab_focus()
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._confirm.popup_centered()
+	await get_tree().process_frame
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._confirm.hide()
+	view.grab_focus()
+	check(panel.stroke.height_offset() == -1, "Modifiers, text fields, height editing and modal dialogs do not change Paint offset")
+	var brush = panel._definition
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, true, point)
+	camera_origin = view.camera.position
+	await mode_key(KEY_E)
+	view._process(0.25)
+	await mode_key(KEY_E, 0, false, false)
+	camera_mouse(view, MOUSE_BUTTON_RIGHT, false, point)
+	check(view.camera.position.is_equal_approx(camera_origin + Vector3.UP * view._fly_speed * 0.25) and panel.stroke.height_offset() == -1 and panel._definition == brush, "Right+E flies in Paint without adjusting offset or picking a brush")
+	panel._set_mode(2)
+	check(panel.stroke.height_offset() == 0, "Leaving Paint clears the offset")
+	panel._set_mode(0)
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._choose_definition(4)
+	check(panel.stroke.height_offset() == 0, "Choosing another brush clears the offset")
+	await mode_key(KEY_E)
+	await mode_key(KEY_E, 0, false, false)
+	panel._open(fixture)
+	check(panel.stroke.height_offset() == 0, "Opening a level clears the offset")
+	view.set_process(true)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
+
+func ghost_has_color(node: Node, color: Color) -> bool:
+	if node is MeshInstance3D and not node.material_override.albedo_color.is_equal_approx(color): return false
+	for child in node.get_children():
+		if not ghost_has_color(child, color): return false
+	return true
 
 func check_multi_selection(panel: GGEditorPanel) -> void:
 	var previous = panel.authoring.level

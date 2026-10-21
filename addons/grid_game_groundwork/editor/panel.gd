@@ -87,6 +87,7 @@ func _ready() -> void:
 	viewport.hovered.connect(_hover)
 	viewport.layer_changed.connect(_paint_height_changed)
 	viewport.selection_height_requested.connect(_move_selection_height)
+	viewport.paint_height_requested.connect(_adjust_paint_height)
 	var hint_row = _row(center)
 	_hint = _line_label(hint_row)
 	_muted_labels.append(_hint)
@@ -302,7 +303,7 @@ func _build_status() -> void:
 func _build_help() -> void:
 	_help = AcceptDialog.new()
 	_help_text = _build_dialog_text(_help, "Grid Levels — keyboard shortcuts")
-	_help_text.text = "TOOLS\n1 / 2 / 3: Paint / Erase / Select    •    Right click: pick brush\nShift+click: toggle selection    •    Delete: delete selected\nDrag axis / plane: move in whole cells    •    End: snap down\nQ / E: selected entities down / up    •    Esc: cancel move\nPage Up / Down: placement height\n\nCAMERA (viewport focus)\nWASD: fly    •    Q / E: fly down / up when no entity is selected\nRight+Q / E: fly with a selection    •    Right drag: look\nRight+wheel: speed    •    Middle: orbit    •    Shift+middle: pan\nWheel: zoom    •    F: frame    •    Esc: stop navigation\n\nAUTHORING\nCtrl/Cmd+S: save    •    Ctrl/Cmd+Z: undo\nCtrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo\n\nSHAPE EDITING\n1 / 2: add / remove occupied cells    •    Height: choose layer\nShape changes affect all entities sharing the definition.\n\nPLAYTEST\nWASD / arrows: move    •    Z / Y / R: undo / redo / restart"
+	_help_text.text = "TOOLS\n1 / 2 / 3: Paint / Erase / Select    •    Right click: pick brush\nShift+click: toggle selection    •    Delete: delete selected\nDrag axis / plane: move in whole cells    •    End: snap down\nQ / E: Paint offset / selected entities down / up    •    Esc: cancel move\nPage Up / Down: placement plane\nPaint Q/E: one cell per press; finish the stroke first\nRed Paint preview: cannot place; changing tool / brush resets offset\n\nCAMERA (viewport focus)\nWASD: fly    •    Q / E: fly outside Paint and selected Select\nRight+Q / E: fly in Paint / with a selection    •    Right drag: look\nRight+wheel: speed    •    Middle: orbit    •    Shift+middle: pan\nWheel: zoom    •    F: frame    •    Esc: stop navigation\n\nAUTHORING\nCtrl/Cmd+S: save    •    Ctrl/Cmd+Z: undo\nCtrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo\n\nSHAPE EDITING\n1 / 2: add / remove occupied cells    •    Height: choose layer\nShape changes affect all entities sharing the definition.\n\nPLAYTEST\nWASD / arrows: move    •    Z / Y / R: undo / redo / restart"
 
 func _build_dialog_text(dialog: AcceptDialog, title: String) -> RichTextLabel:
 	dialog.title = title
@@ -577,7 +578,7 @@ func _update_context() -> void:
 	if shape:
 		_hint.text = "Click / drag: %s cells · Height: choose layer" % ("add" if _mode == 0 else "remove")
 	else:
-		_hint.text = ["Click / drag: paint · Right click: pick brush", "Click / drag: erase an entire entity", "Shift+click: multi-select · Drag: move · End: snap down"][_mode]
+		_hint.text = ["Click / drag: paint · Q/E: height offset %+d · Right click: pick brush" % stroke.height_offset(), "Click / drag: erase an entire entity", "Shift+click: multi-select · Drag: move · End: snap down"][_mode]
 	_hint.tooltip_text = _hint.text + "\nSee Help for camera controls and all shortcuts."
 
 func _choose_definition(index: int) -> void:
@@ -605,6 +606,11 @@ func _paint_height_changed(value: int) -> void:
 	_floor_height.set_value_no_signal(value)
 	_refresh_hover()
 
+func _adjust_paint_height(offset: int) -> void:
+	if stroke.adjust_height(offset):
+		_update_context()
+		_refresh_hover()
+
 func _refresh_hover() -> void:
 	# Tool changes must resolve the current ray through the shared stroke,
 	# rather than reuse coordinates produced by the previous tool.
@@ -622,7 +628,11 @@ func _hover(cell: Vector3i) -> void:
 	if not _definition or _mode != 0 or _shape_mode.button_pressed:
 		viewport.hide_ghost()
 		return
-	viewport.show_ghost(_definition, cell, int(_turns.value), _mirror.button_pressed)
+	var error = stroke.preview_error(cell)
+	_pointer_status.text += " · Offset %+d" % stroke.height_offset()
+	if not error.is_empty(): _pointer_status.text += " · Invalid: " + error.replace("\n", " ")
+	_pointer_status.tooltip_text = _pointer_status.text
+	viewport.show_ghost(_definition, cell, int(_turns.value), _mirror.button_pressed, error.is_empty())
 
 func _select(id: StringName, toggle: bool = false) -> void:
 	selection.select(id, toggle)

@@ -6,6 +6,7 @@ signal entity_picked(entity_id: StringName, button: int, shift: bool)
 signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
 signal selection_height_requested(offset: int)
+signal paint_height_requested(offset: int)
 var selection: GGEditorSelection
 var stroke: GGEditorStroke
 var camera: Camera3D
@@ -197,7 +198,7 @@ func _update_erase_hover(point: Vector2) -> void:
 		_erase_target = id
 		_update_highlights()
 
-func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirrored: bool) -> void:
+func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirrored: bool, valid: bool = true) -> void:
 	if is_navigating():
 		hide_ghost()
 		return
@@ -208,15 +209,15 @@ func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirr
 	_ghost.position = Vector3(cell)
 	_ghost.rotation.y = -turns * PI / 2.0
 	_ghost.scale.x = -1 if mirrored else 1
-	_tint_ghost(_ghost)
+	_tint_ghost(_ghost, Color(0.5, 1.0, 0.8, 0.45) if valid else Color(1.0, 0.2, 0.2, 0.6))
 
-func _tint_ghost(node: Node) -> void:
+func _tint_ghost(node: Node, color: Color) -> void:
 	if node is MeshInstance3D:
-		var material = GGBoardView.material(Color(0.5, 1.0, 0.8, 0.45))
+		var material = GGBoardView.material(color)
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		node.material_override = material
 	for child in node.get_children():
-		_tint_ghost(child)
+		_tint_ghost(child, color)
 
 func hide_ghost() -> void:
 	if _ghost:
@@ -348,6 +349,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.ctrl_pressed or event.alt_pressed or event.meta_pressed:
 		_navigation_keys.clear()
+		return
+	if key in [KEY_Q, KEY_E] and stroke.can_adjust_height() and not _right_pressed and not _looking:
+		if event.pressed and not event.echo and not event.shift_pressed:
+			paint_height_requested.emit(1 if key == KEY_E else -1)
+		get_viewport().set_input_as_handled()
 		return
 	if key in [KEY_Q, KEY_E] and _move_enabled and not selection.ids().is_empty() and not _right_pressed and not _looking:
 		if event.pressed and not event.echo and not event.shift_pressed:

@@ -5,3 +5,5 @@ Level authoring will take place inside the Godot editor, using visual tools to a
 The framework will be distributed as a reusable addon with a ready-to-run example project; see [ADR 0003](0003-distribute-a-reusable-addon.md).
 
 Painting a solid entity into occupied space will automatically raise the new entity until its entire shape fits without overlapping existing solid entities, preserving the original editor's automatic stacking workflow. Existing entities remain in place. This is an authoring placement behavior, separate from gravity during gameplay.
+
+Explicit Q/E paint height adjustments override automatic stacking: the brush keeps its surface-snapped placement plus the chosen world-Y offset, shows an invalid preview when its complete shape cannot be placed there, and refuses placement instead of raising it. This remains an exact placement even when the offset returns to zero. Leaving Paint, choosing another entity definition, or opening another level clears the temporary adjustment.

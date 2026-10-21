@@ -5,6 +5,7 @@ extends RefCounted
 
 signal changed
 signal stroke_ended
+signal level_opened
 var level: GGLevel
 var dirty = false
 var last_error: String = ""
@@ -19,6 +20,7 @@ func open(value: GGLevel) -> void:
 	_history.clear()
 	_future.clear()
 	dirty = false
+	level_opened.emit()
 	changed.emit()
 
 func discard_changes() -> bool:
@@ -185,6 +187,30 @@ func paint(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirro
 	var target = placement_cell(definition, cell, turns, mirrored, overrides)
 	if target == null:
 		return false
+	return _paint_at(definition, target, turns, mirrored, overrides)
+
+func placement_error(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> String:
+	var candidate = GGEntityPlacement.new()
+	candidate.entity_id = _next_id(definition.definition_id)
+	candidate.definition = definition
+	candidate.cell = cell
+	candidate.quarter_turns = turns
+	candidate.mirrored = mirrored
+	candidate.overrides = overrides
+	# Validate a proposed level without temporarily modifying the live resource.
+	var proposed = GGLevel.new()
+	proposed.schema_version = level.schema_version
+	proposed.void_height = level.void_height
+	proposed.entities.assign(level.entities)
+	proposed.entities.append(candidate)
+	return "\n".join(proposed.validate())
+
+func paint_exact(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
+	last_error = placement_error(definition, cell, turns, mirrored, overrides)
+	if not last_error.is_empty(): return false
+	return _paint_at(definition, cell, turns, mirrored, overrides)
+
+func _paint_at(definition: GGEntityDefinition, target: Vector3i, turns: int, mirrored: bool, overrides: Dictionary) -> bool:
 	for existing in level.entities:
 		if not existing.resolved_properties().get("solid", true) and existing.definition == definition and existing.cell == target and existing.quarter_turns == turns:
 			return false

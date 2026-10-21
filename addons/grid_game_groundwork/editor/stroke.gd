@@ -14,15 +14,20 @@ var _shape_mode = false
 var _active = false
 var _surface_cells: Array[Vector3i] = []
 var _visited: Dictionary = {}
+var _height_offset = 0
+var _manual_height = false
 
 func _init(authoring: GGLevelAuthoring) -> void:
 	_authoring = authoring
 	_authoring.stroke_ended.connect(_reset)
+	_authoring.level_opened.connect(reset_height)
 
 func configure(definition: GGEntityDefinition, mode: int, turns: int = 0, mirrored: bool = false, shape_mode: bool = false) -> void:
 	if definition == _definition and mode == _mode and turns == _turns and mirrored == _mirrored and shape_mode == _shape_mode:
 		return
 	finish()
+	if definition != _definition or mode != Mode.PAINT or shape_mode:
+		reset_height()
 	_definition = definition
 	_mode = mode
 	_turns = turns
@@ -31,6 +36,26 @@ func configure(definition: GGEntityDefinition, mode: int, turns: int = 0, mirror
 
 func is_active() -> bool:
 	return _active
+
+func can_adjust_height() -> bool:
+	return _mode == Mode.PAINT and not _shape_mode and _definition != null and not _active
+
+func height_offset() -> int:
+	return _height_offset
+
+func adjust_height(offset: int) -> bool:
+	if not can_adjust_height(): return false
+	_height_offset += offset
+	_manual_height = true
+	return true
+
+func reset_height() -> void:
+	_height_offset = 0
+	_manual_height = false
+
+func preview_error(cell: Vector3i) -> String:
+	if not _manual_height or (_active and _visited.values().has(cell)): return ""
+	return _authoring.placement_error(_definition, cell, _turns, _mirrored)
 
 func begin() -> void:
 	finish()
@@ -62,16 +87,22 @@ func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringN
 	if cell == null or _visited.has(cell): return false
 	var target = _placement(cell)
 	if target == null: return false
+	if _manual_height:
+		_authoring.last_error = preview_error(target)
+		if not _authoring.last_error.is_empty(): return false
 	_visited[cell] = target
 	if _shape_mode:
 		return _authoring.edit_shape(_definition, cell, _mode == Mode.ERASE)
-	return _authoring.paint(_definition, target, _turns, _mirrored)
+	var painted = _authoring.paint_exact(_definition, target, _turns, _mirrored) if _manual_height else _authoring.paint(_definition, target, _turns, _mirrored)
+	if not painted: _visited.erase(cell)
+	return painted
 
 func _placement(cell: Vector3i) -> Variant:
 	if _mode != Mode.PAINT or _shape_mode or not _definition: return cell
 	# Revisited cells retain the placement already shown/painted this stroke,
 	# rather than previewing another entity stacked on the one just created.
 	if _active and _visited.has(cell): return _visited[cell]
+	if _manual_height: return cell + Vector3i.UP * _height_offset
 	return _authoring.placement_cell(_definition, cell, _turns, _mirrored)
 
 func _cell_at(origin: Vector3, direction: Vector3, height: int) -> Variant:
