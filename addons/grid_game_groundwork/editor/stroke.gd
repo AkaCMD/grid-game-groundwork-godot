@@ -16,6 +16,7 @@ var _surface_cells: Array[Vector3i] = []
 var _visited: Dictionary = {}
 var _height_offset = 0
 var _manual_height = false
+var _preview_lift = 0
 
 func _init(authoring: GGLevelAuthoring) -> void:
 	_authoring = authoring
@@ -45,6 +46,8 @@ func height_offset() -> int:
 
 func adjust_height(offset: int) -> bool:
 	if not can_adjust_height(): return false
+	# Enter exact mode at the shown placement, including full-shape auto-lifting.
+	if not _manual_height: _height_offset = _preview_lift
 	_height_offset += offset
 	_manual_height = true
 	return true
@@ -52,6 +55,7 @@ func adjust_height(offset: int) -> bool:
 func reset_height() -> void:
 	_height_offset = 0
 	_manual_height = false
+	_preview_lift = 0
 
 func preview_error(cell: Vector3i) -> String:
 	if not _manual_height or (_active and _visited.values().has(cell)): return ""
@@ -71,10 +75,13 @@ func _reset() -> void:
 	_active = false
 	_surface_cells.clear()
 	_visited.clear()
+	_preview_lift = 0
 
 func preview(origin: Vector3, direction: Vector3, height: int) -> Variant:
 	var cell = _cell_at(origin, direction, height)
-	return _placement(cell) if cell != null else null
+	var target = _placement(cell) if cell != null else null
+	_preview_lift = target.y - cell.y if target != null else 0
+	return target
 
 func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringName = &"") -> bool:
 	if not _active or _mode == Mode.SELECT: return false
@@ -87,9 +94,6 @@ func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringN
 	if cell == null or _visited.has(cell): return false
 	var target = _placement(cell)
 	if target == null: return false
-	if _manual_height:
-		_authoring.last_error = preview_error(target)
-		if not _authoring.last_error.is_empty(): return false
 	_visited[cell] = target
 	if _shape_mode:
 		return _authoring.edit_shape(_definition, cell, _mode == Mode.ERASE)

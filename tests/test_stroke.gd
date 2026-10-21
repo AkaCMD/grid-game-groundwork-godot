@@ -21,6 +21,8 @@ func _init() -> void:
 	test_bread_stacking()
 	test_shapes_and_faces()
 	test_height_offset()
+	test_automatic_to_manual_height()
+	test_exact_sample_revalidation()
 	test_lifecycle()
 	test_erase_and_shape()
 	print("Stroke: %d checks, %d failures" % [checks, failures])
@@ -164,6 +166,80 @@ func test_height_offset() -> void:
 	stroke.begin()
 	check(stroke.sample(ray, Vector3.DOWN, 0) and editor.level.entities.back().cell == Vector3i(0, 6, 0), "Returning to zero offset retains exact placement for the complete shape")
 	stroke.finish()
+
+func test_automatic_to_manual_height() -> void:
+	for offset in [1, -1]:
+		var editor = author()
+		var crate = editor.level.palette[3]
+		editor.paint(crate, Vector3i.ZERO)
+		editor.paint(crate, Vector3i(1, 1, 0))
+		editor.paint(crate, Vector3i(10, 0, 0))
+		editor.undo()
+		var shaped = crate.duplicate(true) as GGEntityDefinition
+		shaped.definition_id = &"lifted_brush"
+		shaped.shape.assign([Vector3i.ZERO, Vector3i.RIGHT])
+		var stroke = GGEditorStroke.new(editor)
+		stroke.configure(shaped, GGEditorStroke.Mode.PAINT)
+		var ray = Vector3(0, 10, 0)
+		var history = editor._history.size()
+		var future = editor._future.size()
+		editor.dirty = false
+		check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 2, 0), "Complete shape auto-lifts above the neighbouring solid")
+		check(stroke.adjust_height(offset), "The lifted preview can enter manual height mode")
+		var target: Vector3i = stroke.preview(ray, Vector3.DOWN, 0)
+		check(target == Vector3i(0, 2 + offset, 0), "First QE moves exactly one cell from the auto-lifted preview")
+		check(stroke.height_offset() == 1 + offset, "Manual offset includes the preview's lift relative to the surface")
+		check(stroke.preview(Vector3(5, 10, 0), Vector3.DOWN, 0) == Vector3i(5, 1 + offset, 0), "The transferred offset follows another surface or the height plane")
+		target = stroke.preview(ray, Vector3.DOWN, 0)
+		check(stroke.preview_error(target).is_empty() == (offset > 0), "Manual validation includes the adjacent shape cell")
+		check(not editor.dirty and editor._history.size() == history and editor._future.size() == future, "Entering manual mode changes no resources or history")
+		stroke.begin()
+		check(stroke.sample(ray, Vector3.DOWN, 0) == (offset > 0), "Exact paint accepts the raised target and refuses the lowered overlap")
+		stroke.finish()
+		if offset > 0:
+			check(editor.level.entities.back().cell == Vector3i(0, 3, 0) and editor.level.validate().is_empty(), "Placement matches the lifted preview for the entire shape")
+			check(editor.undo() and editor.level.entities.size() == 2, "The lifted manual placement is one undoable stroke")
+		else:
+			check(editor.level.entities.size() == 2 and not editor.dirty and editor._history.size() == history and editor._future.size() == future, "Invalid first Q preserves dirty state and undo/redo history")
+		stroke.adjust_height(-offset)
+		target = stroke.preview(ray, Vector3.DOWN, 0)
+		check(target == Vector3i(0, 2, 0) and stroke.preview_error(target).is_empty(), "Returning from first QE restores the lifted position exactly")
+		stroke.adjust_height(-1)
+		target = stroke.preview(ray, Vector3.DOWN, 0)
+		check(target == Vector3i(0, 1, 0) and not stroke.preview_error(target).is_empty(), "Zero relative offset keeps manual mode and refuses automatic lifting")
+		stroke.reset_height()
+		check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 2, 0), "Reset restores ordinary full-shape auto-stacking")
+		stroke.adjust_height(-1)
+		check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 1, 0), "First Q after reset again starts from the auto-lifted preview")
+
+func test_exact_sample_revalidation() -> void:
+	var editor = author()
+	var crate = editor.level.palette[3]
+	editor.paint(crate, Vector3i.ZERO)
+	editor.paint(crate, Vector3i(1, 5, 0))
+	var blocker = editor.level.entities.back()
+	var shaped = crate.duplicate(true) as GGEntityDefinition
+	shaped.definition_id = &"revalidated_brush"
+	shaped.shape.assign([Vector3i.ZERO, Vector3i.RIGHT])
+	var stroke = GGEditorStroke.new(editor)
+	stroke.configure(shaped, GGEditorStroke.Mode.PAINT)
+	var ray = Vector3(0, 10, 0)
+	stroke.preview(ray, Vector3.DOWN, 0)
+	stroke.adjust_height(1)
+	var target: Vector3i = stroke.preview(ray, Vector3.DOWN, 0)
+	check(target == Vector3i(0, 2, 0) and stroke.preview_error(target).is_empty(), "Exact preview is valid before an external edit")
+	stroke.begin()
+	# Inspector edits can change occupancy after preview without moving the pointer.
+	blocker.cell = target + Vector3i.RIGHT
+	var history = editor._history.size()
+	editor.dirty = false
+	check(not stroke.sample(ray, Vector3.DOWN, 0) and editor.last_error.contains("overlap"), "Commit revalidates the full shape against current occupancy")
+	check(editor.level.entities.size() == 2 and not editor.dirty and editor._history.size() == history, "Failed commit creates no placement or history")
+	check(not stroke.preview_error(target).is_empty(), "Failed sampling does not mark the invalid target as a valid visited placement")
+	blocker.cell = Vector3i(1, 5, 0)
+	check(stroke.sample(ray, Vector3.DOWN, 0) and editor.level.entities.back().cell == target, "Clearing the collision allows the same sample to be retried")
+	stroke.finish()
+	check(editor.undo() and editor.level.entities.size() == 2, "Retried exact placement remains one undoable stroke")
 
 func test_lifecycle() -> void:
 	var editor = author()

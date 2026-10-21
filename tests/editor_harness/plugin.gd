@@ -65,6 +65,7 @@ func run() -> void:
 	await check_multi_selection(panel)
 	await check_selection_height(panel)
 	await check_paint_height_offset(panel)
+	await check_auto_lift_height_offset(panel)
 	await check_surface_interaction(panel)
 	await check_end_snap(panel)
 	panel._shape_mode.button_pressed = true
@@ -1216,6 +1217,60 @@ func check_paint_height_offset(panel: GGEditorPanel) -> void:
 	await mode_key(KEY_E, 0, false, false)
 	panel._open(fixture)
 	check(panel.stroke.height_offset() == 0, "Opening a level clears the offset")
+	view.set_process(true)
+	panel._open(previous)
+	panel._choose_definition(previous.palette.find(definition))
+	panel._set_mode(0)
+
+func check_auto_lift_height_offset(panel: GGEditorPanel) -> void:
+	var previous = panel.authoring.level
+	var definition = panel._definition
+	var view = panel.viewport
+	for binding in [[KEY_E, 3], [KEY_Q, 1]]:
+		var fixture = GGLevel.new()
+		fixture.palette = GGDefaults.palette()
+		for index in range(2):
+			var entity = GGEntityPlacement.new()
+			entity.entity_id = StringName("auto_lift_%d" % index)
+			entity.definition = fixture.palette[3]
+			entity.cell = Vector3i(index, index, 0)
+			fixture.entities.append(entity)
+		var shaped = fixture.palette[3].duplicate(true) as GGEntityDefinition
+		shaped.definition_id = &"auto_lift_brush"
+		shaped.shape.assign([Vector3i.ZERO, Vector3i.RIGHT])
+		fixture.palette.append(shaped)
+		panel._open(fixture)
+		panel.authoring.paint(fixture.palette[3], Vector3i(10, 0, 0))
+		panel.authoring.undo()
+		panel._set_mode(0)
+		panel._choose_definition(fixture.palette.size() - 1)
+		panel._turns.value = 0
+		panel._mirror.button_pressed = false
+		view.set_layer(0)
+		view._yaw = 0
+		view._pitch = deg_to_rad(75.2)
+		view.frame_level()
+		view.set_process(false)
+		view.grab_focus()
+		var point = view.camera.unproject_position(Vector3(0, 0.48, 0)).round()
+		if not await pointer_motion(view, point): return
+		check(view._ghost != null and view._ghost.position == Vector3(0, 2, 0), "Complete brush auto-lifts the actual editor preview above a neighbouring solid")
+		var history = panel.authoring._history.size()
+		var future = panel.authoring._future.size()
+		panel.authoring.dirty = false
+		await mode_key(binding[0])
+		await mode_key(binding[0], 0, false, false)
+		var target = Vector3i(0, binding[1], 0)
+		check(view._ghost != null and view._ghost.position == Vector3(target), "First QE moves the stationary-pointer editor preview one cell from its auto-lifted height")
+		check(ghost_has_color(view._ghost, Color(0.5, 1.0, 0.8, 0.45) if binding[0] == KEY_E else Color(1.0, 0.2, 0.2, 0.6)), "Full-shape validation colors the raised preview valid and the lowered preview red")
+		check(not panel.authoring.dirty and panel.authoring._history.size() == history and panel.authoring._future.size() == future, "First QE after auto-lifting changes no authored data or history")
+		camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+		camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+		if binding[0] == KEY_E:
+			check(fixture.entities.size() == 3 and fixture.entities.back().cell == target and fixture.validate().is_empty(), "Click places the complete brush exactly at the raised editor preview")
+			check(panel.authoring.undo() and fixture.entities.size() == 2, "Raised auto-lift transition is one undoable editor stroke")
+		else:
+			check(fixture.entities.size() == 2 and not panel.authoring.dirty and panel.authoring._history.size() == history and panel.authoring._future.size() == future, "Invalid first Q click preserves the level and undo/redo history")
 	view.set_process(true)
 	panel._open(previous)
 	panel._choose_definition(previous.palette.find(definition))
