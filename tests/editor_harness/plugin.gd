@@ -1391,6 +1391,39 @@ func check_paint_surfaces(panel: GGEditorPanel) -> void:
 	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
 	check(fixture.entities.back().cell == Vector3i(0, 6, 0), "Multi-cell surface preview agrees with committed paint")
 
+	fixture = GGLevel.new()
+	fixture.palette = GGDefaults.palette()
+	var bread = load("res://examples/entities/quack_bread.tres") as GGEntityDefinition
+	fixture.palette.append(bread)
+	panel._open(fixture)
+	panel._choose_definition(fixture.palette.size() - 1)
+	panel._set_mode(0)
+	panel.authoring.paint(fixture.palette[0], Vector3i(0, 3, 0))
+	panel.authoring.paint(bread, Vector3i(0, 4, 0))
+	view.set_layer(0)
+	view.camera.position = Vector3(7, 10, 12)
+	view.camera.look_at(Vector3(0, 4, 0))
+	point = view.camera.unproject_position(Vector3(0, 4.48, 0))
+	motion.position = point
+	view.gui_input.emit(motion)
+	check(view._ghost.position == Vector3(0, 5, 0), "Bread preview snaps above non-solid bread instead of the ground beneath it")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	motion.position = point + Vector2(0.1, 0.1)
+	view.gui_input.emit(motion)
+	check(fixture.entities.size() == 3 and fixture.entities.back().cell == Vector3i(0, 5, 0), "Click stacks bread and dragging cannot add more layers in the same stroke")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	point = view.camera.unproject_position(Vector3(0, 5.48, 0))
+	motion.button_mask = 0
+	motion.position = point
+	view.gui_input.emit(motion)
+	check(view._ghost.position == Vector3(0, 6, 0), "A later bread stroke previews the next layer")
+	camera_mouse(view, MOUSE_BUTTON_LEFT, true, point)
+	camera_mouse(view, MOUSE_BUTTON_LEFT, false, point)
+	check(fixture.entities.size() == 4 and fixture.entities.back().cell == Vector3i(0, 6, 0), "A second click stacks another bread layer")
+	check(panel.authoring.undo() and fixture.entities.size() == 3, "Undo removes one bread stroke")
+	check(panel.authoring.redo() and fixture.entities.back().cell == Vector3i(0, 6, 0), "Redo restores the bread layer")
+
 	view._yaw = 0.0
 	view._pitch = deg_to_rad(75.2)
 	panel._open(previous)

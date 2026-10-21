@@ -22,7 +22,7 @@ Godot's **Y axis is height**; horizontal gameplay uses **XZ**. All occupied cell
 | Right click | Copy an entity's definition, quarter turns and mirroring into the brush. |
 | **Quarter turns / Mirror brush** | Rotate around Y in 90° increments / reflect the shape on local X. |
 
-Paint snaps to solid occupied-cell faces, including elevated tops and sides. Empty space uses the **Height** plane. Solid placements rise to the first free height if they overlap another solid; non-solid entities such as goals can share cells. Each stroke uses its starting surfaces and paints each target once, preventing accidental towers. Release and start another stroke to add a layer. One stroke is one undo action.
+Paint snaps to occupied-cell faces of all entities, including elevated tops and sides. Non-solid entities such as bread also provide paint surfaces and can be stacked. Empty space uses the **Height** plane. Solid placements rise to the first free height if they overlap another solid; non-solid entities such as goals can share cells. Each stroke uses its starting surfaces and paints each target once, preventing accidental towers. Release and start another stroke to add a layer. One stroke is one undo action.
 
 In **Level → Fill ground**, choose a single-cell definition with `ground=true`, set **Height**, **Width** and **Depth**, then **Fill ground**. Height stays synchronized with the toolbar placement plane. The rectangle begins at `X=0, Z=0` and skips occupied solid cells. One fill is one undo action.
 

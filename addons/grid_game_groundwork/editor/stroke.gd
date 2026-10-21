@@ -12,7 +12,7 @@ var _turns = 0
 var _mirrored = false
 var _shape_mode = false
 var _active = false
-var _solids: Array[Vector3i] = []
+var _surface_cells: Array[Vector3i] = []
 var _visited: Dictionary = {}
 
 func _init(authoring: GGLevelAuthoring) -> void:
@@ -35,7 +35,7 @@ func is_active() -> bool:
 func begin() -> void:
 	finish()
 	_authoring.begin_stroke()
-	_solids = _solid_cells()
+	_surface_cells = _occupied_cells()
 	_active = true
 
 func finish() -> void:
@@ -44,7 +44,7 @@ func finish() -> void:
 
 func _reset() -> void:
 	_active = false
-	_solids.clear()
+	_surface_cells.clear()
 	_visited.clear()
 
 func preview(origin: Vector3, direction: Vector3, height: int) -> Variant:
@@ -93,18 +93,19 @@ func _cell_at(origin: Vector3, direction: Vector3, height: int) -> Variant:
 	var hit = Plane(Vector3.UP, height).intersects_ray(origin, direction)
 	return Vector3i(roundi(hit.x), height, roundi(hit.z)) if hit != null else null
 
-func _solid_cells() -> Array[Vector3i]:
+func _occupied_cells() -> Array[Vector3i]:
 	var cells: Array[Vector3i] = []
 	if _authoring.level:
 		for entity in _authoring.level.entities:
-			if entity.resolved_properties().get("solid", true):
-				cells.append_array(entity.occupied_cells())
+			# Paint surfaces are independent of gameplay collision: non-solid
+			# entities such as bread can also be stacked in the editor.
+			cells.append_array(entity.occupied_cells())
 	return cells
 
 func _surface_at(origin: Vector3, direction: Vector3) -> Dictionary:
 	var nearest = INF
 	var result: Dictionary = {}
-	var cells = _solids if _active else _solid_cells()
+	var cells = _surface_cells if _active else _occupied_cells()
 	for cell in cells:
 		var hit = AABB(Vector3(cell) - Vector3.ONE * 0.5, Vector3.ONE).intersects_ray(origin, direction)
 		if hit == null: continue

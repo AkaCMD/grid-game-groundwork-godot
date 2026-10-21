@@ -18,6 +18,7 @@ func author() -> GGLevelAuthoring:
 
 func _init() -> void:
 	test_stable_stroke()
+	test_bread_stacking()
 	test_shapes_and_faces()
 	test_lifecycle()
 	test_erase_and_shape()
@@ -47,6 +48,33 @@ func test_stable_stroke() -> void:
 	check(editor.undo() and editor.level.entities.size() == 2, "One undo removes all placements in the stroke")
 	check(editor.redo() and editor.level.entities.size() == 4, "One redo restores all placements")
 	check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 6, 0), "A later stroke can stack on previously authored entities")
+
+func test_bread_stacking() -> void:
+	var editor = author()
+	var bread = load("res://examples/entities/quack_bread.tres") as GGEntityDefinition
+	check(not bread.solid, "Bread remains non-solid for gameplay")
+	editor.paint(editor.level.palette[0], Vector3i(0, 3, 0))
+	editor.paint(bread, Vector3i(0, 4, 0))
+	var stroke = GGEditorStroke.new(editor)
+	stroke.configure(bread, GGEditorStroke.Mode.PAINT)
+	var ray = Vector3(0, 10, 0)
+	editor.dirty = false
+	check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 5, 0), "Bread preview snaps above existing bread instead of onto the ground below")
+	check(not editor.dirty and editor.level.entities.size() == 2, "Bread preview leaves authored data unchanged")
+	stroke.begin()
+	check(stroke.sample(ray, Vector3.DOWN, 0), "A new stroke stacks bread on bread")
+	check(editor.level.entities.back().cell == Vector3i(0, 5, 0), "Bread placement matches the preview")
+	check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 5, 0), "Bread preview stays at the placed height within a stroke")
+	check(not stroke.sample(ray + Vector3(0.1, 0, 0.1), Vector3.DOWN, 0) and editor.level.entities.size() == 3, "Pointer jitter cannot build a bread tower in one stroke")
+	stroke.finish()
+	check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i(0, 6, 0), "Releasing the pointer allows another bread layer")
+	stroke.begin()
+	check(stroke.sample(ray, Vector3.DOWN, 0), "A second stroke adds another bread layer")
+	stroke.finish()
+	check(editor.level.entities.back().cell == Vector3i(0, 6, 0) and editor.level.validate().is_empty(), "Stacked non-solid bread forms a valid level")
+	check(editor.undo() and editor.level.entities.size() == 3, "Undo removes just the most recent bread layer")
+	check(editor.redo() and editor.level.entities.back().cell == Vector3i(0, 6, 0), "Redo restores the bread layer")
+	check(stroke.preview(Vector3(0, 6, 10), Vector3.FORWARD, 0) == Vector3i(0, 6, 1), "Non-solid bread also provides a side face without a height-plane intersection")
 
 func test_shapes_and_faces() -> void:
 	var editor = author()
@@ -97,9 +125,9 @@ func test_lifecycle() -> void:
 	stroke.configure(other.palette[4], GGEditorStroke.Mode.PAINT)
 	stroke.begin()
 	check(stroke.sample(ray, Vector3.DOWN, 0), "Non-solid entities can be painted")
+	check(not stroke.sample(ray, Vector3.DOWN, 0), "A stroke cannot duplicate an identical non-solid entity")
 	stroke.finish()
 	stroke.begin()
-	check(not stroke.sample(ray, Vector3.DOWN, 0), "A later stroke cannot duplicate an identical non-solid entity")
 	stroke.finish()
 	check(editor.undo() and other.entities.is_empty(), "An empty stroke adds no undo entry")
 
