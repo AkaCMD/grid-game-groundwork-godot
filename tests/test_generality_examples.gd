@@ -7,6 +7,7 @@ func _init() -> void:
 
 func run() -> void:
 	_test_rolling()
+	_test_rolling_precision()
 	_test_gravity()
 	_test_links()
 	await _test_custom_runtime()
@@ -96,3 +97,12 @@ func _test_custom_runtime() -> void:
 		await create_timer(0.01).timeout
 	entry.queue_free()
 	await process_frame
+
+func _test_rolling_precision() -> void:
+	var level: GGLevel = ResourceLoader.load("res://examples/levels/rolling.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	for entity in level.entities: entity.cell += Vector3i(16777217, 0, 16777219)
+	var session = GGSession.new()
+	check(session.start(level).is_empty(), "The rolling fixture can use distant integer coordinates")
+	check(session.move(&"block", Vector3i.RIGHT), "A distant block can roll without float-based coordinate changes")
+	check(session.entities.has(&"block") and session.entities[&"block"].cell == Vector3i(16777218, 0, 16777220), "Rolling preserves the exact translated origin")
+	check(session.move(&"block", Vector3i.RIGHT) and session.status == &"won", "The translated puzzle retains its exact two-move solution")

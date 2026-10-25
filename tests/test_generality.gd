@@ -15,6 +15,9 @@ func _init() -> void:
 	_test_rejected_resolution()
 	_test_reference_roundtrip()
 	_test_authoring_configuration()
+	_test_linked_policy_copy()
+	_test_reset_field_draft()
+	_test_exact_grid_transforms()
 	print("Generality: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures else 0)
 
@@ -269,3 +272,70 @@ func _test_authoring_configuration() -> void:
 	var authoring = GGLevelAuthoring.new()
 	authoring.open(level)
 	check(authoring.paint(definition, Vector3i.ZERO), "Placement policies receive the full authored level configuration")
+
+class LinkedPlacementRule extends GGGameRule:
+	func validate_level(level: GGLevel) -> PackedStringArray:
+		var errors = super.validate_level(level)
+		for entity in level.entities:
+			var target = entity.resolved_properties().get(&"target", &"")
+			for other in level.entities:
+				if target == other.entity_id and other.cell - entity.cell != Vector3i(2, 0, 0):
+					errors.append("Linked entities must remain two cells apart.")
+		return errors
+
+func _test_linked_policy_copy() -> void:
+	var field = GGPropertyField.new()
+	field.key = &"target"
+	field.kind = GGPropertyField.Kind.ENTITY
+	var definition = GGEntityDefinition.new()
+	definition.fields.append(field)
+	var level = GGLevel.new()
+	level.game_rule = LinkedPlacementRule.new()
+	for pair in [[&"source", Vector3i.ZERO], [&"target", Vector3i(2, 0, 0)]]:
+		var entity = GGEntityPlacement.new()
+		entity.entity_id = pair[0]
+		entity.cell = pair[1]
+		entity.definition = definition
+		level.entities.append(entity)
+	level.entities[0].overrides[&"target"] = &"target"
+	var editor = GGLevelAuthoring.new()
+	editor.open(level)
+	check(level.validate().is_empty(), "A game-defined linked-placement policy accepts the source layout")
+	var copies = editor.duplicate_entities([&"source", &"target"])
+	check(copies.size() == 2 and level.validate().is_empty(), "Group copying validates the remapped relationships instead of stale original targets")
+
+func _test_reset_field_draft() -> void:
+	var field = GGPropertyField.new()
+	field.key = &"mass"
+	field.kind = GGPropertyField.Kind.FLOAT
+	field.default_value = 2.0
+	var definition = GGEntityDefinition.new()
+	definition.fields.append(field)
+	var entity = GGEntityPlacement.new()
+	entity.definition = definition
+	entity.overrides[&"mass"] = 9.0
+	var form = GGFieldsEditor.new()
+	var reset_draft = {}
+	form.configure(GGLevel.new(), entity, reset_draft)
+	check(form.get_node("mass/Input").value == 2.0, "Reset fields display inherited defaults instead of the entity's prior override")
+	form.get_node("mass/Override").button_pressed = true
+	check(reset_draft.get(&"mass") == 2.0, "Re-enabling a reset field starts with its displayed inherited value")
+	form.get_node("mass/Input").value = 5.0
+	form.get_node("mass/Override").button_pressed = false
+	check(form.get_node("mass/Input").value == 2.0 and not reset_draft.has(&"mass"), "Disabling a field visibly restores inheritance")
+	form.free()
+
+func _test_exact_grid_transforms() -> void:
+	var entity = GGEntityPlacement.new()
+	entity.entity_id = &"distant"
+	entity.definition = GGEntityDefinition.new()
+	entity.definition.shape.assign([Vector3i.ZERO, Vector3i(16777217, 0, 0)])
+	entity.cell = Vector3i(16777217, 1, 16777219)
+	var original = entity.cell
+	var level = GGLevel.new()
+	level.entities.append(entity)
+	var editor = GGLevelAuthoring.new()
+	editor.open(level)
+	check(entity.occupied_cells().has(Vector3i(33554434, 1, 16777219)), "Occupied cells retain integer precision beyond float mantissa range")
+	for turn in 4: editor.transform_level(false)
+	check(entity.cell == original, "Four world-axis turns exactly restore distant integer coordinates")

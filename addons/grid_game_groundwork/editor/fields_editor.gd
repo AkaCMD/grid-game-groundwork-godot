@@ -18,7 +18,8 @@ func configure(level: GGLevel, entity: GGEntityPlacement, overrides: Dictionary)
 		toggle.tooltip_text = "Override shared default; uncheck to inherit"
 		toggle.button_pressed = overrides.has(field.key)
 		row.add_child(toggle)
-		var value = entity.resolved_properties().get(field.key, field.value_or_default())
+		var inherited = entity.definition.defaults().get(field.key, field.value_or_default())
+		var value = overrides.get(field.key, inherited)
 		var current = [value]
 		var input = _make_input(field, value, level, func(next):
 			current[0] = next
@@ -29,9 +30,26 @@ func configure(level: GGLevel, entity: GGEntityPlacement, overrides: Dictionary)
 		_set_enabled(input, toggle.button_pressed)
 		toggle.toggled.connect(func(enabled):
 			if enabled: overrides[field.key] = current[0]
-			else: overrides.erase(field.key)
+			else:
+				current[0] = inherited
+				_set_input_value(input, inherited)
+				overrides.erase(field.key)
 			_set_enabled(input, enabled)
 		)
+
+func _set_input_value(input: Control, value: Variant) -> void:
+	if input is CheckBox: input.set_pressed_no_signal(bool(value))
+	elif input is SpinBox: input.set_value_no_signal(float(value))
+	elif input is LineEdit: input.text = str(value)
+	elif input is OptionButton:
+		for index in input.item_count:
+			if str(input.get_item_metadata(index)) == str(value): input.select(index)
+	elif input is ItemList:
+		input.deselect_all()
+		for index in input.item_count:
+			if value.has(input.get_item_metadata(index)): input.select(index, false)
+	elif input is HBoxContainer:
+		for axis in 3: input.get_child(axis).set_value_no_signal(value[axis])
 
 func _set_enabled(node: Node, enabled: bool) -> void:
 	if node is BaseButton: node.disabled = not enabled

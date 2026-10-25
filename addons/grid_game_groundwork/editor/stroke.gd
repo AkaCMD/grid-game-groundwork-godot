@@ -87,7 +87,7 @@ func _reset() -> void:
 func preview(origin: Vector3, direction: Vector3, height: int) -> Variant:
 	var cell = _cell_at(origin, direction, height)
 	var target = _placement(cell) if cell != null else null
-	_preview_lift = int(Vector3(target - cell).dot(Vector3(plane_normal))) if target != null else 0
+	_preview_lift = GGGrid.dot(target - cell, plane_normal) if target != null else 0
 	return target
 
 func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringName = &"") -> bool:

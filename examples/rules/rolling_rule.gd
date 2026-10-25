@@ -7,16 +7,18 @@ extends GGGameRule
 func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i) -> bool:
 	if not allows_direction(direction): return false
 	var entity: Dictionary = session.entities[actor_id]
-	var cells = GGGrid.cells(entity)
-	var edge = -INF
-	var bottom = INF
-	for cell in cells:
-		edge = maxf(edge, Vector3(cell).dot(Vector3(direction)))
-		bottom = minf(bottom, cell.y)
-	var pivot = Vector3(direction) * (edge + 0.5) + Vector3.UP * (bottom - 0.5)
+	var offsets: Array[Vector3i] = []
+	for cell in entity.shape: offsets.append(GGGrid.transform_cell(cell, entity.turns, entity.mirror))
+	var edge = GGGrid.dot(offsets[0], direction)
+	var bottom: int = offsets[0].y
+	for offset in offsets:
+		edge = maxi(edge, GGGrid.dot(offset, direction))
+		bottom = mini(bottom, offset.y)
+	# Doubled local coordinates represent the half-cell pivot exactly.
+	var pivot = direction * (edge * 2 + 1) + Vector3i.UP * (bottom * 2 - 1)
 	var axis = Vector3i(Vector3(direction).cross(Vector3.UP))
-	var rotation = Basis(Vector3(axis), -PI / 2.0)
-	entity.cell = Vector3i((pivot + rotation * (Vector3(entity.cell) - pivot)).round())
+	var rotation = GGGrid.rotated(0, axis)
+	entity.cell += (pivot + GGGrid.transform_cell(-pivot, rotation)) / 2
 	entity.turns = GGGrid.rotated(entity.turns, axis)
 	if not session.is_clear(actor_id, GGGrid.cells(entity)): return false
 	session.stages.append(session.snapshot())

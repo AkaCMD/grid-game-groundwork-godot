@@ -70,7 +70,7 @@ func supports_entity(session: GGSession, actor_id: StringName, support_id: Strin
 func is_outside(session: GGSession, entity_id: StringName, direction: Vector3i) -> bool:
 	var limit: int = -session.mechanic_state.get("fall_out_height", -8)
 	for cell in GGGrid.cells(session.entities[entity_id]):
-		if Vector3(cell).dot(Vector3(direction)) < limit: return false
+		if GGGrid.dot(cell, direction) < limit: return false
 	return true
 
 func on_fall_out(session: GGSession, entity_id: StringName) -> void:

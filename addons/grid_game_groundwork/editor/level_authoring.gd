@@ -200,7 +200,7 @@ func _lift_offsets(candidates: Array[GGEntityPlacement]) -> Array:
 			for candidate in candidates:
 				for cell in candidate.occupied_cells():
 					var delta = used - cell
-					var height = int(Vector3(delta).dot(Vector3(placement_normal)))
+					var height = GGGrid.dot(delta, placement_normal)
 					if height >= 0 and delta == placement_normal * height: offsets[height + 1] = true
 	var result = offsets.keys()
 	result.sort()
@@ -329,6 +329,12 @@ func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 		copied.entity_id = _next_id(copied.definition.definition_id)
 		identities[source.entity_id] = copied.entity_id
 		copies.append(copied)
+	for copied in copies:
+		for field in copied.definition.fields:
+			if field and field.kind in [GGPropertyField.Kind.ENTITY, GGPropertyField.Kind.ENTITIES]:
+				var value = copied.resolved_properties().get(field.key)
+				var mapped = field.remap(value, identities)
+				if mapped != value: copied.overrides[field.key] = mapped
 	var bases = copies.map(func(entity): return entity.cell)
 	var found = false
 	for lift in _lift_offsets(copies):
@@ -344,11 +350,6 @@ func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 		return []
 	var result: Array[StringName] = []
 	for copied in copies:
-		for field in copied.definition.fields:
-			if field and field.kind in [GGPropertyField.Kind.ENTITY, GGPropertyField.Kind.ENTITIES]:
-				var value = copied.resolved_properties().get(field.key)
-				var mapped = field.remap(value, identities)
-				if mapped != value: copied.overrides[field.key] = mapped
 		result.append(copied.entity_id)
 		level.entities.append(copied)
 	last_error = "\n".join(level.validate_placement())
@@ -380,7 +381,7 @@ func ground_position(id: StringName, cell: Vector3i) -> Variant:
 		for support in other.occupied_cells():
 			for occupied in cells:
 				var delta = support - occupied
-				var projected = int(Vector3(delta).dot(Vector3(direction)))
+				var projected = GGGrid.dot(delta, direction)
 				if projected <= 0 or delta != direction * projected: continue
 				var gap = projected - 1
 				if not found or gap < distance:

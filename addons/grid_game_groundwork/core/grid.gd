@@ -33,7 +33,11 @@ static func rotated(index: int, axis: Vector3i, turns: int = 1) -> int:
 	return orientation_index(rotation * orientation_basis(index))
 
 static func transform_cell(cell: Vector3i, turns: int, mirror: bool = false) -> Vector3i:
-	return Vector3i((orientation_basis(turns, mirror) * Vector3(cell)).round())
+	var basis = orientation_basis(turns, mirror)
+	return Vector3i(basis.x.round()) * cell.x + Vector3i(basis.y.round()) * cell.y + Vector3i(basis.z.round()) * cell.z
+
+static func dot(a: Vector3i, b: Vector3i) -> int:
+	return a.x * b.x + a.y * b.y + a.z * b.z
 
 static func cells(entity: Dictionary) -> Array[Vector3i]:
 	var result: Array[Vector3i] = []
