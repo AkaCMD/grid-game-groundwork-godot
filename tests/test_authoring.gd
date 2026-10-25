@@ -291,7 +291,7 @@ func _test_group_duplicate() -> void:
 	check(editor.undo() and editor.level.entities.size() == 2, "One undo removes all copies")
 	check(editor.redo() and editor.find_entity(copies[1]) != null, "Redo restores all copies and their IDs")
 	check(editor.duplicate_entities([first, &"missing"]).is_empty() and editor.level.entities.size() == 4, "Duplicate rejects stale selections without partial copies")
-	editor.level.schema_version = 2
+	editor.level.schema_version = 999
 	check(editor.duplicate_entities([first, second]).is_empty() and editor.level.entities.size() == 4, "Invalid level rejects duplicate atomically")
 
 func _test_group_delete() -> void:

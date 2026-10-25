@@ -1,5 +1,7 @@
 # Grid Game Groundwork
 
+**English** | [简体中文](CONTEXT.zh-CN.md)
+
 A framework for creating grid-based puzzle games and authoring their levels. Games use a three-dimensional grid and can include stacking and gravity.
 
 ## Language
@@ -48,16 +50,16 @@ A continuous pointer gesture that paints or erases entities, or edits an entity 
 The arrangement of entities above other entities at different heights in the grid.
 
 **Gravity**:
-The game rule that makes unsupported movable entities fall. It can be enabled or disabled for each level.
+The game rule that makes unsupported movable entities fall in a chosen direction. Gravity can be disabled; the default direction is down.
 
 **Ground**:
 Explicitly placed terrain that provides a supporting surface for entities.
 
 **Support**:
-A supporting surface directly beneath at least one cell occupied by an entity. One supported cell holds the entire rigid entity, allowing the remaining cells to overhang without tipping.
+A contact that prevents an entity from falling under the current game rule. The default rule accepts support beneath any occupied cell and allows rigid overhangs without tipping.
 
 **Fall out**:
-An entity falling beyond the level with no supporting surface to catch it. A player falling out causes failure; other entities are removed from the current attempt, and undo can restore them.
+An entity leaving the activity bounds through falling. The default rule fails players and removes fallen entities from the current attempt; undo can restore them.
 
 **Mechanic**:
 A rule governing how entities behave or interact during play.
@@ -70,3 +72,15 @@ A gameplay operation together with all its consequences, including pushes, falls
 
 **Restart**:
 An action that restores the level's authored starting state for a new attempt. Undoing a restart restores the preceding gameplay state.
+
+**Orientation**:
+An entity's discrete pose relative to the world axes. The cubic grid has 24 orthogonal orientations; mirroring is a separate transform.
+
+**Property field**:
+A named, typed property that a game exposes for designers to configure. Entity placements inherit its default until explicitly overridden.
+
+**Entity reference**:
+An authored link to a particular entity, such as a portal destination or a door controlled by a switch. A missing target remains identifiable until the author repairs the link.
+
+**Game command**:
+A request interpreted by the game rule, such as a move or a gravity change. An accepted command and all its consequences form one action.

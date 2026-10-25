@@ -2,13 +2,38 @@
 class_name GGGrid
 extends RefCounted
 
-static func transform_cell(cell: Vector3i, turns: int, mirror: bool = false) -> Vector3i:
-	var result = cell
-	if mirror:
-		result.x = -result.x
-	for i in posmod(turns, 4):
-		result = Vector3i(-result.z, result.y, result.x)
+static var _orientations: Array[Basis] = []
+
+static func orientations() -> Array[Basis]:
+	if not _orientations.is_empty(): return _orientations
+	var result: Array[Basis] = []
+	for turns in 4:
+		var x = Vector3i.RIGHT
+		for i in turns: x = Vector3i(-x.z, x.y, x.x)
+		result.append(Basis(Vector3(x), Vector3.UP, Vector3(x).cross(Vector3.UP)))
+	for up in [Vector3.DOWN, Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]:
+		for right in [Vector3.RIGHT, Vector3.BACK, Vector3.LEFT, Vector3.FORWARD, Vector3.UP, Vector3.DOWN]:
+			if up.dot(right) == 0:
+				result.append(Basis(right, up, right.cross(up)))
+	_orientations = result
 	return result
+
+static func orientation_basis(index: int, mirror: bool = false) -> Basis:
+	var basis = orientations()[posmod(index, 24)]
+	return basis * Basis.from_scale(Vector3(-1, 1, 1)) if mirror else basis
+
+static func orientation_index(basis: Basis) -> int:
+	var values = orientations()
+	for index in values.size():
+		if values[index].is_equal_approx(basis): return index
+	return -1
+
+static func rotated(index: int, axis: Vector3i, turns: int = 1) -> int:
+	var rotation = Basis(Vector3(axis), -turns * PI / 2.0)
+	return orientation_index(rotation * orientation_basis(index))
+
+static func transform_cell(cell: Vector3i, turns: int, mirror: bool = false) -> Vector3i:
+	return Vector3i((orientation_basis(turns, mirror) * Vector3(cell)).round())
 
 static func cells(entity: Dictionary) -> Array[Vector3i]:
 	var result: Array[Vector3i] = []

@@ -170,6 +170,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_S, KEY_DOWN: direction = Vector3i(0, 0, 1)
 		KEY_A, KEY_LEFT: direction = Vector3i(-1, 0, 0)
 		KEY_D, KEY_RIGHT: direction = Vector3i(1, 0, 0)
+		KEY_Q: direction = Vector3i.DOWN
+		KEY_E: direction = Vector3i.UP
 	if direction != Vector3i.ZERO:
 		get_viewport().set_input_as_handled()
 		if session.status != &"playing":

@@ -31,7 +31,8 @@ def main():
         raise SystemExit("Godot was not found. Pass --godot /path/to/godot or set GODOT.")
     run([executable, "--headless", "--editor", "--import", "--path", str(ROOT), "--quit"])
     for script in ["test_session.gd", "test_authoring.gd", "test_selection.gd",
-                   "test_stroke.gd", "test_quack.gd", "test_runtime.gd"]:
+                   "test_stroke.gd", "test_quack.gd", "test_runtime.gd",
+                   "test_generality.gd", "test_generality_examples.gd"]:
         output = run([executable, "--headless", "--path", str(ROOT), "--script",
                       "tests/" + script, "--quit-after", "1200"])
         if "0 failures" not in output:
@@ -49,7 +50,7 @@ def main():
             if args.screenshot:
                 args.screenshot.parent.mkdir(parents=True, exist_ok=True)
                 environment["GGG_EDITOR_SCREENSHOT"] = str(args.screenshot.resolve())
-            command = [executable, "--path", str(target), "--editor", "--quit-after", "600"]
+            command = [executable, "--path", str(target), "--editor", "--quit-after", "1200"]
             if not args.screenshot:
                 command.insert(1, "--headless")
             output = run(command, cwd=target, env=environment)

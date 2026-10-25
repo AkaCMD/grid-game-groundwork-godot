@@ -14,16 +14,20 @@ var _rule: GGGameRule
 var _initial: Dictionary
 var _history: Array[Dictionary] = []
 var _future: Array[Dictionary] = []
+var _resolving = false
+var _resolution_failed = false
+var _fall_steps = 0
+var _settling = false
 
 func start(level: GGLevel) -> PackedStringArray:
 	var errors = level.validate()
 	if not errors.is_empty():
 		return errors
 	_level = level
-	_rule = level.game_rule if level.game_rule else GGGameRule.new()
+	_rule = level.rule()
 	selected_actor = &""
 	entities.clear()
-	mechanic_state.clear()
+	mechanic_state = _rule.initial_state(level).duplicate(true)
 	status = &"playing"
 	_history.clear()
 	_future.clear()
@@ -35,9 +39,14 @@ func start(level: GGLevel) -> PackedStringArray:
 			"properties": placement.resolved_properties(), "state": {},
 		}
 	initial_entities = entities.duplicate(true)
+	_resolution_failed = false
+	_fall_steps = 0
+	_resolving = true
 	_rule.after_step(self)
 	_settle()
 	_rule.after_action(self)
+	_resolving = false
+	if _resolution_failed: return PackedStringArray(["Initial resolution did not terminate."])
 	_initial = snapshot()
 	stages.clear()
 	return errors
@@ -60,20 +69,26 @@ func blockers(entity_id: StringName, direction: Vector3i) -> Array:
 	return result
 
 func move(actor_id: StringName, direction: Vector3i) -> bool:
-	if status != &"playing" or not entities.has(actor_id):
-		return false
-	if direction.y != 0 or absi(direction.x) + absi(direction.z) != 1:
-		return false
+	return act(&"move", {"actor_id": actor_id, "direction": direction})
+
+func act(command: StringName, arguments: Dictionary = {}) -> bool:
+	if _resolving or status != &"playing": return false
 	var before = snapshot()
 	var previous_stages = stages
 	stages = []
-	if not _rule.resolve_move(self, actor_id, direction):
+	_resolution_failed = false
+	_fall_steps = 0
+	_resolving = true
+	var accepted = _rule.resolve_action(self, command, arguments)
+	if accepted and not _resolution_failed: _rule.after_action(self)
+	if accepted and not _resolution_failed: accepted = _rule.validate_state(self).is_empty()
+	_resolving = false
+	if not accepted or _resolution_failed:
 		restore(before)
 		stages = previous_stages
 		return false
 	_history.append(before)
 	_future.clear()
-	_rule.after_action(self)
 	stages.append(snapshot())
 	return true
 
@@ -81,7 +96,7 @@ func step(actor_id: StringName, direction: Vector3i) -> bool:
 	## Resolver primitive: one grid step and gravity, without creating history.
 	if status != &"playing" or not entities.has(actor_id):
 		return false
-	if direction.y != 0 or absi(direction.x) + absi(direction.z) != 1:
+	if not _resolving or absi(direction.x) + absi(direction.y) + absi(direction.z) != 1:
 		return false
 	var moving = {}
 	if not _plan(actor_id, direction, moving):
@@ -101,8 +116,7 @@ func step(actor_id: StringName, direction: Vector3i) -> bool:
 		entities[id].cell += direction
 	stages.append(snapshot())
 	_rule.after_step(self)
-	_settle()
-	return true
+	return _settle()
 
 func _plan(id: StringName, direction: Vector3i, moving: Dictionary) -> bool:
 	if moving.has(id):
@@ -117,39 +131,67 @@ func _plan(id: StringName, direction: Vector3i, moving: Dictionary) -> bool:
 			return false
 	return true
 
-func _settle() -> void:
-	if not _level.gravity_enabled:
-		return
-	# A simultaneous falling set handles stacks and mutually interlocked shapes.
-	# Remove entities supported by something outside that set until it stabilizes.
+func settle() -> bool:
+	if not _resolving: return false
+	return _settle()
+
+func _settle() -> bool:
+	if _settling:
+		_resolution_failed = true
+		return false
+	_settling = true
+	var accepted = _rule.resolve_gravity(self)
+	_settling = false
+	if not accepted: _resolution_failed = true
+	return accepted
+
+func fall(direction: Vector3i) -> bool:
+	if not _resolving: return false
+	if direction == Vector3i.ZERO: return true
+	if absi(direction.x) + absi(direction.y) + absi(direction.z) != 1:
+		_resolution_failed = true
+		return false
 	while true:
 		var falling = {}
 		for id in entities:
 			var properties: Dictionary = entities[id].properties
-			if properties.get("movable", false) and properties.get("gravity", true):
-				falling[id] = true
+			if properties.get("movable", false) and properties.get("gravity", true): falling[id] = true
+		var occupied = GGGrid.index(entities)
 		var changed = true
 		while changed:
 			changed = false
 			for id in falling.keys():
-				for support in blockers(id, Vector3i.DOWN):
-					if not falling.has(support):
-						falling.erase(id)
-						changed = true
-						break
-		if falling.is_empty():
-			break
+				for cell in GGGrid.cells(entities[id]):
+					for support in occupied.get(cell + direction, []):
+						if support != id and not falling.has(support) and _rule.supports_entity(self, id, support, direction):
+							falling.erase(id)
+							changed = true
+							break
+					if not falling.has(id): break
+		if falling.is_empty(): return true
+		_fall_steps += 1
+		if _fall_steps > _rule.resolution_limit:
+			_resolution_failed = true
+			return false
+		for id in falling: entities[id].cell += direction
 		for id in falling:
-			entities[id].cell += Vector3i.DOWN
-			var highest = _level.void_height
-			for cell in GGGrid.cells(entities[id]):
-				highest = maxi(highest, cell.y)
-			if highest <= _level.void_height:
-				if entities[id].properties.get("player", false):
-					status = &"failed"
-				entities.erase(id)
+			if entities.has(id) and _rule.is_outside(self, id, direction): _rule.on_fall_out(self, id)
 		stages.append(snapshot())
 		_rule.after_step(self)
+		var next_direction = _rule.gravity_direction(self)
+		if next_direction == Vector3i.ZERO: return true
+		if absi(next_direction.x) + absi(next_direction.y) + absi(next_direction.z) != 1:
+			_resolution_failed = true
+			return false
+		direction = next_direction
+	return true
+
+func is_clear(entity_id: StringName, cells: Array[Vector3i]) -> bool:
+	var occupied = GGGrid.index(entities)
+	for cell in cells:
+		for other in occupied.get(cell, []):
+			if other != entity_id and _rule.blocks_entity(self, entity_id, other, Vector3i.ZERO): return false
+	return true
 
 func _begin_action() -> void:
 	_history.append(snapshot())
@@ -157,6 +199,7 @@ func _begin_action() -> void:
 	stages.clear()
 
 func undo() -> bool:
+	if _resolving: return false
 	if _history.is_empty():
 		return false
 	_future.append(snapshot())
@@ -165,6 +208,7 @@ func undo() -> bool:
 	return true
 
 func redo() -> bool:
+	if _resolving: return false
 	if _future.is_empty():
 		return false
 	_history.append(snapshot())
@@ -173,6 +217,7 @@ func redo() -> bool:
 	return true
 
 func restart() -> void:
+	if _resolving: return
 	_begin_action()
 	restore(_initial)
 	stages = [snapshot()]

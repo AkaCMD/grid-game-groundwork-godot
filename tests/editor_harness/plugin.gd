@@ -100,6 +100,7 @@ func run() -> void:
 		for frame in range(5): await get_tree().process_frame
 		var image = EditorInterface.get_base_control().get_viewport().get_texture().get_image()
 		image.save_png(OS.get_environment("GGG_EDITOR_SCREENSHOT"))
+	await check_generality(panel)
 	await check_quack(panel)
 	print("EDITOR_SMOKE: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
@@ -628,6 +629,7 @@ func check_paint_height_navigation(panel: GGEditorPanel) -> void:
 	var previous = panel.authoring.level
 	var definition = panel._definition
 	var fixture = GGLevel.new()
+	fixture.void_height = -256
 	fixture.palette = GGDefaults.palette()
 	panel._open(fixture)
 	panel._choose_definition(0)
@@ -1554,6 +1556,7 @@ func check_paint_surfaces(panel: GGEditorPanel) -> void:
 	check(fixture.entities.back().cell == Vector3i(0, 4, 1), "Paint clicks work on surfaces without a Height plane intersection")
 	panel.authoring.undo()
 	var shaped = panel._definition.duplicate(true) as GGEntityDefinition
+	shaped.definition_id = &"surface_brush"
 	shaped.shape.assign([Vector3i.DOWN, Vector3i.ZERO])
 	fixture.palette.append(shaped)
 	panel._refresh()
@@ -1694,6 +1697,7 @@ func check_paint_mode_preview(panel: GGEditorPanel) -> void:
 	surface.definition = fixture.palette[3]
 	fixture.entities.append(surface)
 	var shaped = fixture.palette[3].duplicate(true) as GGEntityDefinition
+	shaped.definition_id = &"mode_brush"
 	shaped.shape.assign([Vector3i.ZERO, Vector3i(0, -1, 1)])
 	fixture.palette.append(shaped)
 	panel._open(fixture)
@@ -1771,3 +1775,39 @@ func check_paint_outside(panel: GGEditorPanel, surface_cell: Vector3i) -> void:
 	pointer_key(view, KEY_1)
 	if not pointer_valid(view, point, "outside shortcut"): return
 	check(not view._ghost or not view._ghost.visible, "Switching to Paint outside the canvas keeps the ghost hidden")
+
+func check_generality(panel: GGEditorPanel) -> void:
+	panel._open(load("res://examples/levels/rolling.tres"))
+	panel._set_mode(2)
+	panel._select(&"block")
+	panel._entity_turns.value = 4
+	panel._coords[1].value = 2
+	panel._apply_entity()
+	check(panel.authoring.find_entity(&"block").orientation == 4, "The editor commits a full spatial orientation")
+	check(panel.viewport.board.roots[&"block"].basis.is_equal_approx(GGGrid.orientation_basis(4)), "Editor visuals follow full spatial orientation")
+	panel.authoring.undo()
+	panel._plane_picker.item_selected.emit(1)
+	check(panel.viewport.plane_normal == Vector3i.BACK and panel.stroke.plane_normal == Vector3i.BACK, "The plane picker configures both grid and authoring input")
+	panel._plane_picker.item_selected.emit(0)
+	panel._open(load("res://examples/levels/links.tres"))
+	panel._select(&"portal_entry")
+	var picker = panel._fields.get_node("target/Input") as OptionButton
+	check(picker != null, "Selected portal exposes a named target selector")
+	var target_index = -1
+	for index in picker.item_count:
+		if picker.get_item_metadata(index) == &"actor": target_index = index
+	check(target_index >= 0, "Entity selector includes available targets")
+	if target_index >= 0: picker.item_selected.emit(target_index)
+	panel._apply_entity()
+	check(panel.authoring.find_entity(&"portal_entry").resolved_properties()[&"target"] == &"actor", "Applying the selector commits the chosen entity reference")
+	panel.authoring.undo()
+	for name in ["rolling", "gravity", "links"]:
+		panel._open(load("res://examples/levels/%s.tres" % name))
+		check(panel._save_to("res://generality_%s.tres" % name), "The editor saves each genericity example")
+		panel._open(ResourceLoader.load("res://generality_%s.tres" % name, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP))
+		panel._playtest()
+		for frame in 30: await get_tree().process_frame
+		check(EditorInterface.is_playing_scene(), "The editor launches each genericity example")
+		EditorInterface.stop_playing_scene()
+		for frame in 10: await get_tree().process_frame
+	print("GENERALITY_EDITOR_SMOKE completed")

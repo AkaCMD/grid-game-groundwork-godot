@@ -6,7 +6,7 @@ Extend the resources and rules in [addons/grid_game_groundwork/](../addons/grid_
 
 ## Boundaries
 
-[data/](../addons/grid_game_groundwork/data/) defines `GGLevel`, `GGEntityDefinition` and `GGEntityPlacement`. Placements reference shared definitions and store position, orientation and explicit overrides. [GGSession](../addons/grid_game_groundwork/core/session.gd) resolves integer-grid movement independently of scene transforms and physics. Use `start`, `move`, `undo`, `redo`, `restart` and `snapshot` for gameplay.
+[data/](../addons/grid_game_groundwork/data/) defines `GGLevel`, `GGEntityDefinition` and `GGEntityPlacement`. Placements reference shared definitions and store position, orientation and explicit overrides. [GGSession](../addons/grid_game_groundwork/core/session.gd) resolves integer-grid movement independently of scene transforms and physics. Use `start`, `act`, `move`, `undo`, `redo`, `restart` and `snapshot` for gameplay.
 
 [rules/](../addons/grid_game_groundwork/rules/) supplies mechanics; [runtime/](../addons/grid_game_groundwork/runtime/) renders snapshots and handles input. [GGLevelAuthoring](../addons/grid_game_groundwork/editor/level_authoring.gd) supplies editing and save/load operations. The addon is independent of the example games.
 
@@ -18,12 +18,26 @@ The hooks in [GGGameRule](../addons/grid_game_groundwork/rules/game_rule.gd) hav
 
 | Hook | Default | Usage |
 | --- | --- | --- |
+| `resolve_action(session, command, arguments)` | Dispatches `move` commands. | Handle game-defined commands in a shared action transaction. |
+| `initial_state(level)` | Supplies down/off gravity and fall-out height. | Initialize snapshot-owned mechanic state. |
+| `allows_direction(direction)` | Accepts four cardinal XZ directions. | Enable other movement directions. |
+| `gravity_direction(session)` | Reads `mechanic_state.gravity_direction`. | Choose the current global gravity direction. |
+| `resolve_gravity(session)` | Calls `session.fall(direction)`. | Replace gravity resolution. |
+| `supports_entity(session, actor_id, support_id, direction)` | Uses `blocks_entity`. | Define runtime support independently of collision. |
+| `is_outside(session, entity_id, direction)` | Entire shape passes the fall-out limit projected onto gravity. | Define activity bounds. |
+| `on_fall_out(session, entity_id)` | Fails players and removes the entity. | Define fall-out consequences. |
+| `validate_state(session)` | Rejects solid entities blocked at their final cells. | Validate a resolved action before committing history. |
+| `validate_level(level)` | Checks authored bounds and collisions. | Validate authored gameplay arrangements. |
+| `authored_cell_allowed(level, cell)` | Requires Y above `void_height`. | Supply game-specific authoring bounds. |
+| `blocks_placement(level, actor, other)` | Rejects overlapping solid placements. | Supply authored collision policy. |
+| `authoring_gravity(level)` | Returns down. | Supply the editor's support direction. |
+| `supports_placement(level, actor, other, direction)` | Accepts solid supports. | Filter supports for the editor's snap tool. |
 | `resolve_move(session, actor_id, direction)` | Calls `session.step(...)` once. | Compose several grid steps into one action. |
 | `allows_push(session, actor_id, moving_ids, direction)` | Uses the assigned push rule, or `GGPushRule`. | Approve a planned push without changing state. |
 | `carried_entities(session, actor_id, direction)` | Returns an empty array. | Return companion IDs for this step. |
 | `blocks_entity(session, actor_id, obstacle_id, direction)` | Blocks solid entities. | Define actor-dependent obstacles and support. |
-| `after_step(session)` | Does nothing. | Handle each horizontal step, each one-cell fall and initial state before settling. |
-| `after_action(session)` | Does nothing. | Evaluate the settled board after initialization or a successful move. |
+| `after_step(session)` | Does nothing. | Handle each grid step, each one-cell fall and initial state before settling. |
+| `after_action(session)` | Does nothing. | Evaluate the settled board after initialization or an accepted action. |
 
 ```gdscript
 @tool
@@ -79,7 +93,7 @@ Custom visuals may implement `apply_entity_selection(selected: bool)`. `GGBoardV
 
 ## Native authoring and exports
 
-[GGLevel](../addons/grid_game_groundwork/data/level.gd) uses `schema_version=1` and validates resources with `validate()`. Definitions may be embedded or external; overrides remain explicit. `GGLevelAuthoring.save(path)` validates, saves external configuration, then replaces the level through a temporary file. Saving multiple resources is not a single transaction.
+[GGLevel](../addons/grid_game_groundwork/data/level.gd) accepts schemas 1 and 2; opening in `GGLevelAuthoring` migrates to schema 2. Definitions may be embedded or external; overrides remain explicit. `GGLevelAuthoring.save(path)` checks structural validity, saves external configuration, then replaces the level through a temporary file. Saving multiple resources is not a single transaction.
 
 See [development checks](development.md#checks), [export](development.md#export) and [example regeneration](development.md#regenerate-examples) for commands. Test mechanics through `GGSession` and storage changes through real `GGLevelAuthoring` save/reload checks. Design decisions are in [docs/adr/](adr/).
 
@@ -93,8 +107,22 @@ Keep placement rules in these modules; input code supplies rays and renders prev
 
 `session.select_actor(id)` accepts an existing entity with `player=true`. `player_id()` returns the selected actor or the first remaining player. Selection survives undo/redo/restart while the entity exists; a new level clears it. Runtime picking uses occupied cells and is disabled during animation.
 
-Override `resolve_move` to compose movement. Call `session.step(...)` only inside the resolver: it performs one cardinal XZ step, pushes and gravity, and appends animation stages. It creates no history and does not call `after_action`. Return true to record one complete action; false restores the preceding state and stages while preserving redo. Never call `move` recursively from a resolver or hook.
+Override `resolve_move` to compose movement. Call `session.step(...)` only inside the resolver: it performs one cardinal XYZ step, pushes and gravity, and appends animation stages. It creates no history and does not call `after_action`. Return true to record one complete action; false restores the preceding state and stages while preserving redo. Recursive `act`, `move` and history operations are refused during resolution. Call `step` only during resolution.
 
 `carried_entities` returns movable companion IDs for each step. A missing companion or a blocker outside the movement plan rejects the step; companions cannot push their obstacles. Use `after_step` for interactions that must happen before gravity continues, such as eating bread during a fall. Leave valid occupancy and store changes in session state; append a snapshot stage when a visual change needs separate animation.
 
 Resolvers must terminate for malformed layouts. The [QUACK rule](../examples/rules/quack_rule.gd) demonstrates a bounded multi-step slide and rejects unbounded movement atomically.
+
+## Commands, fields and playtest scenes
+
+`session.act(command, arguments)` starts one transaction. A false resolver result, failed settlement or invalid resolved state restores the preceding snapshot and animation stages, preserving redo. Successful actions run `after_action` and enter history once. Keep rule configuration immutable during play; store gravity direction, door states and portal latches in session or entity state. The [rolling](../examples/rules/rolling_rule.gd), [gravity](../examples/rules/gravity_rule.gd) and [linked-mechanism](../examples/rules/links_rule.gd) rules use this interface.
+
+The default `move` command remains horizontal. `step` accepts unit directions along any axis during resolution; `settle()` applies the current gravity policy. The default fall solver shares a `resolution_limit` budget across the action and rejects nonterminating settlement. Custom resolvers must bound their own loops. Calling `settle` recursively during gravity resolution rejects the action.
+
+[GGGrid](../addons/grid_game_groundwork/core/grid.gd) provides `orientation_basis(index, mirror)`, `rotated(index, axis, turns)` and `transform_cell(cell, index, mirror)`. Orientations 0-3 retain the legacy Y rotations; 4-23 cover the remaining orthogonal poses. Placement `orientation` is canonical, `quarter_turns` retains legacy access, and runtime records retain the `turns` key. World coordinates and the editor placement plane are independent of gameplay gravity.
+
+Declare [GGPropertyField](../addons/grid_game_groundwork/data/property_field.gd) resources in a definition's `fields` list. Fields have `key`, `label`, `kind`, `default_value`, `choices` and `required`. Kinds are BOOLEAN, INTEGER, FLOAT, TEXT, CHOICE, ENTITY, ENTITIES and CELL. Missing defaults use false, zero, empty text/reference/list, the first choice, or the zero cell. `required` enforces a nonempty reference or reference list. Defaults remain inherited until an explicit override is enabled. Mutable defaults are copied into each resolved entity.
+
+ENTITY and ENTITIES values are entity IDs with editor selectors and reference validation. Group copying remaps internal references, including inherited defaults, while retaining external references. Deleted targets remain missing; generated identities are independent of the current entity count. `validate_structure()` checks types and resource integrity, `validate_placement()` adds rule checks, and `validate()` adds reference checks. Draft saves require structure; playtests require full validation. Keep authored collision and support policies consistent with their runtime counterparts.
+
+Assign `GGLevel.playtest_scene` for custom controls or presentation. Its root must expose `level` or implement `configure_level(level)`; the launcher supplies the isolated level before adding the root to the scene tree. `GGLevelAuthoring.prepare_playtest(directory)` writes the temporary snapshot and launch scene. Rule resource fields and entity references are included; scripts and visual scenes remain external assets. The [gravity runtime](../examples/runtime/gravity_game.gd) demonstrates custom command input without replacing shared history.

@@ -5,7 +5,11 @@ extends Resource
 @export var entity_id: StringName
 @export var definition: GGEntityDefinition
 @export var cell: Vector3i
-@export_range(0, 3) var quarter_turns: int = 0
+@export_range(0, 23) var orientation: int = 0
+# Retain the serialized legacy field and script access used by existing games.
+@export_storage var quarter_turns: int:
+	get: return orientation
+	set(value): orientation = value
 @export var mirrored: bool = false
 @export var overrides: Dictionary = {}
 

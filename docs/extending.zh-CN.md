@@ -6,7 +6,7 @@
 
 ## 模块边界
 
-[data/](../addons/grid_game_groundwork/data/) 定义 `GGLevel`、`GGEntityDefinition` 和 `GGEntityPlacement`。放置记录引用共享定义，并保存位置、朝向和显式覆盖。[GGSession](../addons/grid_game_groundwork/core/session.gd) 结算整数网格移动，不依赖场景变换或物理模拟。游玩操作使用 `start`、`move`、`undo`、`redo`、`restart` 和 `snapshot`。
+[data/](../addons/grid_game_groundwork/data/) 定义 `GGLevel`、`GGEntityDefinition` 和 `GGEntityPlacement`。放置记录引用共享定义，并保存位置、朝向和显式覆盖。[GGSession](../addons/grid_game_groundwork/core/session.gd) 结算整数网格移动，不依赖场景变换或物理模拟。游玩操作使用 `start`、`act`、`move`、`undo`、`redo`、`restart` 和 `snapshot`。
 
 [rules/](../addons/grid_game_groundwork/rules/) 提供玩法，[runtime/](../addons/grid_game_groundwork/runtime/) 渲染快照并处理输入。[GGLevelAuthoring](../addons/grid_game_groundwork/editor/level_authoring.gd) 提供编辑和保存／加载操作。插件独立于示例游戏。
 
@@ -18,12 +18,26 @@
 
 | 钩子 | 默认行为 | 用途 |
 | --- | --- | --- |
+| `resolve_action(session, command, arguments)` | 分发 `move` 指令。 | 在共享动作事务中处理游戏指令。 |
+| `initial_state(level)` | 提供向下／关闭重力和掉落高度。 | 初始化快照包含的机制状态。 |
+| `allows_direction(direction)` | 接受 XZ 四向。 | 允许其他移动方向。 |
+| `gravity_direction(session)` | 读取 `mechanic_state.gravity_direction`。 | 选择当前全局重力方向。 |
+| `resolve_gravity(session)` | 调用 `session.fall(direction)`。 | 替换重力结算。 |
+| `supports_entity(session, actor_id, support_id, direction)` | 使用 `blocks_entity`。 | 独立定义运行时支撑。 |
+| `is_outside(session, entity_id, direction)` | 完整形状越过沿重力方向投影的掉落界限。 | 定义活动边界。 |
+| `on_fall_out(session, entity_id)` | 玩家失败并移除该实体。 | 定义掉落后果。 |
+| `validate_state(session)` | 拒绝实心实体在终点被阻挡。 | 提交历史前检查动作结果。 |
+| `validate_level(level)` | 检查设计布局的边界和碰撞。 | 校验玩法布局。 |
+| `authored_cell_allowed(level, cell)` | 要求 Y 高于 `void_height`。 | 提供玩法的编辑边界。 |
+| `blocks_placement(level, actor, other)` | 拒绝实心布局重叠。 | 定义设计布局的碰撞策略。 |
+| `authoring_gravity(level)` | 返回向下。 | 提供编辑器支撑方向。 |
+| `supports_placement(level, actor, other, direction)` | 接受实心支撑。 | 筛选吸附工具的支撑面。 |
 | `resolve_move(session, actor_id, direction)` | 调用一次 `session.step(...)`。 | 将多个步骤组合成一个动作。 |
 | `allows_push(session, actor_id, moving_ids, direction)` | 使用指定的推动规则，未指定则使用 `GGPushRule`。 | 判断是否允许推动计划，不修改状态。 |
 | `carried_entities(session, actor_id, direction)` | 返回空数组。 | 返回本步同行实体 ID。 |
 | `blocks_entity(session, actor_id, obstacle_id, direction)` | 实心实体阻挡。 | 定义因角色而异的障碍与支撑。 |
-| `after_step(session)` | 无操作。 | 处理每次水平位移、每格下落及初始重力结算前的交互。 |
-| `after_action(session)` | 无操作。 | 初始化或成功移动后，检查结算完成的棋盘。 |
+| `after_step(session)` | 无操作。 | 处理每次网格位移、每格下落及初始重力结算前的交互。 |
+| `after_action(session)` | 无操作。 | 初始化或动作接受后，检查结算完成的棋盘。 |
 
 ```gdscript
 @tool
@@ -79,7 +93,7 @@ func allows(session: GGSession, actor_id: StringName,
 
 ## 原生资源与导出
 
-[GGLevel](../addons/grid_game_groundwork/data/level.gd) 使用 `schema_version=1`，通过 `validate()` 校验资源。定义可内嵌或外置，属性覆盖保持显式记录。`GGLevelAuthoring.save(path)` 先校验并保存外部配置，再通过临时文件替换关卡；多资源保存不是单个事务。
+[GGLevel](../addons/grid_game_groundwork/data/level.gd) 接受版本 1 和 2，由 `GGLevelAuthoring` 打开时迁移至版本 2。定义可内嵌或外置，属性覆盖保持显式记录。`GGLevelAuthoring.save(path)` 先检查结构并保存外部配置，再通过临时文件替换关卡；多资源保存不是单个事务。
 
 命令见[开发检查](development.zh-CN.md#检查)、[导出](development.zh-CN.md#导出)和[重新生成示例](development.zh-CN.md#重新生成示例)。玩法通过 `GGSession` 测试，存储修改通过真实的 `GGLevelAuthoring` 保存／重载检查。设计决策见 [docs/adr/](adr/)。
 
@@ -93,8 +107,22 @@ func allows(session: GGSession, actor_id: StringName,
 
 `session.select_actor(id)` 接受具有 `player=true` 的现存实体。`player_id()` 返回选中角色或第一个剩余玩家。实体仍存在时，撤销／重做／重开保留选择；新关卡会清空选择。运行时按占格拾取，动画期间禁用拾取。
 
-重写 `resolve_move` 可组合移动。仅在解析器中调用 `session.step(...)`：它结算一个 XZ 四向步骤、推动和重力，并追加动画阶段，不创建历史，也不调用 `after_action`。返回 true 记录一个完整动作；返回 false 恢复之前的状态与阶段，并保留重做。禁止在解析器或钩子中递归调用 `move`。
+重写 `resolve_move` 可组合移动。仅在解析器中调用 `session.step(...)`：它结算一个 XYZ 轴向步骤、推动和重力，并追加动画阶段，不创建历史，也不调用 `after_action`。返回 true 记录一个完整动作；返回 false 恢复之前的状态与阶段，并保留重做。结算期间拒绝递归 `act`、`move` 和历史操作。仅在结算期间调用 `step`。
 
 `carried_entities` 返回每步可移动的同行实体 ID。实体不存在或被计划外实体阻挡时，整步拒绝；同行实体不能推动障碍。重力继续前必须处理的交互应放在 `after_step`，例如吃掉下落途中的面包。保持合法占格，将修改存入会话；外观变化需要独立动画时，追加快照阶段。
 
 解析器面对异常布局也必须终止。[QUACK 规则](../examples/rules/quack_rule.gd)展示了有界多步滑行，并会整体拒绝无界移动。
+
+## 指令、字段与试玩场景
+
+`session.act(command, arguments)` 开始一次事务。解析器返回 false、重力结算失败或最终状态非法时，恢复先前快照与动画阶段，并保留重做。接受的动作运行 `after_action` 并仅记录一次历史。游玩期间保持规则配置不变，将重力方向、门状态和传送门锁存状态放在会话或实体状态中。[翻滚](../examples/rules/rolling_rule.gd)、[重力](../examples/rules/gravity_rule.gd)和[关联机关](../examples/rules/links_rule.gd)规则使用此接口。
+
+默认 `move` 指令仍为水平移动。`step` 在结算期间接受任一轴的单位方向；`settle()` 应用当前重力策略。默认下落求解在整个动作中共用 `resolution_limit` 预算，无法终止时拒绝动作。自定义解析器须限制自己的循环；重力结算期间递归调用 `settle` 会拒绝动作。
+
+[GGGrid](../addons/grid_game_groundwork/core/grid.gd) 提供 `orientation_basis(index, mirror)`、`rotated(index, axis, turns)` 和 `transform_cell(cell, index, mirror)`。朝向 0-3 保留原有 Y 旋转，4-23 表示其他正交姿态。放置记录以 `orientation` 为准，`quarter_turns` 保留兼容访问，运行时记录继续使用 `turns` 键。世界坐标和编辑平面独立于游戏重力。
+
+在定义的 `fields` 列表中声明 [GGPropertyField](../addons/grid_game_groundwork/data/property_field.gd) 资源。字段包含 `key`、`label`、`kind`、`default_value`、`choices` 和 `required`。类型为 BOOLEAN、INTEGER、FLOAT、TEXT、CHOICE、ENTITY、ENTITIES、CELL。缺省值分别使用 false、零、空文本／引用／列表、首个选项或零坐标。`required` 要求引用或引用列表非空。启用显式覆盖前，实体持续继承默认值；可变默认值会复制到各实体。
+
+ENTITY 和 ENTITIES 值是实体 ID，提供编辑选择器与引用校验。整组复制会重映射组内引用，包括继承的默认引用，同时保留组外引用。删除目标后保留缺失引用，生成身份不依赖当前实体数量。`validate_structure()` 检查类型和资源结构，`validate_placement()` 加入规则检查，`validate()` 再加入引用检查。保存草稿要求结构合法，试玩要求完整校验。编辑态碰撞与支撑策略应和运行时对应策略保持一致。
+
+指定 `GGLevel.playtest_scene` 可使用专用控制和表现。其根节点须提供 `level` 属性或 `configure_level(level)`，启动器在加入场景树前注入隔离关卡。`GGLevelAuthoring.prepare_playtest(directory)` 写入临时快照与启动场景。快照包含规则资源字段和实体引用；脚本与外观场景保留为外部资源。[重力运行场景](../examples/runtime/gravity_game.gd)展示了自定义指令输入，并复用共享历史。

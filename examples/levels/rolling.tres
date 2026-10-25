@@ -1,0 +1,155 @@
+[gd_resource type="Resource" script_class="GGLevel" format=3 uid="uid://dwqx8vimcrjxt"]
+
+[ext_resource type="Script" uid="uid://c3ebklv7aopjr" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="1_d0ap0"]
+[ext_resource type="Script" uid="uid://c4vl36n76mjjf" path="res://addons/grid_game_groundwork/data/property_field.gd" id="2_aypyk"]
+[ext_resource type="Script" uid="uid://dc0bwfls8ti8r" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="3_xunl7"]
+[ext_resource type="PackedScene" path="res://examples/visuals/rolling.tscn" id="4_a3naf"]
+[ext_resource type="Script" uid="uid://2padj6u7npq0" path="res://examples/rules/rolling_rule.gd" id="5_iax1b"]
+[ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="6_5ylu1"]
+
+[sub_resource type="Resource" id="Resource_abwvb"]
+script = ExtResource("3_xunl7")
+definition_id = &"floor"
+display_name = "Floor"
+movable = false
+affected_by_gravity = false
+color = Color(0.3764706, 0.46666667, 0.54901963, 1)
+properties = {
+"ground": true
+}
+
+[sub_resource type="Resource" id="Resource_yff58"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_0_0"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(0, -1, 0)
+
+[sub_resource type="Resource" id="Resource_o8uu3"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_0_1"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(0, -1, 1)
+
+[sub_resource type="Resource" id="Resource_hkmuh"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_0_2"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(0, -1, 2)
+
+[sub_resource type="Resource" id="Resource_uc11a"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_1_0"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(1, -1, 0)
+
+[sub_resource type="Resource" id="Resource_8vc2n"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_1_1"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(1, -1, 1)
+
+[sub_resource type="Resource" id="Resource_61qbe"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_1_2"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(1, -1, 2)
+
+[sub_resource type="Resource" id="Resource_xuv5u"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_2_0"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(2, -1, 0)
+
+[sub_resource type="Resource" id="Resource_dbbt0"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_2_1"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(2, -1, 1)
+
+[sub_resource type="Resource" id="Resource_qrlvi"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_2_2"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(2, -1, 2)
+
+[sub_resource type="Resource" id="Resource_2a4m7"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_3_0"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(3, -1, 0)
+
+[sub_resource type="Resource" id="Resource_2rbst"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_3_1"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(3, -1, 1)
+
+[sub_resource type="Resource" id="Resource_m4n4k"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_3_2"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(3, -1, 2)
+
+[sub_resource type="Resource" id="Resource_m4828"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_4_0"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(4, -1, 0)
+
+[sub_resource type="Resource" id="Resource_jgykn"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_4_1"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(4, -1, 1)
+
+[sub_resource type="Resource" id="Resource_vwmt2"]
+script = ExtResource("1_d0ap0")
+entity_id = &"floor_4_2"
+definition = SubResource("Resource_abwvb")
+cell = Vector3i(4, -1, 2)
+
+[sub_resource type="Resource" id="Resource_ovia0"]
+script = ExtResource("3_xunl7")
+definition_id = &"block"
+display_name = "Block"
+shape = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(0, 1, 0)])
+color = Color(0.20392157, 0.28235295, 0.3764706, 1)
+visual_scene = ExtResource("4_a3naf")
+properties = {
+"player": true
+}
+
+[sub_resource type="Resource" id="Resource_akeru"]
+script = ExtResource("1_d0ap0")
+entity_id = &"block"
+definition = SubResource("Resource_ovia0")
+cell = Vector3i(0, 0, 1)
+
+[sub_resource type="Resource" id="Resource_b5t1d"]
+script = ExtResource("3_xunl7")
+definition_id = &"goal"
+display_name = "Goal"
+solid = false
+movable = false
+affected_by_gravity = false
+color = Color(1, 0.84313726, 0, 1)
+properties = {
+"goal": true
+}
+
+[sub_resource type="Resource" id="Resource_1hbba"]
+script = ExtResource("1_d0ap0")
+entity_id = &"goal"
+definition = SubResource("Resource_b5t1d")
+cell = Vector3i(3, 0, 1)
+
+[sub_resource type="Resource" id="Resource_g2xrq"]
+script = ExtResource("5_iax1b")
+
+[resource]
+script = ExtResource("6_5ylu1")
+schema_version = 2
+title = "Marked rolling block: D, D"
+palette = Array[ExtResource("3_xunl7")]([SubResource("Resource_abwvb"), SubResource("Resource_ovia0"), SubResource("Resource_b5t1d")])
+entities = Array[ExtResource("1_d0ap0")]([SubResource("Resource_yff58"), SubResource("Resource_o8uu3"), SubResource("Resource_hkmuh"), SubResource("Resource_uc11a"), SubResource("Resource_8vc2n"), SubResource("Resource_61qbe"), SubResource("Resource_xuv5u"), SubResource("Resource_dbbt0"), SubResource("Resource_qrlvi"), SubResource("Resource_2a4m7"), SubResource("Resource_2rbst"), SubResource("Resource_m4n4k"), SubResource("Resource_m4828"), SubResource("Resource_jgykn"), SubResource("Resource_vwmt2"), SubResource("Resource_akeru"), SubResource("Resource_1hbba")])
+game_rule = SubResource("Resource_g2xrq")

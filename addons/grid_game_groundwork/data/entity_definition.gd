@@ -35,6 +35,7 @@ extends Resource
 	set(value):
 		visual_scene = value
 		emit_changed()
+@export var fields: Array[GGPropertyField] = []
 @export var properties: Dictionary = {"pushable": true, "transmits_push": true, "weight": 1.0}:
 	set(value):
 		properties = value
@@ -42,6 +43,10 @@ extends Resource
 
 func defaults() -> Dictionary:
 	var values = properties.duplicate(true)
+	for field in fields:
+		if field and not values.has(field.key):
+			var value = field.value_or_default()
+			values[field.key] = value.duplicate(true) if value is Array or value is Dictionary else value
 	values["solid"] = solid
 	values["movable"] = movable
 	values["gravity"] = affected_by_gravity

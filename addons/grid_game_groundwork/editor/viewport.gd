@@ -14,6 +14,7 @@ var board: GGBoardView
 var world: Node3D
 var level: GGLevel
 var layer: int = 0
+var plane_normal = Vector3i.UP
 var _paint_height = 0.0
 var _grid: MeshInstance3D
 var _ghost: Node3D
@@ -117,6 +118,17 @@ func frame_level() -> void:
 		_zoom = maxf(6.0, maxf(maximum.x - minimum.x, maximum.z - minimum.z) * 1.4 + maximum.y - minimum.y + 2)
 	_camera_position()
 
+func set_plane(normal: Vector3i) -> void:
+	cancel_move()
+	plane_normal = normal
+	stroke.set_plane(normal)
+	set_layer(layer)
+
+func _plane_point(u: float, v: float) -> Vector3:
+	if plane_normal == Vector3i.UP: return Vector3(u, layer - 0.49, v)
+	if plane_normal == Vector3i.BACK: return Vector3(u, v, layer - 0.49)
+	return Vector3(layer - 0.49, u, v)
+
 func set_layer(value: int) -> void:
 	layer = value
 	_paint_height = float(value)
@@ -130,10 +142,10 @@ func set_layer(value: int) -> void:
 	material.albedo_color = Color("39485e")
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
 	for i in range(-20, 21):
-		mesh.surface_add_vertex(Vector3(i - 0.5, layer - 0.49, -20.5))
-		mesh.surface_add_vertex(Vector3(i - 0.5, layer - 0.49, 20.5))
-		mesh.surface_add_vertex(Vector3(-20.5, layer - 0.49, i - 0.5))
-		mesh.surface_add_vertex(Vector3(20.5, layer - 0.49, i - 0.5))
+		mesh.surface_add_vertex(_plane_point(i - 0.5, -20.5))
+		mesh.surface_add_vertex(_plane_point(i - 0.5, 20.5))
+		mesh.surface_add_vertex(_plane_point(-20.5, i - 0.5))
+		mesh.surface_add_vertex(_plane_point(20.5, i - 0.5))
 	mesh.surface_end()
 	_grid.mesh = mesh
 
@@ -147,16 +159,16 @@ func _camera_position() -> void:
 func _translate_camera(offset: Vector3) -> void:
 	_pivot += offset
 	_camera_position()
-	var height = _paint_height + offset.y
+	var height = _paint_height + offset.dot(Vector3(plane_normal))
 	if roundi(height) != layer:
 		set_layer(roundi(height))
 	_paint_height = height
 
 func cell_at(point: Vector2) -> Variant:
-	var hit = Plane(Vector3.UP, layer).intersects_ray(camera.project_ray_origin(point), camera.project_ray_normal(point))
+	var hit = Plane(Vector3(plane_normal), layer).intersects_ray(camera.project_ray_origin(point), camera.project_ray_normal(point))
 	if hit == null:
 		return null
-	return Vector3i(roundi(hit.x), layer, roundi(hit.z))
+	return Vector3i(hit.round())
 
 # Paint uses logical cell faces, keeping custom visual geometry out of occupancy rules.
 
@@ -207,8 +219,7 @@ func show_ghost(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirr
 	_ghost = GGBoardView.make_visual(definition, definition.defaults())
 	world.add_child(_ghost)
 	_ghost.position = Vector3(cell)
-	_ghost.rotation.y = -turns * PI / 2.0
-	_ghost.scale.x = -1 if mirrored else 1
+	_ghost.basis = GGGrid.orientation_basis(turns, mirrored)
 	_tint_ghost(_ghost, Color(0.5, 1.0, 0.8, 0.45) if valid else Color(1.0, 0.2, 0.2, 0.6))
 
 func _tint_ghost(node: Node, color: Color) -> void:

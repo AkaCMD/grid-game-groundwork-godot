@@ -17,6 +17,7 @@ var _visited: Dictionary = {}
 var _height_offset = 0
 var _manual_height = false
 var _preview_lift = 0
+var plane_normal = Vector3i.UP
 
 func _init(authoring: GGLevelAuthoring) -> void:
 	_authoring = authoring
@@ -34,6 +35,12 @@ func configure(definition: GGEntityDefinition, mode: int, turns: int = 0, mirror
 	_turns = turns
 	_mirrored = mirrored
 	_shape_mode = shape_mode
+
+func set_plane(normal: Vector3i) -> void:
+	finish()
+	plane_normal = normal
+	_authoring.placement_normal = normal
+	reset_height()
 
 func is_active() -> bool:
 	return _active
@@ -58,7 +65,7 @@ func reset_height() -> void:
 	_preview_lift = 0
 
 func preview_error(cell: Vector3i) -> String:
-	if not _manual_height or (_active and _visited.values().has(cell)): return ""
+	if _mode != Mode.PAINT or _shape_mode or (_active and _visited.values().has(cell)): return ""
 	return _authoring.placement_error(_definition, cell, _turns, _mirrored)
 
 func begin() -> void:
@@ -80,7 +87,7 @@ func _reset() -> void:
 func preview(origin: Vector3, direction: Vector3, height: int) -> Variant:
 	var cell = _cell_at(origin, direction, height)
 	var target = _placement(cell) if cell != null else null
-	_preview_lift = target.y - cell.y if target != null else 0
+	_preview_lift = int(Vector3(target - cell).dot(Vector3(plane_normal))) if target != null else 0
 	return target
 
 func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringName = &"") -> bool:
@@ -106,8 +113,9 @@ func _placement(cell: Vector3i) -> Variant:
 	# Revisited cells retain the placement already shown/painted this stroke,
 	# rather than previewing another entity stacked on the one just created.
 	if _active and _visited.has(cell): return _visited[cell]
-	if _manual_height: return cell + Vector3i.UP * _height_offset
-	return _authoring.placement_cell(_definition, cell, _turns, _mirrored)
+	if _manual_height: return cell + plane_normal * _height_offset
+	var target = _authoring.placement_cell(_definition, cell, _turns, _mirrored)
+	return target if target != null else cell
 
 func _cell_at(origin: Vector3, direction: Vector3, height: int) -> Variant:
 	if _mode == Mode.PAINT and not _shape_mode and _definition:
@@ -125,8 +133,8 @@ func _cell_at(origin: Vector3, direction: Vector3, height: int) -> Variant:
 			var target: Vector3i = hit.cell + normal
 			target[axis] -= edge
 			return target
-	var hit = Plane(Vector3.UP, height).intersects_ray(origin, direction)
-	return Vector3i(roundi(hit.x), height, roundi(hit.z)) if hit != null else null
+	var hit = Plane(Vector3(plane_normal), height).intersects_ray(origin, direction)
+	return Vector3i(hit.round()) if hit != null else null
 
 func _occupied_cells() -> Array[Vector3i]:
 	var cells: Array[Vector3i] = []

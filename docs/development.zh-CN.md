@@ -11,7 +11,7 @@ python3 tools/check.py --godot /path/to/godot
 python3 tools/check.py --godot /path/to/godot --editor-smoke
 ```
 
-[运行器](../tools/check.py)导入并检查脚本类型，随后检查玩法、编辑与保存／加载、选择、笔画、QUACK 和运行时。`--editor-smoke` 还会在临时项目中检查编辑流程。可执行文件依次取自 `--godot`、`GODOT` 环境变量或 PATH 中的 `godot`。Windows 下使用 `python`；输出编码错误时，设置 `PYTHONUTF8=1`。
+[运行器](../tools/check.py)导入并检查脚本类型，随后检查玩法、编辑与保存／加载、选择、笔画、QUACK、运行时、通用模型和三个扩展示例。`--editor-smoke` 还会在临时项目中检查编辑流程。可执行文件依次取自 `--godot`、`GODOT` 环境变量或 PATH 中的 `godot`。Windows 下使用 `python`；输出编码错误时，设置 `PYTHONUTF8=1`。
 
 截取编辑器画面并检查表面渲染时，需要图形显示环境：
 
@@ -43,9 +43,10 @@ python3 -m http.server --directory build/web 8000
 ```sh
 godot --headless --path . --script tools/create_examples.gd
 godot --headless --path . --script tools/create_quack.gd
+godot --headless --path . --script tools/create_generality_examples.gd
 ```
 
-[create_examples.gd](../tools/create_examples.gd) 重建推箱子和管道，[create_quack.gd](../tools/create_quack.gd) 重建 QUACK。随后重新运行检查。精灵图许可证见[第三方声明](../THIRD_PARTY_NOTICES.zh-CN.md#quack-on-ice-精灵图)。
+[create_examples.gd](../tools/create_examples.gd) 重建推箱子和管道，[create_quack.gd](../tools/create_quack.gd) 重建 QUACK。[create_generality_examples.gd](../tools/create_generality_examples.gd) 重建翻滚、重力和关联机关。随后重新运行检查。精灵图许可证见[第三方声明](../THIRD_PARTY_NOTICES.zh-CN.md#quack-on-ice-精灵图)。
 
 ## 移动时序
 

@@ -81,8 +81,7 @@ func show_state(state: Dictionary, duration: float = 0.0) -> Tween:
 			roots[id] = visual
 			visual.position = Vector3(entity.cell)
 		var root: Node3D = roots[id]
-		root.rotation.y = -entity.turns * PI / 2.0
-		root.scale.x = -1.0 if entity.mirror else 1.0
+		root.basis = GGGrid.orientation_basis(entity.turns, entity.mirror)
 		if tween:
 			tween.tween_property(root, "position", Vector3(entity.cell), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		else:

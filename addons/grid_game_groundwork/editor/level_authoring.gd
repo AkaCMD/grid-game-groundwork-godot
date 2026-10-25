@@ -8,6 +8,7 @@ signal stroke_ended
 signal level_opened
 var level: GGLevel
 var dirty = false
+var placement_normal = Vector3i.UP
 var last_error: String = ""
 var _history: Array[Dictionary] = []
 var _future: Array[Dictionary] = []
@@ -17,6 +18,7 @@ var _stroke_recorded = false
 func open(value: GGLevel) -> void:
 	end_stroke()
 	level = value
+	level.migrate()
 	_history.clear()
 	_future.clear()
 	dirty = false
@@ -79,6 +81,31 @@ func save_playtest(path: String) -> Error:
 	last_error = "" if error == OK else "Could not prepare playtest (error %d)." % error
 	return error
 
+func prepare_playtest(directory: String) -> String:
+	var error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+	if error != OK:
+		last_error = "Could not create playtest directory."
+		return ""
+	var resource_path = directory.path_join("playtest.tres")
+	if save_playtest(resource_path) != OK: return ""
+	var entry = GGPlaytest.new()
+	entry.name = "Playtest"
+	entry.level = ResourceLoader.load(resource_path, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	var packed = PackedScene.new()
+	error = packed.pack(entry)
+	entry.free()
+	var scene_path = directory.path_join("playtest.tscn")
+	if error == OK: error = ResourceSaver.save(packed, scene_path)
+	if error != OK:
+		last_error = "Could not prepare playtest scene."
+		return ""
+	return scene_path
+
+func set_playtest_scene(scene: PackedScene) -> void:
+	_record()
+	level.playtest_scene = scene
+	_notify()
+
 func _copy_configuration(value: Variant, copies: Dictionary, restore_cached: bool = false) -> Variant:
 	# Keep script identities and scene assets external. Bundling scripts would
 	# redefine their global class names when the temporary level is loaded.
@@ -112,7 +139,7 @@ func snapshot() -> Dictionary:
 	var shapes = {}
 	for definition in level.palette:
 		shapes[definition] = definition.shape.duplicate()
-	return {"entities": level.copy_entities(), "palette": level.palette.duplicate(), "shapes": shapes, "title": level.title, "gravity": level.gravity_enabled, "void": level.void_height, "rule": level.game_rule}
+	return {"entities": level.copy_entities(), "palette": level.palette.duplicate(), "shapes": shapes, "title": level.title, "gravity": level.gravity_enabled, "void": level.void_height, "rule": level.game_rule, "host": level.playtest_scene}
 
 func _restore(state: Dictionary) -> void:
 	level.entities.clear()
@@ -126,6 +153,7 @@ func _restore(state: Dictionary) -> void:
 	level.gravity_enabled = state.gravity
 	level.void_height = state.void
 	level.game_rule = state.rule
+	level.playtest_scene = state.host
 	_notify()
 
 func begin_stroke() -> void:
@@ -151,41 +179,37 @@ func _notify() -> void:
 	changed.emit()
 
 func placement_cell(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> Variant:
-	if definition.shape.is_empty():
-		return null
+	if definition.shape.is_empty(): return null
 	var candidate = GGEntityPlacement.new()
 	candidate.definition = definition
 	candidate.cell = cell
-	candidate.quarter_turns = turns
+	candidate.orientation = turns
 	candidate.mirrored = mirrored
 	candidate.overrides = overrides
-	if not candidate.resolved_properties().get("solid", true):
-		return cell
-	var occupied = {}
-	var highest = cell.y
-	for entity in level.entities:
-		if entity.resolved_properties().get("solid", true):
-			for used_cell in entity.occupied_cells():
-				occupied[used_cell] = true
-				highest = maxi(highest, used_cell.y)
-	var min_offset = 0
-	for offset in definition.shape:
-		min_offset = mini(min_offset, offset.y)
-	# Finite bound: above the highest occupied cell, even a downward-extending shape fits.
-	while candidate.cell.y <= highest - min_offset + 1:
-		var overlap = false
-		for occupied_cell in candidate.occupied_cells():
-			if occupied.has(occupied_cell):
-				overlap = true
-				break
-		if not overlap:
-			return candidate.cell
-		candidate.cell.y += 1
+	for lift in _lift_offsets([candidate]):
+		var target = cell + placement_normal * lift
+		if placement_error(definition, target, turns, mirrored, overrides).is_empty(): return target
 	return null
+
+func _lift_offsets(candidates: Array[GGEntityPlacement]) -> Array:
+	# Only occupied cells can end a collision interval. Sparse distant terrain
+	# must not turn a rejected placement into a walk through empty space.
+	var offsets = {0: true}
+	for entity in level.entities:
+		for used in entity.occupied_cells():
+			for candidate in candidates:
+				for cell in candidate.occupied_cells():
+					var delta = used - cell
+					var height = int(Vector3(delta).dot(Vector3(placement_normal)))
+					if height >= 0 and delta == placement_normal * height: offsets[height + 1] = true
+	var result = offsets.keys()
+	result.sort()
+	return result
 
 func paint(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
 	var target = placement_cell(definition, cell, turns, mirrored, overrides)
 	if target == null:
+		last_error = placement_error(definition, cell, turns, mirrored, overrides)
 		return false
 	return _paint_at(definition, target, turns, mirrored, overrides)
 
@@ -198,12 +222,10 @@ func placement_error(definition: GGEntityDefinition, cell: Vector3i, turns: int 
 	candidate.mirrored = mirrored
 	candidate.overrides = overrides
 	# Validate a proposed level without temporarily modifying the live resource.
-	var proposed = GGLevel.new()
-	proposed.schema_version = level.schema_version
-	proposed.void_height = level.void_height
-	proposed.entities.assign(level.entities)
+	var proposed: GGLevel = level.duplicate(false)
+	proposed.entities = level.entities.duplicate()
 	proposed.entities.append(candidate)
-	return "\n".join(proposed.validate())
+	return "\n".join(proposed.validate_placement())
 
 func paint_exact(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
 	last_error = placement_error(definition, cell, turns, mirrored, overrides)
@@ -227,13 +249,7 @@ func _paint_at(definition: GGEntityDefinition, target: Vector3i, turns: int, mir
 	return true
 
 func _next_id(prefix: StringName) -> StringName:
-	var used = {}
-	for entity in level.entities:
-		used[entity.entity_id] = true
-	var number = 1
-	while used.has(StringName("%s_%d" % [prefix, number])):
-		number += 1
-	return StringName("%s_%d" % [prefix, number])
+	return StringName("%s_%s" % [prefix, ResourceUID.id_to_text(ResourceUID.create_id()).trim_prefix("uid://")])
 
 func find_entity(id: StringName) -> GGEntityPlacement:
 	for entity in level.entities:
@@ -258,7 +274,7 @@ func position_error(id: StringName, cell: Vector3i) -> String:
 	# without emitting changes or recording a speculative edit in history.
 	var original = entity.cell
 	entity.cell = cell
-	var errors = level.validate()
+	var errors = level.validate_placement()
 	entity.cell = original
 	return "\n".join(errors)
 
@@ -287,7 +303,7 @@ func translation_error(ids: Array[StringName], offset: Vector3i) -> String:
 	if entities.is_empty(): return last_error
 	# Validate every destination simultaneously, excluding all vacated cells.
 	for entity in entities: entity.cell += offset
-	var errors = level.validate()
+	var errors = level.validate_placement()
 	for entity in entities: entity.cell -= offset
 	return "\n".join(errors)
 
@@ -303,36 +319,39 @@ func translate_entities(ids: Array[StringName], offset: Vector3i) -> bool:
 func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 	var sources = _selected_entities(ids)
 	if sources.is_empty(): return []
-	last_error = "\n".join(level.validate())
+	last_error = "\n".join(level.validate_placement())
 	if not last_error.is_empty(): return []
 	var copies: Array[GGEntityPlacement] = []
-	var columns = {}
-	for entity in level.entities:
-		if not entity.resolved_properties().get("solid", true): continue
-		for cell in entity.occupied_cells():
-			var column = Vector2i(cell.x, cell.z)
-			if not columns.has(column): columns[column] = []
-			columns[column].append(cell.y)
-	# Each same-column solid cell pair forbids exactly one lift. Search this
-	# finite set rather than walking all the empty space below tall entities.
-	var blocked_lifts = {}
+	var identities = {}
 	for source in sources:
 		var copied = source.copy()
 		copied.cell += Vector3i.RIGHT
+		copied.entity_id = _next_id(copied.definition.definition_id)
+		identities[source.entity_id] = copied.entity_id
 		copies.append(copied)
-		if not copied.resolved_properties().get("solid", true): continue
-		for cell in copied.occupied_cells():
-			for height in columns.get(Vector2i(cell.x, cell.z), []):
-				if height >= cell.y: blocked_lifts[height - cell.y] = true
-	var lift = 0
-	while blocked_lifts.has(lift): lift += 1
+	var bases = copies.map(func(entity): return entity.cell)
+	var found = false
+	for lift in _lift_offsets(copies):
+		for index in copies.size(): copies[index].cell = bases[index] + placement_normal * lift
+		level.entities.append_array(copies)
+		var errors = level.validate_placement()
+		for copied in copies: level.entities.erase(copied)
+		if errors.is_empty():
+			found = true
+			break
+	if not found:
+		last_error = "No valid destination for the copied group."
+		return []
 	var result: Array[StringName] = []
 	for copied in copies:
-		copied.cell += Vector3i.UP * lift
-		copied.entity_id = _next_id(copied.definition.definition_id)
+		for field in copied.definition.fields:
+			if field and field.kind in [GGPropertyField.Kind.ENTITY, GGPropertyField.Kind.ENTITIES]:
+				var value = copied.resolved_properties().get(field.key)
+				var mapped = field.remap(value, identities)
+				if mapped != value: copied.overrides[field.key] = mapped
 		result.append(copied.entity_id)
 		level.entities.append(copied)
-	last_error = "\n".join(level.validate())
+	last_error = "\n".join(level.validate_placement())
 	for copied in copies: level.entities.erase(copied)
 	if not last_error.is_empty(): return []
 	end_stroke()
@@ -350,25 +369,27 @@ func ground_position(id: StringName, cell: Vector3i) -> Variant:
 	var candidate = entity.copy()
 	candidate.cell = cell
 	var cells = candidate.occupied_cells()
-	var distance: int = 0
+	var direction = level.rule().authoring_gravity(level)
+	if direction == Vector3i.ZERO:
+		last_error = "No support direction configured."
+		return null
+	var distance = 0
 	var found = false
-	# The first occupied cell to meet any other solid holds the entire rigid
-	# shape. Compare grid columns directly instead of simulating a long fall.
 	for other in level.entities:
-		if other.entity_id == id or not other.resolved_properties().get("solid", true):
-			continue
+		if other.entity_id == id or not level.rule().supports_placement(level, candidate, other, direction): continue
 		for support in other.occupied_cells():
 			for occupied in cells:
-				if support.x != occupied.x or support.z != occupied.z or support.y >= occupied.y:
-					continue
-				var gap = occupied.y - support.y - 1
+				var delta = support - occupied
+				var projected = int(Vector3(delta).dot(Vector3(direction)))
+				if projected <= 0 or delta != direction * projected: continue
+				var gap = projected - 1
 				if not found or gap < distance:
 					distance = gap
 					found = true
 	if not found:
 		last_error = "No supporting surface below the selected entity."
 		return null
-	var target = cell + Vector3i.DOWN * distance
+	var target = cell + direction * distance
 	last_error = position_error(id, target)
 	return target if last_error.is_empty() else null
 
@@ -378,10 +399,10 @@ func edit_entity(id: StringName, cell: Vector3i, turns: int, mirrored: bool, ove
 		return false
 	var original = entity.copy()
 	entity.cell = cell
-	entity.quarter_turns = posmod(turns, 4)
+	entity.quarter_turns = posmod(turns, 24)
 	entity.mirrored = mirrored
 	entity.overrides = overrides.duplicate(true)
-	var errors = level.validate()
+	var errors = level.validate_placement()
 	entity.cell = original.cell
 	entity.quarter_turns = original.quarter_turns
 	entity.mirrored = original.mirrored
@@ -391,7 +412,7 @@ func edit_entity(id: StringName, cell: Vector3i, turns: int, mirrored: bool, ove
 		return false
 	_record()
 	entity.cell = cell
-	entity.quarter_turns = posmod(turns, 4)
+	entity.quarter_turns = posmod(turns, 24)
 	entity.mirrored = mirrored
 	entity.overrides = overrides.duplicate(true)
 	_notify()
@@ -435,24 +456,21 @@ func transform_level(mirror: bool) -> void:
 	for entity in level.entities:
 		entity.cell = GGGrid.transform_cell(entity.cell, 0 if mirror else 1, mirror)
 		if mirror:
-			entity.quarter_turns = posmod(-entity.quarter_turns, 4)
+			var reflection = Basis.from_scale(Vector3(-1, 1, 1))
+			entity.orientation = GGGrid.orientation_index(reflection * GGGrid.orientation_basis(entity.orientation) * reflection)
 			entity.mirrored = not entity.mirrored
 		else:
-			entity.quarter_turns = posmod(entity.quarter_turns + 1, 4)
+			entity.orientation = GGGrid.rotated(entity.orientation, Vector3i.UP)
 	_notify()
 
 func fill_floor(definition: GGEntityDefinition, origin: Vector3i, width: int, depth: int) -> void:
 	begin_stroke()
-	var occupied = {}
-	for entity in level.entities:
-		if entity.resolved_properties().get("solid", true):
-			for cell in entity.occupied_cells():
-				occupied[cell] = true
 	for x in width:
 		for z in depth:
-			var cell = origin + Vector3i(x, 0, z)
-			if not occupied.has(cell):
-				paint(definition, cell)
+			var axes = [Vector3i.RIGHT, Vector3i.BACK] if placement_normal == Vector3i.UP else ([Vector3i.RIGHT, Vector3i.UP] if placement_normal == Vector3i.BACK else [Vector3i.UP, Vector3i.BACK])
+			var cell = origin + axes[0] * x + axes[1] * z
+			if placement_error(definition, cell).is_empty():
+				paint_exact(definition, cell)
 	end_stroke()
 
 func undo() -> bool:
@@ -472,7 +490,7 @@ func redo() -> bool:
 	return true
 
 func save(path: String) -> Error:
-	var errors = level.validate()
+	var errors = level.validate_structure()
 	if not errors.is_empty():
 		last_error = "\n".join(errors)
 		return ERR_INVALID_DATA

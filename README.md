@@ -4,7 +4,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, pipes, and QUACK!!! on ICE.
+A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, pipes, QUACK!!! on ICE, rolling blocks, changing gravity and linked mechanisms.
 
 Use **Godot Standard** with the **Compatibility renderer**. The [project configuration](project.godot) declares Godot 4.7; see [development checks](docs/development.md#checks) for the test setup.
 
@@ -30,8 +30,8 @@ To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `
 | Area | Included |
 | --- | --- |
 | Authoring | Paint, erase, move groups, edit occupied cells, validate and save native `.tres` levels. |
-| Entities | Shared definitions, per-entity overrides and custom visual scenes. |
-| Gameplay | 3D occupancy, pushing, stacking, gravity and complete-action undo/redo. |
+| Entities | Shared definitions, named fields, entity references, per-entity overrides and custom visual scenes. |
+| Gameplay | 24 orthogonal orientations, configurable rules and complete-action undo/redo. |
 | Integration | Custom rules and visuals, completion/failure signals, Linux and Web export presets. |
 
 ## Essential controls
@@ -53,6 +53,9 @@ Click the viewport/game to focus it. Editing shortcuts leave text and property i
 | --- | --- |
 | [Sokoban](examples/sokoban.tscn) | Push ordinary and L-shaped crates, including chains, onto all goals; use elevated platforms and undo falls. |
 | [Pipes](examples/pipes.tscn) | Push straight and elbow pipes to connect every destination to a source through matching ports; connected pipes light up. |
+| [Rolling block](examples/rolling.tscn) | Press **D twice** to roll the marked block onto its goal with the required face down. |
+| [Changing gravity](examples/gravity.tscn) | **1-6** select down/up/left/right/forward/back; **0** turns gravity off. **Q/E** moves along Y. |
+| [Linked mechanisms](examples/links.tscn) | Hold a pressure switch with a crate, cross an open door, and enter a directed portal. [Walkthrough](docs/designer-guide.md#additional-rule-examples). |
 | [QUACK!!! on ICE](examples/quack.tscn) | Click between three ducks, slide to eat bread, drop between platforms and use fed ducks as stoppers. [Rules and seven-move walkthrough](docs/quack-example.md). |
 
 ![QUACK!!! on ICE: three ducks on two platforms](docs/media/quack.png)
@@ -69,6 +72,7 @@ The addon handles individual levels. Campaign menus, unlocking, persistent progr
 - [Extension guide](docs/extending.md) · [中文扩展指南](docs/extending.zh-CN.md): rules, visuals and runtime integration.
 - [Development](docs/development.md) · [中文开发说明](docs/development.zh-CN.md): checks, export and example regeneration.
 - [QUACK example](docs/quack-example.md) · [中文示例说明](docs/quack-example.zh-CN.md): rules and a walkthrough.
+- [Domain language](CONTEXT.md) · [中文术语](CONTEXT.zh-CN.md): shared concepts; [rule extensibility decision](docs/adr/0010-share-authoring-across-game-rules.md).
 - [Editor surface coverage](docs/editor-surface-coverage.md) · [中文材质支持说明](docs/editor-surface-coverage.zh-CN.md): custom-material support and limits.
 
 Inspired by Corey Martin's [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork). QUACK is based on [QUACK!!! on ICE](https://akacmd.itch.io/quack-on-ice) ([source](https://github.com/AkaCMD/Bevy_Jam_4)). See [third-party notices](THIRD_PARTY_NOTICES.md).

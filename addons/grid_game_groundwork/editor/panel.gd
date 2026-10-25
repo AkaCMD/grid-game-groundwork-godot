@@ -39,6 +39,9 @@ var _muted_labels: Array[Label] = []
 var _heading_labels: Array[Label] = []
 var _scale = 1.0
 var _height: SpinBox
+var _plane_picker: OptionButton
+var _fields: GGFieldsEditor
+var _host_picker: EditorResourcePicker
 var _turns: SpinBox
 var _mirror: CheckBox
 var _shape_mode: CheckButton
@@ -182,8 +185,18 @@ func _build_tools() -> void:
 	_height.allow_greater = true
 	_height.tooltip_text = "Placement plane (Page Up / Page Down); also used by Fill ground"
 	_height.value_changed.connect(func(value): viewport.set_layer(int(value)))
+	_plane_picker = OptionButton.new()
+	for plane in ["XZ plane", "XY plane", "YZ plane"]: _plane_picker.add_item(plane)
+	_plane_picker.item_selected.connect(func(index): viewport.set_plane([Vector3i.UP, Vector3i.BACK, Vector3i.RIGHT][index]))
+	context.add_child(_plane_picker)
 	_brush_controls = _row(context)
-	_turns = _spin(_brush_controls, "Quarter turns", 0, 3, 0)
+	_turns = _spin(_brush_controls, "Orientation", 0, 23, 0)
+	for axis in 3:
+		_button(_brush_controls, ["X↻", "Y↻", "Z↻"][axis], func():
+			var direction = Vector3i.ZERO
+			direction[axis] = 1
+			_turns.value = GGGrid.rotated(int(_turns.value), direction)
+		)
 	_mirror = CheckBox.new()
 	_mirror.text = "Mirror brush"
 	_brush_controls.add_child(_mirror)
@@ -229,11 +242,20 @@ func _build_selection(right: VBoxContainer) -> void:
 		_coords.append(_spin(_single_entity, axis, -1024, 1024, 0))
 		_coords.back().allow_greater = true
 		_coords.back().allow_lesser = true
-	_entity_turns = _spin(_single_entity, "Quarter turns", 0, 3, 0)
+	_entity_turns = _spin(_single_entity, "Orientation", 0, 23, 0)
+	var rotate_row = _row(_single_entity)
+	for axis in 3:
+		_button(rotate_row, ["Rotate X", "Rotate Y", "Rotate Z"][axis], func():
+			var direction = Vector3i.ZERO
+			direction[axis] = 1
+			_entity_turns.value = GGGrid.rotated(int(_entity_turns.value), direction)
+		)
 	_entity_mirror = CheckBox.new()
 	_entity_mirror.text = "Mirrored"
 	_single_entity.add_child(_entity_mirror)
-	var overrides = _fold(_single_entity, "Property overrides")
+	_fields = GGFieldsEditor.new()
+	_single_entity.add_child(_fields)
+	var overrides = _fold(_single_entity, "Advanced property overrides")
 	_note(overrides, "Only add values that differ from the definition.")
 	_inspector = EditorInspector.new()
 	_inspector.custom_minimum_size.y = 170 * _scale
@@ -242,6 +264,7 @@ func _build_selection(right: VBoxContainer) -> void:
 	_reset_button = _button(overrides, "Reset all overrides", func():
 		_overrides = GGPropertyOverrides.new()
 		_inspector.edit(_overrides)
+		_fields.configure(authoring.level, authoring.find_entity(selection.active_id()), _overrides.overrides)
 	, "Reload", "Clear the draft overrides; click Apply entity changes to commit")
 	_apply_button = _button(_single_entity, "Apply entity changes", _apply_entity, "Apply")
 	_note(_single_entity, "Property edits take effect when applied.")
@@ -270,6 +293,14 @@ func _build_level_settings(right: VBoxContainer) -> void:
 	_rule_picker.resource_selected.connect(func(resource, _inspect): EditorInterface.edit_resource(resource))
 	right.add_child(_rule_picker)
 	_note(right, "Rule changes apply immediately.")
+	_label(right, "Playtest scene (optional)")
+	_host_picker = EditorResourcePicker.new()
+	_host_picker.base_type = "PackedScene"
+	_host_picker.resource_changed.connect(func(resource):
+		if not _updating: authoring.set_playtest_scene(resource)
+	)
+	right.add_child(_host_picker)
+	_note(right, "Use this game's controls and presentation when playtesting.")
 	var floor = _fold(right, "Fill ground")
 	_floor_hint = _note(floor, "Select a single-cell Ground definition in the palette.")
 	_floor_height = _spin(floor, "Height", -64, 128, 0)
@@ -279,7 +310,7 @@ func _build_level_settings(right: VBoxContainer) -> void:
 	_floor_width = _spin(floor, "Width", 1, 64, 8)
 	_floor_depth = _spin(floor, "Depth", 1, 64, 8)
 	_floor_button = _button(floor, "Fill ground", _fill_floor, "Grid", "Fill using the selected Ground definition at the current height")
-	_note(floor, "Starts at X=0, Z=0. Existing solid cells are skipped. Height is shared with the placement plane.")
+	_note(floor, "Fill the chosen plane from its origin. Width and Depth follow its axes. Invalid cells are skipped.")
 	var transform = _fold(right, "Transform entire level")
 	_note(transform, "Affects all entities. Each operation can be undone.")
 	_button(transform, "Rotate level 90°", func(): authoring.transform_level(false), "RotateRight")
@@ -481,6 +512,7 @@ func _refresh() -> void:
 	_gravity.set_pressed_no_signal(level.gravity_enabled)
 	_void.set_value_no_signal(level.void_height)
 	_rule_picker.edited_resource = level.game_rule
+	_host_picker.edited_resource = level.playtest_scene
 	_palette.clear()
 	for definition in level.palette:
 		var swatch = Image.create(16, 16, false, Image.FORMAT_RGBA8)
@@ -660,6 +692,7 @@ func _update_selection() -> void:
 	_overrides = GGPropertyOverrides.new()
 	_overrides.overrides = entity.overrides.duplicate(true)
 	_inspector.edit(_overrides)
+	_fields.configure(authoring.level, entity, _overrides.overrides)
 
 func _sync_coordinates() -> void:
 	if selection.active_id() != &"":
@@ -690,8 +723,9 @@ func _fill_floor() -> void:
 	if not _definition or _definition.shape.size() != 1 or not _definition.defaults().get("ground", false):
 		_set_status("Select a single-cell Ground entity in the palette first.")
 		return
-	authoring.fill_floor(_definition, Vector3i(0, int(_height.value), 0), int(_floor_width.value), int(_floor_depth.value))
-	_set_status("Ground filled. Set height to 0 to place entities above a floor at -1.")
+	var origin = viewport.plane_normal * int(_height.value)
+	authoring.fill_floor(_definition, origin, int(_floor_width.value), int(_floor_depth.value))
+	_set_status("Ground filled on the selected placement plane.")
 
 func _validate() -> bool:
 	var errors = authoring.level.validate()
@@ -742,22 +776,10 @@ func _save_to(path: String) -> bool:
 func _playtest() -> void:
 	if not _validate():
 		return
-	# Write a disposable copy, not the authored level. Playing never writes back.
-	var dir = "res://.godot/grid_groundwork"
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
-	var resource_path = dir + "/playtest.tres"
-	var error = authoring.save_playtest(resource_path)
-	if error != OK:
-		_set_status("Could not prepare playtest (error %d)." % error)
+	var scene_path = authoring.prepare_playtest("res://.godot/grid_groundwork")
+	if scene_path.is_empty():
+		_set_status(authoring.last_error)
 		return
-	var scene_path = dir + "/playtest.tscn"
-	var scene = '[gd_scene load_steps=3 format=3]\n[ext_resource type="Script" path="res://addons/grid_game_groundwork/runtime/game.gd" id="1"]\n[ext_resource type="Resource" path="%s" id="2"]\n[node name="Playtest" type="Node3D"]\nscript = ExtResource("1")\nlevel = ExtResource("2")\n' % resource_path
-	var file = FileAccess.open(scene_path, FileAccess.WRITE)
-	if not file:
-		_set_status("Could not write temporary playtest scene.")
-		return
-	file.store_string(scene)
-	file.close()
 	EditorInterface.play_custom_scene(scene_path)
 
 func _new_definition() -> void:

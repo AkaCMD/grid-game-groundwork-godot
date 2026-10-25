@@ -4,7 +4,7 @@
 
 [English](README.md) | **简体中文**
 
-用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、管道连接和 QUACK!!! on ICE 三个示例。
+用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、管道、QUACK!!! on ICE、翻滚方块、重力切换和关联机关六个示例。
 
 使用 **Godot 标准版**和 **Compatibility 渲染器**。[项目配置](project.godot)声明使用 Godot 4.7，测试环境见[开发检查](docs/development.zh-CN.md#检查)。
 
@@ -30,8 +30,8 @@
 | 类别 | 功能 |
 | --- | --- |
 | 关卡编辑 | 绘制、擦除、整组移动、占格编辑、校验与原生 `.tres` 保存。 |
-| 实体 | 共享定义、单实体属性覆盖与自定义外观场景。 |
-| 玩法 | 三维占格、推动、堆叠、重力与完整动作撤销／重做。 |
+| 实体 | 共享定义、具名字段、实体引用、单实体属性覆盖与自定义外观场景。 |
+| 玩法 | 24 种正交朝向、可配置规则与完整动作撤销／重做。 |
 | 接入 | 自定义规则与外观、完成／失败信号、Linux 和 Web 导出预设。 |
 
 ## 常用操作
@@ -53,6 +53,9 @@
 | --- | --- |
 | [推箱子](examples/sokoban.tscn) | 将普通箱子和 L 形箱子推到全部目标上；支持连推、高低平台与下落回退。 |
 | [管道连接](examples/pipes.tscn) | 推动直管和弯管，通过方向匹配的端口把全部终点接到源头；连通管道会亮起。 |
+| [翻滚方块](examples/rolling.tscn) | 按两次 **D**，将带面标记的长方块以指定朝向滚到目标。 |
+| [重力切换](examples/gravity.tscn) | **1-6** 选择下／上／左／右／前／后重力，**0** 关闭重力；**Q/E** 沿 Y 移动。 |
+| [关联机关](examples/links.tscn) | 用箱子压住开关，穿过开启的门，再进入单向传送门。[解法](docs/designer-guide.zh-CN.md#其他规则示例)。 |
 | [QUACK!!! on ICE](examples/quack.tscn) | 点击切换三只鸭子，滑行吃面包、从上层落到下层，利用吃饱的鸭子挡停其他鸭子。[完整规则与七步解法](docs/quack-example.zh-CN.md)。 |
 
 ![QUACK!!! on ICE：双层平台上的三只鸭子](docs/media/quack.png)
@@ -69,6 +72,7 @@
 - [扩展指南](docs/extending.zh-CN.md) · [English](docs/extending.md)：规则、外观与运行时接入。
 - [开发说明](docs/development.zh-CN.md) · [English](docs/development.md)：检查、导出与示例重新生成。
 - [QUACK 示例](docs/quack-example.zh-CN.md) · [English](docs/quack-example.md)：规则与解法。
+- [领域术语](CONTEXT.zh-CN.md) · [English](CONTEXT.md)：共享概念与[规则扩展决策](docs/adr/0010-share-authoring-across-game-rules.zh-CN.md)。
 - [编辑器模型表面支持](docs/editor-surface-coverage.zh-CN.md) · [English](docs/editor-surface-coverage.md)：自定义材质支持与限制。
 
 灵感来自 Corey Martin 的 [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork)。QUACK 基于 [QUACK!!! on ICE 原作](https://akacmd.itch.io/quack-on-ice)（[源码](https://github.com/AkaCMD/Bevy_Jam_4)）。参见[第三方声明](THIRD_PARTY_NOTICES.zh-CN.md)。
