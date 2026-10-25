@@ -18,6 +18,7 @@ func _init() -> void:
 	_test_linked_policy_copy()
 	_test_reset_field_draft()
 	_test_exact_grid_transforms()
+	_test_missing_inherited_references()
 	print("Generality: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures else 0)
 
@@ -339,3 +340,35 @@ func _test_exact_grid_transforms() -> void:
 	check(entity.occupied_cells().has(Vector3i(33554434, 1, 16777219)), "Occupied cells retain integer precision beyond float mantissa range")
 	for turn in 4: editor.transform_level(false)
 	check(entity.cell == original, "Four world-axis turns exactly restore distant integer coordinates")
+
+func _test_missing_inherited_references() -> void:
+	var definition = GGEntityDefinition.new()
+	definition.definition_id = &"linked"
+	for kind in [GGPropertyField.Kind.ENTITY, GGPropertyField.Kind.ENTITIES]:
+		var field = GGPropertyField.new()
+		field.key = &"target" if kind == GGPropertyField.Kind.ENTITY else &"targets"
+		field.kind = kind
+		field.default_value = &"deleted" if kind == GGPropertyField.Kind.ENTITY else [&"deleted"]
+		definition.fields.append(field)
+	var source = GGEntityPlacement.new()
+	source.entity_id = &"source"
+	source.definition = definition
+	source.overrides = {&"target": &"valid", &"targets": [&"valid"]}
+	var target = GGEntityPlacement.new()
+	target.entity_id = &"valid"
+	target.cell = Vector3i.RIGHT
+	target.definition = GGEntityDefinition.new()
+	var level = GGLevel.new()
+	level.entities.assign([source, target])
+	check(level.validate().is_empty(), "Explicit valid references can cover missing inherited defaults")
+	var form = GGFieldsEditor.new()
+	var draft = source.overrides.duplicate(true)
+	form.configure(level, source, draft)
+	form.get_node("target/Override").button_pressed = false
+	var picker = form.get_node("target/Input") as OptionButton
+	check(picker.get_item_metadata(picker.selected) == &"deleted" and picker.get_item_text(picker.selected).begins_with("Missing:"), "Disabling a reference override reveals its actual missing inherited target")
+	form.get_node("targets/Override").button_pressed = false
+	var list = form.get_node("targets/Input") as ItemList
+	var selected = list.get_selected_items()
+	check(selected.size() == 1 and list.get_item_metadata(selected[0]) == &"deleted" and list.get_item_text(selected[0]).begins_with("Missing:"), "Reference lists reveal missing inherited targets when overrides are disabled")
+	form.free()

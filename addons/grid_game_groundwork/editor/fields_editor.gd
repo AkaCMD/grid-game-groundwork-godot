@@ -21,7 +21,7 @@ func configure(level: GGLevel, entity: GGEntityPlacement, overrides: Dictionary)
 		var inherited = entity.definition.defaults().get(field.key, field.value_or_default())
 		var value = overrides.get(field.key, inherited)
 		var current = [value]
-		var input = _make_input(field, value, level, func(next):
+		var input = _make_input(field, value, inherited, level, func(next):
 			current[0] = next
 			overrides[field.key] = next
 		)
@@ -72,7 +72,7 @@ func _entity_options(level: GGLevel, values: Array) -> Array:
 		if not found: options.append([StringName(id), "Missing: %s" % id])
 	return options
 
-func _make_input(field: GGPropertyField, value: Variant, level: GGLevel, commit: Callable) -> Control:
+func _make_input(field: GGPropertyField, value: Variant, inherited: Variant, level: GGLevel, commit: Callable) -> Control:
 	match field.kind:
 		GGPropertyField.Kind.BOOLEAN:
 			var input = CheckBox.new()
@@ -93,7 +93,7 @@ func _make_input(field: GGPropertyField, value: Variant, level: GGLevel, commit:
 			input.fit_to_longest_item = false
 			var options = []
 			if field.kind == GGPropertyField.Kind.ENTITY:
-				options = [[&"", "None"]] + _entity_options(level, [value])
+				options = [[&"", "None"]] + _entity_options(level, [value, inherited])
 			else:
 				for choice in field.choices: options.append([choice, choice])
 			for option in options:
@@ -107,7 +107,7 @@ func _make_input(field: GGPropertyField, value: Variant, level: GGLevel, commit:
 			var input = ItemList.new()
 			input.select_mode = ItemList.SELECT_MULTI
 			input.custom_minimum_size.y = 100
-			for option in _entity_options(level, value):
+			for option in _entity_options(level, value + inherited):
 				input.add_item(option[1])
 				var index = input.item_count - 1
 				input.set_item_metadata(index, option[0])
