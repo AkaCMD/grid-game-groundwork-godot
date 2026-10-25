@@ -4,49 +4,43 @@
 
 [English](README.md) | **简体中文**
 
-用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、即时试玩，并用 GDScript 扩展玩法。附带推箱子、管道连接和 QUACK!!! on ICE 三个示例。
+用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、管道连接和 QUACK!!! on ICE 三个示例。
 
-**Godot 标准版 · Compatibility 渲染器**。项目声明使用 Godot 4.7，文档记录的测试版本为 4.7.2。
+使用 **Godot 标准版**和 **Compatibility 渲染器**。[项目配置](project.godot)声明使用 Godot 4.7，测试环境见[开发检查](docs/development.zh-CN.md#检查)。
 
 ![移动、推动、下落、撤销和重做](docs/media/gameplay.gif)
 
 ## 快速开始
 
-1. 在 Godot 中导入 `project.godot`，打开顶部的 **Grid Levels**。若未显示，在 **项目 → 项目设置 → 插件** 中启用 **Grid Game Groundwork**。
-2. 点击 **File → Open…**，打开 `examples/levels/sokoban.tres`、`pipes.tres` 或 `quack.tres`。
-3. 在左侧选择实体。按 **1 / 2 / 3** 切换绘制、擦除、选择；拖动选中实体的轴或平面手柄可按格移动，单选时按 **End** 向下贴地。
-4. 点击 **Save** 保存，再点击 **Playtest** 试玩；**Stop** 返回编辑。试玩不会改变设计好的关卡，未保存的编辑仍需保存。
+1. 在 Godot 中导入 `project.godot`，等待导入完成。
+2. 打开顶部的 **Grid Levels**。若未显示，在 **项目 → 项目设置 → 插件**中启用 **Grid Game Groundwork**。
+3. 点击 **File → Open…**，打开 `examples/levels/sokoban.tres`。
+4. 在左侧选择 **Crate**，使用 **Paint (1)** 点击地面放置箱子。切换 **Select (3)**，选中箱子并拖动移动手柄。
+5. 通过 **File → Save as…** 将布局另存为项目中的新 `.tres` 文件。
+6. 点击 **Playtest**，使用 **WASD／方向键**移动，按 **Z** 撤销。点击 **Stop** 返回编辑。
+
+试玩包含未保存的编辑，不会改变设计好的关卡。**Save as…** 复制布局，但保留对共享定义与规则的引用。修改默认值前，请先阅读[保存与共享资源说明](docs/designer-guide.zh-CN.md#实体定义属性覆盖与形状)。
 
 直接运行项目可玩推箱子；打开 `examples/pipes.tscn` 或 `examples/quack.tscn` 后运行当前场景可玩其他示例。推箱子开局按两次 **S**，可将箱子推落到下层平台。
 
-![新版编辑器操作：绘制、Shift 多选、Q/E 升降、整组拖动、Delete、撤销重做与工具快捷键](docs/media/authoring.gif)
-
-演示包含 **Shift+点击**多选、**Q/E** 整组升降、整组拖动、**Delete**、**Ctrl+Z / Ctrl+Shift+Z**、**Page Up/Down** 和 **1/2/3** 工具切换。
-
-绘制工具始终可见，共享实体定义集中在左侧，右侧以页签分开选中实体属性与关卡设置；操作提示和结果反馈紧邻画布。
+![关卡编辑操作：绘制、Shift 多选、Q/E 升降、整组拖动、Delete、撤销重做与工具快捷键](docs/media/authoring.gif)
 
 ## 功能一览
 
-| 类别 | 已包含功能 |
+| 类别 | 功能 |
 | --- | --- |
-| 关卡编辑 | 新建、打开、保存、另存为 `.tres`；记住上次保存的关卡；未保存提示；校验；隔离试玩及停止。 |
-| 绘制 | 拖动绘制／擦除、表面吸附、自动堆叠、高度平面、画笔旋转／镜像、右键吸管、矩形地面填充。 |
-| 选择与移动 | Shift 多选；XYZ 轴及 XY/XZ/YZ 平面手柄；整格吸附；Delete 删除所选；单选 End 贴地；整组复制／删除；非法位置反馈与取消。 |
-| 实体配置 | 可复用定义；新建／导入／保存资源；Inspector 默认值；单实体类型化属性覆盖；可视化三维占格编辑；自定义模型场景。 |
-| 视图 | 模型表面蓝色选择／红色擦除反馈；考虑遮挡与透明度的拾取；环绕、平移、缩放、取景；自由飞行及速度调节。 |
-| 关卡工具 | 标题、重力、掉落边界和规则资源；整关旋转／镜像；编辑撤销与重做。 |
-| 玩法 | XZ 四向移动、多格形状、显式地面、刚性悬挑、堆叠、重力、掉出关卡及连锁推动；推动权限与力量／重量规则预设。 |
-| 历史与输入 | 完整动作撤销／重做、可撤销的重开、胜负后回退、点击切换角色、分阶段动画及快速输入缓冲。 |
-| 扩展与导出 | 自定义移动、交互、障碍、胜利条件和外观；完成／失败信号；Linux 与单线程 Web 导出预设。 |
-
-各项编辑功能及限制见 [用户指南](docs/designer-guide.zh-CN.md)，编程接口见 [扩展指南](docs/extending.md)。
+| 关卡编辑 | 绘制、擦除、整组移动、占格编辑、校验与原生 `.tres` 保存。 |
+| 实体 | 共享定义、单实体属性覆盖与自定义外观场景。 |
+| 玩法 | 三维占格、推动、堆叠、重力与完整动作撤销／重做。 |
+| 接入 | 自定义规则与外观、完成／失败信号、Linux 和 Web 导出预设。 |
 
 ## 常用操作
 
 | 场景 | 操作 |
 | --- | --- |
-| 编辑 | **1 / 2 / 3**：绘制／擦除／选择 · **Shift+点击**：增减选择 · **End**：单实体向下贴地 · **Esc**：取消移动 |
-| 编辑摄像机 | **WASD**：飞行 · **Q/E**：下降／上升 · 右键拖动：转向 · 右键+滚轮：速度 · **Page Up/Down**：放置高度 |
+| 编辑 | **1 / 2 / 3**：绘制／擦除／选择 · **Shift+点击**：增减选择 · **Delete**：删除所选 · **End**：单实体向下贴地 · **Esc**：取消移动 |
+| 编辑高度 | **Q/E**：降低／抬升 Paint 预览或 Select 中的选中实体 · **Page Up/Down**：放置平面 |
+| 编辑摄像机 | **WASD**：飞行 · 右键+**Q/E**：下降／上升 · 右键拖动：转向 · 右键+滚轮：速度 |
 | 编辑历史 | **Ctrl/Cmd+S**：保存 · **Ctrl/Cmd+Z**：撤销 · **Ctrl/Cmd+Shift+Z** 或 **Ctrl/Cmd+Y**：重做 |
 | 游玩 | **WASD／方向键**：移动 · 点击：选角色 · **Z / Y / R**：撤销／重做／重开 |
 | 编辑与游玩摄像机 | 中键拖动：环绕 · **Shift+中键拖动**：平移 · 滚轮：缩放 · **F**：完整取景 |
@@ -59,7 +53,7 @@
 | --- | --- |
 | [推箱子](examples/sokoban.tscn) | 将普通箱子和 L 形箱子推到全部目标上；支持连推、高低平台与下落回退。 |
 | [管道连接](examples/pipes.tscn) | 推动直管和弯管，通过方向匹配的端口把全部终点接到源头；连通管道会亮起。 |
-| [QUACK!!! on ICE](examples/quack.tscn) | 点击切换三只鸭子，滑行吃面包、从上层落到下层，利用吃饱的鸭子挡停其他鸭子。[完整规则与七步解法](docs/quack-example.md)。 |
+| [QUACK!!! on ICE](examples/quack.tscn) | 点击切换三只鸭子，滑行吃面包、从上层落到下层，利用吃饱的鸭子挡停其他鸭子。[完整规则与七步解法](docs/quack-example.zh-CN.md)。 |
 
 ![QUACK!!! on ICE：双层平台上的三只鸭子](docs/media/quack.png)
 
@@ -72,9 +66,9 @@
 ## 文档
 
 - [中文用户指南](docs/designer-guide.zh-CN.md) · [English designer guide](docs/designer-guide.md)
-- [扩展指南](docs/extending.md)：规则、外观与运行时接入。
-- [开发说明](docs/development.md)：检查、导出与示例重新生成。
-- [编辑器模型表面支持](docs/editor-surface-coverage.md)：自定义材质支持与限制。
-- [领域术语](CONTEXT.md) · [设计决策](docs/adr/)
+- [扩展指南](docs/extending.zh-CN.md) · [English](docs/extending.md)：规则、外观与运行时接入。
+- [开发说明](docs/development.zh-CN.md) · [English](docs/development.md)：检查、导出与示例重新生成。
+- [QUACK 示例](docs/quack-example.zh-CN.md) · [English](docs/quack-example.md)：规则与解法。
+- [编辑器模型表面支持](docs/editor-surface-coverage.zh-CN.md) · [English](docs/editor-surface-coverage.md)：自定义材质支持与限制。
 
-灵感来自 Corey Martin 的 [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork)。QUACK 基于 [QUACK!!! on ICE 原作](https://akacmd.itch.io/quack-on-ice)（[源码](https://github.com/AkaCMD/Bevy_Jam_4)）。参见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+灵感来自 Corey Martin 的 [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork)。QUACK 基于 [QUACK!!! on ICE 原作](https://akacmd.itch.io/quack-on-ice)（[源码](https://github.com/AkaCMD/Bevy_Jam_4)）。参见[第三方声明](THIRD_PARTY_NOTICES.zh-CN.md)。

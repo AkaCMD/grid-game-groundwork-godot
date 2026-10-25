@@ -6,47 +6,41 @@
 
 A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, pipes, and QUACK!!! on ICE.
 
-**Godot Standard · Compatibility renderer**. The project declares Godot 4.7; the documented test version is 4.7.2.
+Use **Godot Standard** with the **Compatibility renderer**. The [project configuration](project.godot) declares Godot 4.7; see [development checks](docs/development.md#checks) for the test setup.
 
 ![Movement, pushing, falling, undo and redo](docs/media/gameplay.gif)
 
 ## Quick start
 
-1. Import `project.godot` in Godot and open **Grid Levels** in the top toolbar. If missing, enable **Grid Game Groundwork** in **Project → Project Settings → Plugins**.
-2. Click **File → Open…** and choose `examples/levels/sokoban.tres`, `pipes.tres`, or `quack.tres`.
-3. Choose an entity from the palette. Use **1 / 2 / 3** to paint, erase, or select. Drag the selection's axis or plane handles to move by whole cells; **End** snaps a single selected entity down to support.
-4. Click **Save**, then **Playtest**. Click **Stop** to return to editing. Play never changes your authored level; unsaved edits still need saving.
+1. Import `project.godot` in Godot and wait for the import to finish.
+2. Open **Grid Levels** in the top toolbar. If it is missing, enable **Grid Game Groundwork** in **Project → Project Settings → Plugins**.
+3. Choose **File → Open…** and open `examples/levels/sokoban.tres`.
+4. Choose **Crate** in the left palette, select **Paint (1)**, and click the ground to place a crate. Use **Select (3)** to select it and drag a movement handle.
+5. Choose **File → Save as…** to save your layout to a new `.tres` file in the project.
+6. Click **Playtest**, then use **WASD / arrows** to move and **Z** to undo. Click **Stop** to return to editing.
+
+Playtest includes unsaved edits without changing the authored level. **Save as…** copies the layout but keeps references to shared definitions and rules. Read [saving and shared resources](docs/designer-guide.md#definitions-overrides-and-shapes) before changing their defaults.
 
 To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
-![Current editor: painting, Shift multi-selection, Q/E height changes, group dragging, Delete, undo/redo, and tool shortcuts](docs/media/authoring.gif)
-
-The demo shows **Shift+click** multi-selection, **Q/E** group height changes, group dragging, **Delete**, **Ctrl+Z / Ctrl+Shift+Z**, **Page Up/Down**, and **1/2/3** tool switching.
-
-The editor keeps painting tools visible, groups shared definitions on the left, and separates selected-entity properties from level settings on the right. Tool hints and operation results stay close to the canvas.
+![Level authoring: painting, Shift multi-selection, Q/E height changes, group dragging, Delete, undo/redo, and tool shortcuts](docs/media/authoring.gif)
 
 ## Features
 
 | Area | Included |
 | --- | --- |
-| Level editing | New/open/save/save as `.tres`; remembered last saved level; unsaved-change prompts; validation; isolated playtest and stop. |
-| Painting | Drag paint/erase, surface snapping, automatic stacking, height plane, brush rotation/mirroring, eyedropper, rectangular ground fill. |
-| Selection | Shift-click multi-selection; XYZ and XY/XZ/YZ movement handles; whole-cell snapping; single-entity End snap; duplicate/delete groups; invalid-move feedback and cancellation. |
-| Entities | Reusable definitions; create/import/save assets; Inspector defaults; per-entity typed overrides; visual 3D occupied-cell editing; custom visual scenes. |
-| Presentation | Blue selection and red erase feedback on model surfaces, occlusion and transparency-aware picking; orbit/pan/zoom/frame; free camera flight and adjustable speed. |
-| Level tools | Title, gravity and fall-out settings; game-rule picker; rotate/mirror the whole level; authoring undo/redo. |
-| Gameplay | Cardinal XZ movement, multi-cell shapes, explicit ground, rigid overhangs, stacking, gravity, fall-out and chain pushing; permission and strength/weight push presets. |
-| History and input | Complete-action undo/redo, undoable restart, recovery after success/failure, click to switch actors, staged animation and buffered rapid input. |
-| Extension and export | Custom movement, interactions, obstacles, win conditions and visuals; completion/failure signals; Linux and single-threaded Web export presets. |
-
-The [designer guide](docs/designer-guide.md) explains each editing feature and its limits. The [extension guide](docs/extending.md) covers programming interfaces.
+| Authoring | Paint, erase, move groups, edit occupied cells, validate and save native `.tres` levels. |
+| Entities | Shared definitions, per-entity overrides and custom visual scenes. |
+| Gameplay | 3D occupancy, pushing, stacking, gravity and complete-action undo/redo. |
+| Integration | Custom rules and visuals, completion/failure signals, Linux and Web export presets. |
 
 ## Essential controls
 
 | Context | Controls |
 | --- | --- |
 | Editor | **1 / 2 / 3**: Paint / Erase / Select · **Shift+click**: toggle selection · **Delete**: delete selection · **End**: snap one entity down · **Esc**: cancel a move |
-| Editor camera | **WASD**: fly · **Q/E**: down/up · right drag: look · right+wheel: speed · **Page Up/Down**: placement height |
+| Editor height | **Q/E**: lower/raise the Paint preview or the selected entities in Select · **Page Up/Down**: placement plane |
+| Editor camera | **WASD**: fly · right+**Q/E**: down/up · right drag: look · right+wheel: speed |
 | Editor history | **Ctrl/Cmd+S**: save · **Ctrl/Cmd+Z**: undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y**: redo |
 | Play | **WASD / arrows**: move · click: select actor · **Z / Y / R**: undo / redo / restart |
 | Camera, editor or play | Middle drag: orbit · **Shift+middle drag**: pan · wheel: zoom · **F**: frame |
@@ -72,9 +66,9 @@ The addon handles individual levels. Campaign menus, unlocking, persistent progr
 ## Documentation
 
 - [Designer guide](docs/designer-guide.md) · [中文用户指南](docs/designer-guide.zh-CN.md)
-- [Extension guide](docs/extending.md) — rules, visuals and runtime integration.
-- [Development](docs/development.md) — checks, export and example regeneration.
-- [Editor surface coverage](docs/editor-surface-coverage.md) — custom-material support and limits.
-- [Domain language](CONTEXT.md) · [Design decisions](docs/adr/)
+- [Extension guide](docs/extending.md) · [中文扩展指南](docs/extending.zh-CN.md): rules, visuals and runtime integration.
+- [Development](docs/development.md) · [中文开发说明](docs/development.zh-CN.md): checks, export and example regeneration.
+- [QUACK example](docs/quack-example.md) · [中文示例说明](docs/quack-example.zh-CN.md): rules and a walkthrough.
+- [Editor surface coverage](docs/editor-surface-coverage.md) · [中文材质支持说明](docs/editor-surface-coverage.zh-CN.md): custom-material support and limits.
 
 Inspired by Corey Martin's [Grid Game Groundwork for Unity](https://github.com/corey-martin/grid-game-groundwork). QUACK is based on [QUACK!!! on ICE](https://akacmd.itch.io/quack-on-ice) ([source](https://github.com/AkaCMD/Bevy_Jam_4)). See [third-party notices](THIRD_PARTY_NOTICES.md).

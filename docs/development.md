@@ -1,6 +1,8 @@
 # Development
 
-[README](../README.md) · [中文说明](../README.zh-CN.md)
+**English** | [简体中文](development.zh-CN.md) · [README](../README.md)
+
+Run commands from the repository root. Use Godot Standard with Compatibility rendering, as configured in [project.godot](../project.godot). The checks below passed with Godot 4.7.2 (`ed1daf0bf`) on 2026-10-25.
 
 ## Checks
 
@@ -9,69 +11,21 @@ python3 tools/check.py --godot /path/to/godot
 python3 tools/check.py --godot /path/to/godot --editor-smoke
 ```
 
-The runner accepts `--godot`, the `GODOT` environment variable, or `godot` on PATH. Use Godot Standard with Compatibility rendering. The project declares Godot 4.7; the documented test version is 4.7.2.
+[The runner](../tools/check.py) imports and typechecks scripts, then checks gameplay, authoring/save-load, selection, strokes, QUACK and runtime behavior. `--editor-smoke` also checks the editor workflow in a disposable project. Executable lookup uses `--godot`, then `GODOT`, then `godot` on PATH. On Windows, use `python` and set `PYTHONUTF8=1` if output encoding fails.
 
-The first command imports/typechecks scripts and runs session, authoring/save-load, editor selection, authoring stroke, QUACK and runtime checks. Selection and stroke checks exercise their modules directly without an editor window, including preview cancellation, atomic group edits, surface fitting, stroke revisits and undo grouping. The optional editor smoke check uses a disposable project to exercise editor operations, navigation, focus recovery, saving/reopening and playtest launch.
-
-On Windows, a Steam installation can be used directly (adjust the Steam library path):
-
-```powershell
-$env:PYTHONUTF8 = "1"
-python tools/check.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --editor-smoke
-```
-
-On a machine with a graphical display, capture the editor and run surface rendering checks too:
+For screenshots and surface rendering checks, use a graphical display:
 
 ```sh
 python3 tools/check.py --godot /path/to/godot --editor-smoke --screenshot artifacts/editor.png
 ```
 
-The focused Paint tool-switch check can be repeated independently:
+Headless checks cannot verify highlight pixels or shader coverage. See [editor surface coverage](editor-surface-coverage.md).
 
-```powershell
-$env:PYTHONUTF8 = "1"
-python tools/check_editor_input.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --headless --repeat 3
-python tools/check_editor_input.py --godot "D:\Applications\Steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe" --position=-1900,30 --repeat 5
-```
-
-Choose `--screen` and `--position` for the display containing your test window;
-monitor indices and desktop coordinates vary. Graphical input tests warp the OS
-cursor and need exclusive cursor/focus access while each scenario runs. Working
-on another display can still change the shared cursor or foreground window. Run
-graphical tests sequentially and leave the mouse and keyboard alone until they
-finish. Headless input and separate surface rendering checks do not need native
-pointer access.
-
-The harness waits for three stable native pointer samples, then validates the
-pointer after motion and the Paint shortcut and before the first click. Motion
-establishes the window pointer using `Input.parse_input_event()` and
-`Window.push_input()`. Shortcuts and clicks enter that same window with
-`Window.push_input()`; the stationary shortcut-to-click gesture does not wait for another frame.
-The focused Windows runner uses `ClientToScreen` and `SetCursorPos` for native
-warping, and verifies the actual desktop window rectangle for `--position`.
-Placement and pointer conversion both choose the largest visible window for the
-Godot process whose client area is wider than 500 and taller than 400 pixels;
-equal areas use the window handle as a stable tie-breaker. This excludes splash
-and tool windows. Verify selection and failure handling without native input with
-`python tests/test_editor_input_runner.py`.
-It drains GUI process output while locating the window to avoid a full pipe
-blocking editor startup. Graphical runs without this bridge use Godot warping. Input uses the containing window's canvas coordinates, independent of desktop position.
-`INPUT_SETUP` failures abort that scenario and fail the run, with pointer, focus,
-backend and window diagnostics, including confirmation that clicks reached
-the real canvas `gui_input`; they do not count as Paint preview regressions.
-Preview fitting, first placement and undo assertions still exercise the addon.
-
-Surface checks can also run separately after import:
-
-```sh
-godot --path . --script tests/test_editor_surfaces.gd --quit-after 1200
-```
-
-These checks need a graphical renderer; headless checks alone cannot verify highlight pixels or the shader coverage probe. See [editor surface coverage](editor-surface-coverage.md).
+For focused Paint input checks, run [tools/check_editor_input.py](../tools/check_editor_input.py) with `--help` for options. Graphical input checks move the OS cursor: run them sequentially and leave mouse, keyboard and focus alone. `INPUT_SETUP` identifies setup failures. [tests/test_editor_input_runner.py](../tests/test_editor_input_runner.py) checks the native-window runner without native input.
 
 ## Export
 
-Install the export templates matching your Godot version, then run:
+Install export templates matching your Godot version, then run:
 
 ```sh
 mkdir -p build/linux build/web
@@ -80,23 +34,19 @@ godot --headless --path . --export-release "Web" build/web/index.html
 python3 -m http.server --directory build/web 8000
 ```
 
-Open `http://localhost:8000` for the web build; opening the HTML directly from disk will not work. The web preset uses single-threaded Compatibility rendering. To ship a different level, change the project's main scene before exporting. Windows/macOS presets can be added in Godot's Export dialog.
+Open [localhost:8000](http://localhost:8000) for the Web build. The [Web preset](../export_presets.cfg) uses single-threaded Compatibility rendering and requires HTTP serving. Change the project's main scene to export another level. Add Windows/macOS presets through Godot's Export dialog.
 
 ## Regenerate examples
 
-Run these only when intentionally replacing the authored example resources:
+These commands overwrite authored example resources:
 
 ```sh
 godot --headless --path . --script tools/create_examples.gd
 godot --headless --path . --script tools/create_quack.gd
 ```
 
-The first rebuilds Sokoban and pipes; the second rebuilds QUACK definitions and its level without changing the other examples. Re-run checks afterward. Original QUACK assets and licensing are described in the [example guide](quack-example.md#assets-and-rebuilding).
+[create_examples.gd](../tools/create_examples.gd) rebuilds Sokoban and pipes; [create_quack.gd](../tools/create_quack.gd) rebuilds QUACK. Re-run checks afterward. Sprite licensing is in the [third-party notices](../THIRD_PARTY_NOTICES.md#quack-on-ice-sprites).
 
 ## Movement timing
 
-Movement buffers up to four fresh direction presses during an animation and plays them in order. Rapid taps shorten stage animations from `step_duration` (default 0.12 s) to `buffered_step_duration` (default 0.06 s); held key repeats keep the normal pace without filling the buffer. Undo, redo, and restart clear pending movement and run after the current action finishes. Both durations can be tuned on `GGGame`.
-
-## Scope
-
-The addon focuses on designer authoring and independent levels. Campaigns, progression, player editors, community sharing, and Unity level import belong to future work or consuming games. Implementation scope is tracked in [GitHub issue #1](https://github.com/AkaCMD/grid-game-groundwork-godot/issues/1).
+[GGGame](../addons/grid_game_groundwork/runtime/game.gd) buffers up to four fresh direction presses during animation. Set `step_duration` (default 0.12 s) and `buffered_step_duration` (default 0.06 s) to tune normal and rapid-input animations. Held repeats do not fill the buffer; undo/redo/restart clear it and wait for the current action to finish.

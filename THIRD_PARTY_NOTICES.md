@@ -1,7 +1,9 @@
 # Third-party notices
 
+**English** | [简体中文](THIRD_PARTY_NOTICES.zh-CN.md)
+
 This Godot recreation is inspired by Corey Martin's Grid Game Groundwork for Unity
-(https://github.com/corey-martin/grid-game-groundwork). The original license notice
+([source](https://github.com/corey-martin/grid-game-groundwork)). The original license notice
 is reproduced below. No DOTween dependency or Unity assets are bundled.
 
 ```text

@@ -2,72 +2,76 @@
 
 **English** | [简体中文](designer-guide.zh-CN.md) · [README](../README.md)
 
+Edit the starting layout in [Grid Levels](../addons/grid_game_groundwork/editor/panel.gd), then test it in a separate play session. Custom mechanics are covered in the [extension guide](extending.md).
+
 ## Create, save and playtest
 
-Open **Grid Levels** in Godot. Use **File → New level** for a default palette, or **File → Open…** for an existing `.tres`. Choose a definition in the palette, paint, **Save** / **File → Save as…**, then **Playtest**. **Stop** returns to editing.
+Open **Grid Levels** in Godot's top toolbar. If missing, enable **Grid Game Groundwork** in **Project → Project Settings → Plugins**.
 
-Playtest uses a temporary copy, including unsaved edits. Movement, falls and gameplay history never change the authored level. Save to keep your edits after closing Godot. A `*` marks unsaved changes; opening or creating another level asks before discarding them. The workspace remembers the last saved level across editor sessions.
+1. Choose **File → New level**, or **File → Open…** for an existing `.tres`.
+2. Choose a definition in the left palette and paint in the viewport.
+3. Click **Save**, or **File → Save as…** for a new file or layout copy.
+4. Click **Playtest** to test; **Stop** returns to editing.
 
-The left sidebar holds entity definitions. The visible **Paint / Erase / Select** buttons show the current tool; brush rotation and mirroring appear in Paint. The right sidebar separates **Selected entity** from **Level** settings. Both sidebars scroll and can be resized. Below the viewport, a short tool hint and **Help** replace the full shortcut list. Operation results stay in the bottom status line while pointer coordinates update separately; **Details** opens the complete result. Stop is disabled when no scene is running.
+New levels have a default palette but no ground or game rule. Playtest includes unsaved edits and never changes the authored level. Save to keep edits after closing Godot. A `*` marks unsaved changes; New/Open asks before discarding them. The editor remembers the last saved level.
+
+Use the right sidebar for **Selected entity** and **Level** settings. **Help** lists shortcuts; **Details** shows the full last operation result.
 
 ## Paint and build
 
-Godot's **Y axis is height**; horizontal gameplay uses **XZ**. All occupied cells have integer coordinates. A common layout puts ground at `Y=-1` and players/goals at `Y=0`.
+**Y is height; XZ is horizontal.** Occupied cells use integer coordinates. Ground commonly sits at `Y=-1`, with players and goals at `Y=0`.
 
 | Tool | Use |
 | --- | --- |
-| **Paint (1)** | Click or drag to place the selected definition. The ghost previews its complete rotated/mirrored shape. |
-| **Erase (2)** | Click or drag over a model to remove its entire entity, including all occupied cells. |
-| **Select (3)** | Click an entity to inspect or move it. Plain empty click clears selection. |
-| Right click | Copy an entity's definition, quarter turns and mirroring into the brush. |
-| **Quarter turns / Mirror brush** | Rotate around Y in 90° increments / reflect the shape on local X. |
+| **Paint (1)** | Click/drag to place the selected definition; the ghost previews its full shape. |
+| **Erase (2)** | Click/drag over a model to remove its entire entity. |
+| **Select (3)** | Click an entity to inspect or move it; empty click clears selection. |
+| Right click | Pick the entity's definition, rotation and mirroring into the brush. |
+| **Quarter turns / Mirror brush** | Rotate around Y in 90° increments / mirror on local X. |
 
-Paint snaps to occupied-cell faces of all entities, including elevated tops and sides. Non-solid entities such as bread also provide paint surfaces and can be stacked. Empty space uses the **Height** plane. Solid placements rise to the first free height if they overlap another solid; non-solid entities such as goals can share cells. Each stroke uses its starting surfaces and paints each target once, preventing accidental towers. Release and start another stroke to add a layer. One stroke is one undo action.
+Paint snaps to occupied-cell tops and sides, including non-solid entities. Empty space uses **Height**. Overlapping solids automatically rise until the full shape fits; non-solids can share cells. Each stroke keeps its starting surfaces, visits each target once and forms one undo action. Start another stroke to add a layer.
 
-**Q/E** lowers/raises the Paint preview by one world-Y cell per press. It adjusts a height offset from the surface under the pointer (or the Height plane in empty space), so moving to a higher surface keeps the offset. The tool hint and pointer coordinates show the offset. After Q/E adjustment, the complete shape must fit at the preview position: overlap or cells at/below the fall-out height show a red invalid preview and prevent placement, without automatic lifting. This also applies when the offset returns to zero. Release the mouse before adjusting; holding Q/E does not repeat. The offset persists across strokes and clears when leaving Paint, choosing a different definition or opening a level. Rotation and mirroring preserve it.
+**Q/E** adjusts the preview one world-Y cell per press, starting from its displayed position, including automatic lifting. Release the mouse first; held keys do not repeat. The offset follows the surface under the pointer, or Height in empty space. Solid overlap or cells at/below **Fall-out height** turn the preview red and prevent placement. After adjustment, height stays exact even at zero offset. Leaving Paint, changing definitions or opening a level resets automatic stacking; rotation and mirroring keep the offset.
 
-In **Level → Fill ground**, choose a single-cell definition with `ground=true`, set **Height**, **Width** and **Depth**, then **Fill ground**. Height stays synchronized with the toolbar placement plane. The rectangle begins at `X=0, Z=0` and skips occupied solid cells. One fill is one undo action.
+For **Level → Fill ground**, select a single-cell definition with `ground=true`, then set Height, Width and Depth. The rectangle starts at `X=0, Z=0`, skips solid cells and is one undo action. Height is shared with the toolbar.
 
-Under **Level → Transform entire level**, **Rotate level 90°** and **Mirror level on X** transform positions and orientations together; the result can be saved and undone.
+**Level → Transform entire level** rotates or mirrors all positions and orientations as one undoable edit.
 
 ## Select and move
 
-**Shift+click** toggles entities in a selection; Shift-clicking empty space keeps it. Plain click selects only the clicked entity. The movement gizmo sits on the last selected entity.
+**Shift+click** toggles entities; Shift-clicking empty space keeps selection. Plain click selects one entity or clears selection on empty space. The last selected entity anchors the gizmo.
 
-- Drag an **X/Y/Z arrow** along one world axis, or an **XY/XZ/YZ square** within a plane. X is red, Y green, Z blue. Edge-on handles hide; orbit to reach them.
-- Movement snaps to whole cells. A group preserves relative spacing, shapes, orientations and overrides. Only the destination is checked, so dragging can cross obstacles.
-- A valid release commits immediately as one undo action. Invalid destinations turn steady red and restore the whole group on release. **Esc**, hiding the workspace or losing window focus cancels an unfinished move. No movement adds no history.
-- **Duplicate** copies the group one cell right, lifting the copies together to the first free height if needed, and selects them. A failed duplicate creates nothing. **Delete** or **Delete** in Select mode removes the group. Each operation is one undo action.
+- Drag X/Y/Z arrows or XY/XZ/YZ squares to move in whole cells. Groups keep relative positions. Only the destination is checked, so moves can cross obstacles.
+- Release commits one edit. Invalid destinations turn red and restore the group. **Esc**, hiding Grid Levels or losing window focus cancels a drag.
+- **Duplicate** copies the group along +X, lifting together if needed, and selects the copies. A failed duplicate creates nothing. Click **Delete**, or press it in Select, to remove the group.
 
-Selection itself is not undoable; undoing deletion restores entities without selecting them. Opening another level or entering shape editing clears selection. Multi-selection disables individual coordinates, orientation, overrides and End snap.
+Selection is outside undo history. Undoing deletion restores entities without selecting them. Opening a level or entering shape editing clears selection. Multi-selection disables individual transforms, overrides and End snap.
 
 ### Snap down with End
 
-With **one entity selected** in Select, press **End** to lower it onto the nearest solid support without changing X/Z. Ground, walls and crates can support it; non-solid markers cannot. The whole rotated/mirrored shape moves, stopping when any occupied cell is supported. Gameplay gravity may be off.
+In Select, choose one entity and press **End** to lower its complete shape onto the nearest solid support, keeping X/Z. Any supported cell holds the shape; gravity may be off. Missing support, invalid starts or already supported entities leave position/history unchanged.
 
-During a drag, keep the left button held and press End. You can keep dragging with the same handle; the snap changes Y even with an X/Z constraint. Release to commit the drag and snap together, or Esc to cancel both. Outside a drag, End commits immediately; **Apply entity changes** is unnecessary.
-
-No support, an invalid starting position or an already supported entity leaves the position/history unchanged. The status line explains failures; hover it for full details.
+During a drag, End can change Y even with an X/Z handle. Release commits the drag and snap together; Esc cancels both. Outside a drag, End applies immediately.
 
 ### Model feedback and picking
 
-Selected model surfaces breathe blue while retaining textures. Erase preserves the selection, hides its blue feedback, and shows red breathing on the hovered entity. Invalid moves use steady red. Highlights respect occlusion.
+Selection pulses blue; Erase hides selection feedback and pulses red on hover. Invalid moves stay red. Select/Erase pick visible model surfaces, including geometry outside occupied cells, and pass through supported transparency. Paint uses logical occupied-cell faces. See [custom-material limits](editor-surface-coverage.md).
 
-Select/Erase pick the nearest visible model surface, including geometry outside occupied cells, and pass through holes and transparent pixels in supported materials. QUACK's white backgrounds are opaque and pickable; editor selection uses blue feedback, while runtime selection turns a duck's background black. Paint uses logical cell faces. Artwork never changes gameplay occupancy. Custom shader support and limits are in [editor surface coverage](editor-surface-coverage.md).
+QUACK's white backgrounds are opaque. Editor selection uses blue feedback; runtime selection turns the duck background black.
 
 ## Definitions, overrides and shapes
 
-The palette holds reusable **entity definitions**, shared by placements. Use **+ Entity** to create one, **Import…** to add an existing definition, **Edit in Inspector** to change defaults, and **Definition options → Save definition as…** to save a reusable `.tres`. Definitions can also remain embedded in a level. Saving a level saves its externally referenced definitions and game-rule configuration too.
+Placements share **entity definitions**. **Entity** (plus icon) creates one; **Import…** adds one; **Edit in Inspector** changes defaults. **Definition options → Save definition as…** saves a reusable `.tres`; definitions may also stay embedded.
 
-A definition supplies its occupied cells, solid/movable/gravity flags, color, optional **Visual Scene**, and game-specific properties. Changes affect every placement inheriting that value.
+[Saving](../addons/grid_game_groundwork/editor/level_authoring.gd) also writes external definitions and rule configuration. **Save as…** keeps these references, so shared changes can affect other levels. Default changes affect every placement inheriting that value.
 
-To change just one entity:
+To change one entity:
 
-1. Select it and edit X/Y/Z, **Quarter turns**, or **Mirrored** in the **Selected entity** tab.
-2. Expand **Property overrides** and add only keys to replace, with typed values, such as `weight` as a float `4.0`.
-3. Click **Apply entity changes**. Invalid destinations are rejected.
+1. Select it and edit X/Y/Z, **Quarter turns** or **Mirrored**.
+2. Add typed keys under **Property overrides**, such as float `weight=4.0`.
+3. Click **Apply entity changes**; invalid destinations are rejected.
 
-Removing an override key restores inheritance. **Reset all overrides** clears the draft; click Apply to commit. Duplication preserves overrides and orientation.
+Removing a key restores inheritance. **Reset all overrides** clears the draft; Apply commits it. Copies keep overrides and orientation.
 
 | Property | Meaning |
 | --- | --- |
@@ -77,21 +81,19 @@ Removing an override key restores inheritance. **Reset all overrides** clears th
 | `transmits_push` | Whether a pushed entity can push another ahead; default crates, including L-shaped crates, allow chains. |
 | `strength`, `weight` | With `GGStrengthPushRule`, actor strength must cover the combined weight of pushed entities. |
 
-Game-specific keys are interpreted by rules. Chain pushing is configured per entity rather than by a level-wide toggle. See [custom pushing](extending.md#custom-pushing).
+Other keys belong to game rules. See [custom pushing](extending.md#custom-pushing).
 
 ### Edit occupied cells
 
-Choose a definition and enable **Edit occupied cells**. **1** adds cells; **2** removes them by click/drag at **Height**; **3** is ignored. Change height to build a 3D shape. The last cell cannot be removed. Use **Return to level** (or disable the toggle) to restore the previous level tool. A banner identifies the shared definition; Select and the Level tab are disabled in shape editing.
+Choose a definition and enable **Edit occupied cells**. Use **1/2** to add/remove cells at **Height**; change Height to build in 3D. The final cell cannot be removed. **Return to level** restores the previous tool; Select and Level settings are disabled during shape editing.
 
-Shape changes affect all placements sharing the definition and can be undone. Check for new overlaps with **Validate**. Artwork is separate: assign a `Node3D` **Visual Scene** whose origin matches the entity origin. Meshes and colliders do not define occupied cells.
+Shape edits affect all placements sharing the definition and support undo. Use **Validate** to check overlaps. **Visual Scene** is a separate `Node3D` scene: meshes and colliders never define occupied cells.
 
 ## Camera and shortcuts
 
-Focus the viewport before navigating. **WASD** flies relative to the view without holding a mouse button. In Paint, **Q/E** adjusts the brush height offset; **right+Q/E** flies the camera along world Y. In Erase or Select with no selection, **Q/E** flies directly. In Select mode with entities selected, each **Q/E** press lowers/raises the entire selection by one cell instead. Holding the key does not repeat the move. Relative positions are preserved; an invalid destination rejects the whole move, and each successful move is one undo action. Finish dragging before using this shortcut. Hold the right mouse button with **Q/E** to fly the camera while entities are selected. Right-drag looks around without moving. Right+wheel adjusts speed (default 8, range 0.25–128 cells/s). Cameras pass through entities and below the board.
+Focus the viewport. **WASD** flies relative to the view; right-drag looks; right+wheel adjusts speed (default 8, range 0.25-128 cells/s). **Q/E** changes Paint height or selected entities; right+Q/E always flies vertically. Without Paint or a selection, Q/E flies directly.
 
-Flight and Shift+middle pan carry the placement plane vertically, snapping Height to whole cells. Orbit and zoom preserve Height. **Page Up/Down** changes Height independently by one cell; manual Height changes become the new starting plane.
-
-Finish painting or moving entities before navigating. Navigation hides brush previews. Releasing keys stops flight; Esc, dialogs, focus loss and leaving the workspace stop navigation and release the cursor.
+Flight and Shift+middle pan move the Height plane vertically; orbit and zoom preserve it. **Page Up/Down** changes Height independently. Finish strokes and drags before navigating. Esc, dialogs, focus loss or leaving Grid Levels stop navigation.
 
 ### Shortcut reference
 
@@ -121,25 +123,25 @@ Finish painting or moving entities before navigating. Navigation hides brush pre
 | Play | **WASD / arrows** | Move in fixed board directions: W −Z, S +Z, A −X, D +X |
 | Play | **Z / Y / R**, or HUD buttons | Undo / redo / restart |
 
-Tool keys, Delete and End require focus in Grid Levels and no modifiers; text/property inputs and dialogs retain their normal behavior. Tool switching waits for the mouse stroke/drag to end. Viewport shortcuts require viewport focus. Use Godot's **Run Project**, **Run Current Scene** and **Stop** controls for standalone examples; their key bindings depend on your editor settings.
+Tool keys, Delete and End require Grid Levels focus and no modifiers. Text/property fields and dialogs keep normal behavior. Tool-switch presses during strokes/drags are ignored. Viewport shortcuts need viewport focus.
 
-Editor undo covers strokes, entity edits, group moves/copies/deletes, shapes, floor fills, level settings and whole-level transforms. Shared defaults edited in Godot's Inspector use Godot's native resource editing/undo workflow.
+Editor undo covers strokes, entity/group edits, shapes, fills, settings and transforms. Inspector defaults use Godot's resource editing/undo.
 
 ## Rules, validation and play
 
-In the **Level** tab, set title, **Enable gravity** and **Fall-out height**, then click **Apply level settings**. Choose an optional **Game rule** resource; inspect it to configure its push rule. Rule changes apply immediately; the other level settings require Apply.
+In **Level**, set Title, **Enable gravity** and **Fall-out height**, then **Apply level settings**. **Game rule** changes apply immediately; inspect its resource to configure pushing.
 
-Ground must be placed explicitly. With gravity enabled, support beneath any one occupied cell holds the entire rigid entity; overhangs do not tip. Unsupported stacks fall together. Players falling out fail; other entities are removed from that attempt. Undo can restore them.
+Place ground explicitly. With gravity, support below any occupied cell holds the entire rigid entity; overhangs do not tip. Unsupported stacks fall together. Players falling out fail; other entities are removed from the attempt. Undo restores them.
 
 | Rule | Goal |
 | --- | --- |
-| Sokoban | Every goal cell must have a crate, with at least one goal. Extra crates may remain; multi-cell crates can cover multiple goals. |
-| Pipes | Every destination must connect to a source through reciprocal ports. Connected pipes light up. |
-| QUACK | Feed all three ducks; slides, falls and feeding form one action. [Full rules and walkthrough](quack-example.md). |
-| No rule | Test movement and gravity without a built-in victory condition. |
+| Sokoban | Cover every goal cell with a crate; at least one goal is required. Extra crates may remain. |
+| Pipes | Connect every destination to a source through reciprocal ports; connected pipes light up. |
+| QUACK | Consume all bread. [Rules and walkthrough](quack-example.md). |
+| No rule | Test movement and gravity without a victory condition. |
 
-**Validate** checks schema, missing/invalid definitions and IDs, empty/duplicate shapes, solid overlap and placements at/below fall-out height. Save and Playtest also validate.
+[Validate](../addons/grid_game_groundwork/data/level.gd) checks resource structure, IDs, shapes, solid overlap and the fall-out boundary. Save and Playtest run the same checks. Validation does not establish solvability.
 
-During play, click a player entity to switch actors while idle; foreground occupied cells can block picking. Selection survives undo/redo/restart while the actor exists. Camera rotation never changes movement directions. Rapid presses buffer up to four moves and accelerate animation; held repeats do not build a backlog. Undo/redo/restart clear buffered input and wait for the current action to finish.
+During play, click a player while idle to switch actors; foreground cells can block picking. Selection survives undo/redo/restart while the actor exists. Camera rotation never changes movement directions. Rapid taps buffer up to four moves; held repeats do not build a backlog.
 
-**Z** restores a whole action: pushes, falls, removed entities and mechanic state. **Y** reapplies it. **R** restarts, and that restart is undoable. History remains available after success/failure. Campaigns and persistent progression belong to the consuming game; use the runtime's [completion/failure signals](extending.md#visuals-and-lifecycle) for your own flow.
+**Z** undoes a complete action, including pushes, falls and mechanic state. **Y** redoes it; **R** restarts, and restart is undoable. History remains available after success/failure. History commands clear buffered moves and wait for the current action to finish. Connect [completion/failure signals](extending.md#visuals-and-lifecycle) for custom progression.

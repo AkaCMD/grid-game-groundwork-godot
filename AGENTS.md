@@ -1,5 +1,7 @@
 ## Agent skills
 
+Load the `technical-writing` skill before writing technical prose. Keep user-facing documents in English and Simplified Chinese with reciprocal language links.
+
 ### Issue tracker
 
 Track issues and specs in GitHub Issues. See `docs/agents/issue-tracker.md`.

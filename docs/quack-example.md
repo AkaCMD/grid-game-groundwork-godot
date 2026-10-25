@@ -1,8 +1,8 @@
-# QUACK!!! on ICE — 3D example
+# QUACK!!! on ICE: 3D example
 
-[README](../README.md) · [中文说明](../README.zh-CN.md) · [Designer guide](designer-guide.md)
+**English** | [简体中文](quack-example.zh-CN.md) · [README](../README.md) · [Designer guide](designer-guide.md)
 
-Open `examples/quack.tscn` and press F6, or open `examples/levels/quack.tres` in Grid Levels and click Playtest. The example uses the existing authoring palette, painting, selection, movement, saving and isolated playtest workflow.
+Feed the three ducks by sliding them to bread and using fed ducks as stoppers. Open [examples/quack.tscn](../examples/quack.tscn) and choose **Run Current Scene**, or open [examples/levels/quack.tres](../examples/levels/quack.tres) in Grid Levels and click **Playtest**. Editing follows the [designer guide](designer-guide.md).
 
 Click a duck to select it. Its cube background turns black; other cubes have white backgrounds. WASD/arrows always mean −Z/+Z/−X/+X, independent of camera rotation; labels around the board show those directions. Middle drag orbits, Shift+middle drag pans, wheel zooms, and F frames. Z/Y/R undo, redo and restart. Selection is not a history action, and clicks during animation are ignored so buffered moves cannot switch actors unexpectedly.
 
@@ -10,7 +10,7 @@ Each hungry duck slides until blocked or eating one bread. Ducks block each othe
 
 ## Verified walkthrough
 
-Coordinates are `(X, Y, Z)`; Y is height. A starts on the upper platform at `(-1, 2, 1)`, B at `(0, 0, 3)`, and C at `(0, 0, 0)`. Click the indicated duck before each change of actor.
+The walkthrough applies to the supplied, unedited example level and is checked by [tests/test_quack.gd](../tests/test_quack.gd). Coordinates are `(X, Y, Z)`; Y is height. A starts on the upper platform at `(-1, 2, 1)`, B at `(0, 0, 3)`, and C at `(0, 0, 0)`. Click the indicated duck before each change of actor.
 
 | Step | Duck | Key | Endpoint | Effect |
 | --- | --- | --- | --- | --- |
@@ -22,10 +22,8 @@ Coordinates are `(X, Y, Z)`; Y is height. A starts on the upper platform at `(-1
 | 6 | C | A | `(1, 0, 0)` | C stops against A, aligned with the narrow bread lane. |
 | 7 | C | S | `(1, 0, 2)` | C eats the final bread; all ducks are fed. |
 
-The lower board's internal walls at `(0, 0, 2)`, `(2, 0, 2)` and `(3, 0, 2)` constrain access to the final bread. The upper duck must descend to reach any bread, because every bread is on the lower board and ducks cannot climb. The simulation test exhausts reachable states twice: no solution exists if fed ducks cannot move, or if actions ending against another duck are disallowed. It also verifies the walkthrough, full-action history, failure recovery, visual feeding/selection, and native save/reload.
+Steps 5 and 6 use fed A to stop C at the final bread lane. Fed ducks remain movable.
 
 ## Assets and rebuilding
 
-Original sprites are pinned to [AkaCMD/Bevy_Jam_4 commit 1b017d7](https://github.com/AkaCMD/Bevy_Jam_4/tree/1b017d7a87e4a9828c3bd5a955f01f5872ea36a6), under that project's MIT license; see `examples/assets/quack/LICENSE-MIT` and the third-party notices. A nearest-filtered shader composites each sprite's transparent pixels over the cube's background; all six faces use the whole sprite. Editor and runtime instantiate the same visual scene, including fed-state restoration.
-
-Regenerate only this example with `godot --headless --path . --script tools/create_quack.gd`. This replaces QUACK's definitions and level; it leaves Sokoban and pipes untouched. The formal scope is [issue #4](https://github.com/AkaCMD/grid-game-groundwork-godot/issues/4).
+Sprite provenance and the MIT license are in the [third-party notices](../THIRD_PARTY_NOTICES.md#quack-on-ice-sprites). The [QUACK rule](../examples/rules/quack_rule.gd) implements the mechanics; [quack_visual.gd](../examples/visuals/quack_visual.gd) implements the appearance. To rebuild the level and definitions, follow [example regeneration](development.md#regenerate-examples).
