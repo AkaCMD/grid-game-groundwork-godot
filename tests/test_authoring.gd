@@ -15,6 +15,9 @@ func _init() -> void:
 	_test_snap_to_ground()
 	_test_discard_and_unsaved_playtest()
 	_test_external_rule_save()
+	_test_isolated_proposals()
+	_test_rejected_proposal_history()
+	_test_invalid_draft_paint()
 	print("Authoring: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures else 0)
 
@@ -23,6 +26,105 @@ func check(condition: bool, message: String) -> void:
 	if not condition:
 		failures += 1
 		push_error(message)
+
+class ObservingRule extends GGGameRule:
+	var live: WeakRef
+	var expected: Array = []
+	var isolated = true
+	var configured = true
+	var calls = 0
+	var reject = false
+	var mutate_proposal = false
+
+	func placements(value: GGLevel) -> Array:
+		var result = []
+		for entity in value.entities:
+			result.append([entity.entity_id, entity.cell, entity.orientation, entity.mirrored, entity.overrides.duplicate(true)])
+		return result
+
+	func watch(value: GGLevel) -> void:
+		live = weakref(value)
+		expected = placements(value)
+
+	func validate_level(proposed: GGLevel) -> PackedStringArray:
+		calls += 1
+		var original: GGLevel = live.get_ref()
+		isolated = isolated and proposed != original and placements(original) == expected
+		configured = configured and proposed.title == original.title and proposed.game_rule == self and proposed.gravity_enabled == original.gravity_enabled and proposed.void_height == original.void_height and proposed.playtest_scene == original.playtest_scene and proposed.palette == original.palette
+		for entity in proposed.entities:
+			configured = configured and proposed.palette.has(entity.definition)
+		if mutate_proposal:
+			proposed.entities.back().overrides["nested"]["values"].append(99)
+		if reject: return PackedStringArray(["Proposal rejected by the observing rule."])
+		return super.validate_level(proposed)
+
+func _proposal_fixture() -> GGLevelAuthoring:
+	var editor = author()
+	editor.level.title = "Proposal configuration"
+	editor.level.gravity_enabled = false
+	editor.level.void_height = -32
+	editor.level.playtest_scene = PackedScene.new()
+	for index in 2:
+		var entity = GGEntityPlacement.new()
+		entity.entity_id = StringName("crate_%d" % index)
+		entity.definition = editor.level.palette[3]
+		entity.cell = Vector3i(index * 3, 0, 0)
+		entity.overrides = {"nested": {"values": [1, 2]}}
+		editor.level.entities.append(entity)
+	var rule = ObservingRule.new()
+	editor.level.game_rule = rule
+	rule.watch(editor.level)
+	return editor
+
+func _test_isolated_proposals() -> void:
+	var editor = _proposal_fixture()
+	var rule: ObservingRule = editor.level.game_rule
+	var first = editor.find_entity(&"crate_0")
+	var ids: Array[StringName] = [&"crate_0", &"crate_1"]
+	var changed = [0]
+	editor.changed.connect(func(): changed[0] += 1)
+	check(editor.position_error(&"crate_0", Vector3i.RIGHT).is_empty(), "Single-entity preview validates its proposed arrangement")
+	check(editor.translation_error(ids, Vector3i.UP).is_empty(), "Group preview validates all proposed positions together")
+	check(changed[0] == 0 and not editor.dirty and not editor.undo(), "Preview proposals emit no edits and create no history")
+	check(editor.translate_entities(ids, Vector3i.UP), "Accepted group proposals commit")
+	check(editor.find_entity(&"crate_0") == first and first.cell == Vector3i.UP, "Accepted group edits preserve live placement identity")
+	check(changed[0] == 1, "One accepted proposal emits one authoring change")
+	rule.watch(editor.level)
+	check(editor.edit_entity(&"crate_0", Vector3i(1, 1, 0), 4, true, {"weight": 7}), "Entity edits validate copied orientation and overrides")
+	check(editor.find_entity(&"crate_0") == first and first.orientation == 4 and first.mirrored and first.overrides.weight == 7, "Entity commits preserve identity and apply the complete proposal")
+	rule.watch(editor.level)
+	check(editor.duplicate_entities(ids).size() == 2, "Group duplication validates isolated trial placements")
+	rule.watch(editor.level)
+	check(editor.paint_exact(editor.level.palette[3], Vector3i(8, 1, 0)), "Paint commits through proposed-arrangement validation")
+	check(rule.calls > 0 and rule.isolated, "Every rule evaluation observes unchanged live placements")
+	check(rule.configured, "Every proposal retains full configuration and shared definition identities")
+
+func _test_rejected_proposal_history() -> void:
+	var editor = _proposal_fixture()
+	var rule: ObservingRule = editor.level.game_rule
+	check(editor.translate_entities([&"crate_0"], Vector3i.UP), "A committed proposal creates an undoable edit")
+	check(editor.undo(), "Undo opens a redo branch before rejection")
+	var dirty_before = editor.dirty
+	rule.watch(editor.level)
+	rule.reject = true
+	var changed = [0]
+	editor.changed.connect(func(): changed[0] += 1)
+	check(not editor.edit_entity(&"crate_0", Vector3i.RIGHT, 5, true, {"weight": 9}), "A rejected entity proposal cannot commit")
+	check(not editor.translate_entities([&"crate_0"], Vector3i.UP), "A rejected group proposal cannot commit")
+	check(editor.duplicate_entities([&"crate_0"]).is_empty(), "A rejected copied group cannot commit")
+	check(not editor.paint_exact(editor.level.palette[3], Vector3i(8, 0, 0)), "A rejected Paint proposal cannot commit")
+	rule.mutate_proposal = true
+	check(not editor.position_error(&"crate_0", Vector3i.RIGHT).is_empty(), "A rule may inspect and reject a copied arrangement")
+	check(rule.placements(editor.level) == rule.expected, "Validator changes to another proposed entity's nested overrides do not affect live placements")
+	check(changed[0] == 0 and editor.dirty == dirty_before and rule.isolated, "Rejected proposals preserve dirty state and never expose trial state or emit authored changes")
+	check(editor.redo() and editor.find_entity(&"crate_0").cell == Vector3i.UP, "Rejected proposals preserve the existing redo branch")
+
+func _test_invalid_draft_paint() -> void:
+	var editor = author()
+	editor.level.entities.append(null)
+	check(not editor.paint_exact(editor.level.palette[3], Vector3i.ZERO), "Exact Paint rejects a draft containing a null placement")
+	check(editor.last_error.contains("missing its definition"), "Invalid draft Paint returns the structural diagnostic")
+	check(editor.level.entities.size() == 1 and editor.level.entities[0] == null and not editor.dirty and not editor.undo(), "Invalid draft Paint preserves placements and history")
 
 func author() -> GGLevelAuthoring:
 	var level = GGLevel.new()

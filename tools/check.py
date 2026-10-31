@@ -31,7 +31,7 @@ def main():
         raise SystemExit("Godot was not found. Pass --godot /path/to/godot or set GODOT.")
     run([executable, "--headless", "--editor", "--import", "--path", str(ROOT), "--quit"])
     for script in ["test_session.gd", "test_authoring.gd", "test_selection.gd",
-                   "test_stroke.gd", "test_quack.gd", "test_runtime.gd",
+                   "test_stroke.gd", "test_interaction.gd", "test_quack.gd", "test_runtime.gd",
                    "test_generality.gd", "test_generality_examples.gd"]:
         output = run([executable, "--headless", "--path", str(ROOT), "--script",
                       "tests/" + script, "--quit-after", "1200"])

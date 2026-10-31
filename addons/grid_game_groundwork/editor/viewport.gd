@@ -7,6 +7,7 @@ signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
 signal selection_height_requested(offset: int)
 signal paint_height_requested(offset: int)
+var interaction: GGEditorInteraction
 var selection: GGEditorSelection
 var stroke: GGEditorStroke
 var camera: Camera3D
@@ -19,14 +20,16 @@ var _paint_height = 0.0
 var _grid: MeshInstance3D
 var _ghost: Node3D
 var _surfaces = GGEditorEntitySurfaces.new()
-var _erase_enabled = false
+var _erase_enabled: bool:
+	get: return interaction != null and interaction.can_erase_entities()
 var _erase_target: StringName = &""
 var _pivot = Vector3(3, 0, 3)
 var _yaw = 0.0
 var _pitch = deg_to_rad(75.2)
 var _zoom = 12.0
 var _move_gizmo: GGMoveGizmo
-var _move_enabled = false
+var _move_enabled: bool:
+	get: return interaction != null and interaction.can_move()
 var _move_pointer: Vector2
 var _navigation_keys: Dictionary = {}
 var _fly_speed = 8.0
@@ -77,10 +80,10 @@ func _ready() -> void:
 	_move_gizmo.hide()
 	selection.changed.connect(_show_selection)
 	selection.preview_changed.connect(_show_move_preview)
+	interaction.changed.connect(_interaction_changed)
 	set_layer(0)
 	gui_input.connect(_input_on_view)
-	get_window().focus_exited.connect(cancel_move)
-	get_window().focus_exited.connect(stroke.finish)
+	get_window().focus_exited.connect(interaction.cancel)
 	get_window().focus_exited.connect(_stop_navigation)
 	get_window().focus_exited.connect(_clear_erase_hover)
 	focus_exited.connect(_stop_navigation)
@@ -95,7 +98,6 @@ func _ready() -> void:
 func show_level(value: GGLevel) -> void:
 	# Refreshing placements in the current level must not release held flight keys.
 	if value != level: _stop_navigation()
-	cancel_move()
 	_surfaces.reset()
 	_erase_target = &""
 	level = value
@@ -119,9 +121,8 @@ func frame_level() -> void:
 	_camera_position()
 
 func set_plane(normal: Vector3i) -> void:
-	cancel_move()
 	plane_normal = normal
-	stroke.set_plane(normal)
+	interaction.set_plane(normal)
 	set_layer(layer)
 
 func _plane_point(u: float, v: float) -> Vector3:
@@ -182,11 +183,12 @@ func entity_at(point: Vector2) -> StringName:
 	if not level: return &""
 	return _surfaces.pick(board.roots, camera.project_ray_origin(point), camera.project_ray_normal(point))
 
-func set_erase_enabled(enabled: bool) -> void:
-	_erase_enabled = enabled
+func _interaction_changed() -> void:
+	hide_ghost()
 	_erase_target = &""
+	_move_gizmo.visible = _move_enabled and not selection.ids().is_empty()
 	_update_highlights()
-	if enabled: _update_erase_hover(get_local_mouse_position())
+	if _erase_enabled: _update_erase_hover(get_local_mouse_position())
 
 func _update_highlights() -> void:
 	var ids: Array[StringName] = []
@@ -242,11 +244,6 @@ func _show_selection() -> void:
 	_show_move_preview()
 	_move_gizmo.visible = _move_enabled and not selection.ids().is_empty()
 	_move_gizmo.update_view()
-
-func set_move_enabled(enabled: bool) -> void:
-	if not enabled: cancel_move()
-	_move_enabled = enabled
-	_move_gizmo.visible = enabled and not selection.ids().is_empty()
 
 func is_moving() -> bool:
 	return selection != null and selection.is_moving()
@@ -361,16 +358,16 @@ func _input(event: InputEvent) -> void:
 	if event.ctrl_pressed or event.alt_pressed or event.meta_pressed:
 		_navigation_keys.clear()
 		return
-	if key in [KEY_Q, KEY_E] and stroke.can_adjust_height() and not _right_pressed and not _looking:
-		if event.pressed and not event.echo and not event.shift_pressed:
-			paint_height_requested.emit(1 if key == KEY_E else -1)
-		get_viewport().set_input_as_handled()
-		return
-	if key in [KEY_Q, KEY_E] and _move_enabled and not selection.ids().is_empty() and not _right_pressed and not _looking:
-		if event.pressed and not event.echo and not event.shift_pressed:
-			selection_height_requested.emit(1 if key == KEY_E else -1)
-		get_viewport().set_input_as_handled()
-		return
+	if key in [KEY_Q, KEY_E]:
+		var target = interaction.height_target(_right_pressed or _looking)
+		if target in [GGEditorInteraction.HeightTarget.PAINT, GGEditorInteraction.HeightTarget.SELECTION]:
+			if event.pressed and not event.echo and not event.shift_pressed:
+				if target == GGEditorInteraction.HeightTarget.PAINT:
+					paint_height_requested.emit(1 if key == KEY_E else -1)
+				else:
+					selection_height_requested.emit(1 if key == KEY_E else -1)
+			get_viewport().set_input_as_handled()
+			return
 	if key in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E]:
 		if event.pressed and not event.echo:
 			_navigation_keys[key] = true
@@ -386,12 +383,11 @@ func _adjust_fly_speed(event: InputEventMouseButton) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree():
 		_stop_navigation()
-		cancel_move()
-		if stroke: stroke.finish()
+		if interaction: interaction.cancel()
 		_clear_erase_hover()
 
 func is_drawing() -> bool:
-	return (stroke != null and stroke.is_active()) or is_moving()
+	return interaction != null and interaction.is_drawing()
 
 func _input_on_view(event: InputEvent) -> void:
 	if _handle_look_input(event):

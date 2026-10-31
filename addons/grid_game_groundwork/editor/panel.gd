@@ -3,14 +3,15 @@ class_name GGEditorPanel
 extends VBoxContainer
 
 var authoring = GGLevelAuthoring.new()
-var selection = GGEditorSelection.new(authoring)
-var stroke = GGEditorStroke.new(authoring)
+var interaction = GGEditorInteraction.new(authoring)
+var selection = interaction.selection
+var stroke = interaction.stroke
 var viewport: GGEditorViewport
 var _palette: ItemList
 var _status: Label
 var _title: Label
-var _mode = 0
-var _level_mode = 0
+var _mode: int:
+	get: return interaction.mode
 var _tool_buttons: Array[Button] = []
 var _brush_controls: HBoxContainer
 var _brush_label: Label
@@ -82,6 +83,7 @@ func _ready() -> void:
 	var center = _column(center_right)
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	viewport = GGEditorViewport.new()
+	viewport.interaction = interaction
 	viewport.selection = selection
 	viewport.stroke = stroke
 	center.add_child(viewport)
@@ -483,11 +485,9 @@ func request_open(level: GGLevel) -> void:
 	_guard(func(): _open(level))
 
 func _open(level: GGLevel) -> void:
-	selection.select(&"")
 	_definition = null
-	if _shape_mode.button_pressed: _mode = _level_mode
 	_shape_mode.set_pressed_no_signal(false)
-	authoring.open(level)
+	interaction.open(level)
 	_choose_definition(0)
 	viewport.frame_level()
 	_set_status("Opened %s. Select an entity from the palette to start painting." % level.title)
@@ -502,9 +502,6 @@ func _refresh() -> void:
 	if not is_instance_valid(viewport) or not authoring.level:
 		return
 	_updating = true
-	# Inspector edits bypass authoring.changed. Reconcile through the selection
-	# owner before rebuilding visuals so stale origins cannot overwrite them.
-	selection.reconcile()
 	var level = authoring.level
 	_title.text = "%s%s" % [level.title, " *" if authoring.dirty else ""]
 	_title.tooltip_text = "%s\n%s" % [level.title, level.resource_path if not level.resource_path.is_empty() else "Unsaved level"]
@@ -549,28 +546,14 @@ func _refresh_definition_if_pending() -> void:
 func _refresh_view() -> void:
 	_configure_stroke()
 	viewport.hide_ghost()
-	if _shape_mode.button_pressed and _definition:
-		var preview = GGLevel.new()
-		var entity = GGEntityPlacement.new()
-		entity.entity_id = &"shape_preview"
-		entity.definition = _definition
-		preview.entities.append(entity)
-		viewport.show_level(preview)
-	else:
-		viewport.show_level(authoring.level)
-	viewport.set_move_enabled(_mode == 2 and not _shape_mode.button_pressed)
-	viewport.set_erase_enabled(_mode == 1 and not _shape_mode.button_pressed)
+	viewport.show_level(interaction.refreshed_level())
 	_update_context()
 
 func _toggle_shape(enabled: bool) -> void:
 	# Shape entry can also switch tabs and hide the currently focused field.
 	viewport.grab_focus()
-	if enabled:
-		_level_mode = _mode
-		_select(&"")
-		if _mode == 2: _mode = 0
-	else:
-		_mode = _level_mode
+	interaction.set_shape_mode(enabled)
+	_shape_mode.set_pressed_no_signal(interaction.shape_mode)
 	_refresh_view()
 	viewport.frame_level()
 
@@ -584,7 +567,7 @@ func _set_context_visible(control: Control, shown: bool) -> void:
 	control.visible = shown
 
 func _update_context() -> void:
-	var shape = _shape_mode.button_pressed
+	var shape = interaction.shape_mode
 	for index in range(_tool_buttons.size()):
 		_tool_buttons[index].set_pressed_no_signal(_mode == index)
 		_tool_buttons[index].disabled = shape and index == 2
@@ -620,7 +603,7 @@ func _choose_definition(index: int) -> void:
 		_refresh_view()
 
 func _pick_entity(id: StringName, button: int, shift: bool) -> void:
-	if _shape_mode.button_pressed: return
+	if interaction.shape_mode: return
 	if button == MOUSE_BUTTON_RIGHT:
 		var entity = authoring.find_entity(id)
 		if entity:
@@ -631,7 +614,7 @@ func _pick_entity(id: StringName, button: int, shift: bool) -> void:
 		selection.select(id, shift)
 
 func _configure_stroke() -> void:
-	stroke.configure(_definition, _mode, int(_turns.value), _mirror.button_pressed, _shape_mode.button_pressed)
+	interaction.configure_brush(_definition, int(_turns.value), _mirror.button_pressed)
 
 func _paint_height_changed(value: int) -> void:
 	_height.set_value_no_signal(value)
@@ -657,7 +640,7 @@ func _refresh_hover() -> void:
 func _hover(cell: Vector3i) -> void:
 	_pointer_status.text = "Cell %s · Height %d" % [cell, int(_height.value)]
 	_pointer_status.tooltip_text = _pointer_status.text
-	if not _definition or _mode != 0 or _shape_mode.button_pressed:
+	if not _definition or _mode != 0 or interaction.shape_mode:
 		viewport.hide_ghost()
 		return
 	var error = stroke.preview_error(cell)
@@ -806,13 +789,9 @@ func _new_definition() -> void:
 	name_input.grab_focus()
 
 func _set_mode(index: int) -> void:
-	if viewport.is_drawing() or (_shape_mode.button_pressed and index == 2):
+	if not interaction.set_mode(index):
 		_update_context()
 		return
-	_mode = index
-	_configure_stroke()
-	viewport.set_move_enabled(index == 2 and not _shape_mode.button_pressed)
-	viewport.set_erase_enabled(index == 1 and not _shape_mode.button_pressed)
 	_update_context()
 	_refresh_hover()
 
@@ -840,7 +819,7 @@ func _input(event: InputEvent) -> void:
 	if is_instance_valid(modal) and modal != get_window() and modal.visible:
 		return
 	if key == KEY_DELETE:
-		if _mode == 2 and not _shape_mode.button_pressed and not selection.ids().is_empty():
+		if interaction.can_move() and not selection.ids().is_empty():
 			_delete_selected()
 			get_viewport().set_input_as_handled()
 		return
@@ -850,11 +829,9 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if key == KEY_END:
-		if _mode == 2 and not _shape_mode.button_pressed and (not viewport.is_drawing() or viewport.is_moving()):
+		if interaction.can_move() and (not viewport.is_drawing() or viewport.is_moving()):
 			_snap_selected_to_ground()
 			get_viewport().set_input_as_handled()
-		return
-	if viewport.is_drawing() or (_shape_mode.button_pressed and index == 2):
 		return
 	_set_mode(index)
 	get_viewport().set_input_as_handled()

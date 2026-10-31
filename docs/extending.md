@@ -95,13 +95,17 @@ Custom visuals may implement `apply_entity_selection(selected: bool)`. `GGBoardV
 
 [GGLevel](../addons/grid_game_groundwork/data/level.gd) accepts schemas 1 and 2; opening in `GGLevelAuthoring` migrates to schema 2. Definitions may be embedded or external; overrides remain explicit. `GGLevelAuthoring.save(path)` checks structural validity, saves external configuration, then replaces the level through a temporary file. Saving multiple resources is not a single transaction.
 
+Authoring previews, Paint, movement, duplication and entity edits validate proposed levels with copied placements and overrides. Shared definitions, rule configuration and the playtest scene retain their identities. Keep validation hooks read-only: accepted edits commit once, while rejected proposals preserve live placements and history. [Authoring tests](../tests/test_authoring.gd) check isolation during rule evaluation and preservation of the redo branch.
+
 See [development checks](development.md#checks), [export](development.md#export) and [example regeneration](development.md#regenerate-examples) for commands. Test mechanics through `GGSession` and storage changes through real `GGLevelAuthoring` save/reload checks. Design decisions are in [docs/adr/](adr/).
 
 ## Editor selection and authoring strokes
 
-Use [GGEditorSelection](../addons/grid_game_groundwork/editor/selection.gd) and [GGEditorStroke](../addons/grid_game_groundwork/editor/stroke.gd) with the same `GGLevelAuthoring`. Selection stages group movement with `begin_move`, `preview_move` and `finish_move`. Strokes take camera rays through `begin`, `preview`, `sample` and `finish`, keeping starting surfaces and visited placements stable.
+Use [GGEditorInteraction](../addons/grid_game_groundwork/editor/interaction.gd) with a `GGLevelAuthoring` to own tool transitions, shape-editing context and preview invalidation. Its `selection` and `stroke` share that authoring module. Input adapters call `set_mode`, `set_shape_mode`, `configure_brush`, `set_plane` and `open`; `height_target` chooses the Q/E action. Render `refreshed_level()` so selection reconciliation precedes visual rebuilding, including after Inspector edits. Window focus loss and hiding the editor call `cancel()`.
 
-Keep placement rules in these modules; input code supplies rays and renders previews. Test their behavior directly, and use the [editor harness](../tests/editor_harness/plugin.gd) for camera projection, focus and input delivery.
+[GGEditorSelection](../addons/grid_game_groundwork/editor/selection.gd) stages group movement with `begin_move`, `preview_move` and `finish_move`. [GGEditorStroke](../addons/grid_game_groundwork/editor/stroke.gd) takes camera rays through `begin`, `preview`, `sample` and `finish`, keeping starting surfaces and visited placements stable. They can also be used directly with the same `GGLevelAuthoring`.
+
+Keep transition rules in the interaction module; input code supplies rays and renders previews. [Interaction tests](../tests/test_interaction.gd) cover transitions and invalidation. Use the [editor harness](../tests/editor_harness/plugin.gd) for camera projection, focus and input delivery.
 
 ## Actor selection and composed movement
 

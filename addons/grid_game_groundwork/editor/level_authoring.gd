@@ -178,6 +178,51 @@ func _notify() -> void:
 	level.emit_changed()
 	changed.emit()
 
+func _proposed_level(candidates: Array[GGEntityPlacement]) -> GGLevel:
+	# Keep the level's configuration and shared definitions, but isolate every
+	# placement so rule validation cannot expose trial edits through live data.
+	var proposed: GGLevel = level.duplicate(false)
+	proposed.entities = []
+	var replacements = {}
+	for candidate in candidates: replacements[candidate.entity_id] = candidate
+	for entity in level.entities:
+		if entity and replacements.has(entity.entity_id):
+			proposed.entities.append(replacements[entity.entity_id].copy())
+			replacements.erase(entity.entity_id)
+		else:
+			proposed.entities.append(entity.copy() if entity else null)
+	for candidate in replacements.values(): proposed.entities.append(candidate.copy())
+	return proposed
+
+func _proposal_error(candidates: Array[GGEntityPlacement]) -> String:
+	return "\n".join(_proposed_level(candidates).validate_placement())
+
+func _commit_placements(candidates: Array[GGEntityPlacement], finish_stroke: bool = true) -> bool:
+	last_error = _proposal_error(candidates)
+	if not last_error.is_empty(): return false
+	if finish_stroke: end_stroke()
+	_record()
+	for candidate in candidates:
+		var existing = find_entity(candidate.entity_id)
+		if existing:
+			# Accepted edits retain the Resource identity used by the Inspector.
+			existing.cell = candidate.cell
+			existing.orientation = candidate.orientation
+			existing.mirrored = candidate.mirrored
+			existing.overrides = candidate.overrides.duplicate(true)
+		else:
+			level.entities.append(candidate)
+	_notify()
+	return true
+
+func _translated(entities: Array[GGEntityPlacement], offset: Vector3i) -> Array[GGEntityPlacement]:
+	var candidates: Array[GGEntityPlacement] = []
+	for entity in entities:
+		var candidate = entity.copy()
+		candidate.cell += offset
+		candidates.append(candidate)
+	return candidates
+
 func placement_cell(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> Variant:
 	if definition.shape.is_empty(): return null
 	var candidate = GGEntityPlacement.new()
@@ -221,22 +266,16 @@ func placement_error(definition: GGEntityDefinition, cell: Vector3i, turns: int 
 	candidate.quarter_turns = turns
 	candidate.mirrored = mirrored
 	candidate.overrides = overrides
-	# Validate a proposed level without temporarily modifying the live resource.
-	var proposed: GGLevel = level.duplicate(false)
-	proposed.entities = level.entities.duplicate()
-	proposed.entities.append(candidate)
-	return "\n".join(proposed.validate_placement())
+	return _proposal_error([candidate])
 
 func paint_exact(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
-	last_error = placement_error(definition, cell, turns, mirrored, overrides)
-	if not last_error.is_empty(): return false
 	return _paint_at(definition, cell, turns, mirrored, overrides)
 
 func _paint_at(definition: GGEntityDefinition, target: Vector3i, turns: int, mirrored: bool, overrides: Dictionary) -> bool:
+	last_error = ""
 	for existing in level.entities:
-		if not existing.resolved_properties().get("solid", true) and existing.definition == definition and existing.cell == target and existing.quarter_turns == turns:
+		if existing and not existing.resolved_properties().get("solid", true) and existing.definition == definition and existing.cell == target and existing.quarter_turns == turns:
 			return false
-	_record()
 	var entity = GGEntityPlacement.new()
 	entity.entity_id = _next_id(definition.definition_id)
 	entity.definition = definition
@@ -244,9 +283,7 @@ func _paint_at(definition: GGEntityDefinition, target: Vector3i, turns: int, mir
 	entity.quarter_turns = turns
 	entity.mirrored = mirrored
 	entity.overrides = overrides.duplicate(true)
-	level.entities.append(entity)
-	_notify()
-	return true
+	return _commit_placements([entity], false)
 
 func _next_id(prefix: StringName) -> StringName:
 	return StringName("%s_%s" % [prefix, ResourceUID.id_to_text(ResourceUID.create_id()).trim_prefix("uid://")])
@@ -270,13 +307,9 @@ func position_error(id: StringName, cell: Vector3i) -> String:
 	var entity = find_entity(id)
 	if not entity:
 		return "Select an entity first."
-	# Validate the exact destination, including rotated/mirrored shape cells,
-	# without emitting changes or recording a speculative edit in history.
-	var original = entity.cell
-	entity.cell = cell
-	var errors = level.validate_placement()
-	entity.cell = original
-	return "\n".join(errors)
+	var candidate = entity.copy()
+	candidate.cell = cell
+	return _proposal_error([candidate])
 
 func _selected_entities(ids: Array[StringName]) -> Array[GGEntityPlacement]:
 	var result: Array[GGEntityPlacement] = []
@@ -301,25 +334,20 @@ func erase_entities(ids: Array[StringName]) -> bool:
 func translation_error(ids: Array[StringName], offset: Vector3i) -> String:
 	var entities = _selected_entities(ids)
 	if entities.is_empty(): return last_error
-	# Validate every destination simultaneously, excluding all vacated cells.
-	for entity in entities: entity.cell += offset
-	var errors = level.validate_placement()
-	for entity in entities: entity.cell -= offset
-	return "\n".join(errors)
+	return _proposal_error(_translated(entities, offset))
 
 func translate_entities(ids: Array[StringName], offset: Vector3i) -> bool:
-	last_error = translation_error(ids, offset)
-	if not last_error.is_empty() or offset == Vector3i.ZERO: return false
-	end_stroke()
-	_record()
-	for entity in _selected_entities(ids): entity.cell += offset
-	_notify()
-	return true
+	var entities = _selected_entities(ids)
+	if entities.is_empty(): return false
+	if offset == Vector3i.ZERO:
+		last_error = _proposal_error([])
+		return false
+	return _commit_placements(_translated(entities, offset))
 
 func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 	var sources = _selected_entities(ids)
 	if sources.is_empty(): return []
-	last_error = "\n".join(level.validate_placement())
+	last_error = _proposal_error([])
 	if not last_error.is_empty(): return []
 	var copies: Array[GGEntityPlacement] = []
 	var identities = {}
@@ -339,10 +367,7 @@ func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 	var found = false
 	for lift in _lift_offsets(copies):
 		for index in copies.size(): copies[index].cell = bases[index] + placement_normal * lift
-		level.entities.append_array(copies)
-		var errors = level.validate_placement()
-		for copied in copies: level.entities.erase(copied)
-		if errors.is_empty():
+		if _proposal_error(copies).is_empty():
 			found = true
 			break
 	if not found:
@@ -351,15 +376,7 @@ func duplicate_entities(ids: Array[StringName]) -> Array[StringName]:
 	var result: Array[StringName] = []
 	for copied in copies:
 		result.append(copied.entity_id)
-		level.entities.append(copied)
-	last_error = "\n".join(level.validate_placement())
-	for copied in copies: level.entities.erase(copied)
-	if not last_error.is_empty(): return []
-	end_stroke()
-	_record()
-	level.entities.append_array(copies)
-	_notify()
-	return result
+	return result if _commit_placements(copies) else []
 
 func ground_position(id: StringName, cell: Vector3i) -> Variant:
 	last_error = position_error(id, cell)
@@ -398,26 +415,12 @@ func edit_entity(id: StringName, cell: Vector3i, turns: int, mirrored: bool, ove
 	var entity = find_entity(id)
 	if not entity:
 		return false
-	var original = entity.copy()
-	entity.cell = cell
-	entity.quarter_turns = posmod(turns, 24)
-	entity.mirrored = mirrored
-	entity.overrides = overrides.duplicate(true)
-	var errors = level.validate_placement()
-	entity.cell = original.cell
-	entity.quarter_turns = original.quarter_turns
-	entity.mirrored = original.mirrored
-	entity.overrides = original.overrides
-	if not errors.is_empty():
-		last_error = "\n".join(errors)
-		return false
-	_record()
-	entity.cell = cell
-	entity.quarter_turns = posmod(turns, 24)
-	entity.mirrored = mirrored
-	entity.overrides = overrides.duplicate(true)
-	_notify()
-	return true
+	var candidate = entity.copy()
+	candidate.cell = cell
+	candidate.quarter_turns = posmod(turns, 24)
+	candidate.mirrored = mirrored
+	candidate.overrides = overrides.duplicate(true)
+	return _commit_placements([candidate], false)
 
 func edit_settings(title: String, gravity: bool, void_height: int) -> void:
 	_record()

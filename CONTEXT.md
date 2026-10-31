@@ -43,6 +43,9 @@ An ordered group of entities chosen for authoring edits. The last selected entit
 **Move preview**:
 A temporary proposed displacement of the editor selection. It may show an invalid destination, but changes the authored level only when accepted at a valid destination. Cancelling restores the original positions.
 
+**Editor interaction**:
+The temporary authoring state that determines the active tool, whether edits target the level or an entity shape, and when previews become invalid after a context change.
+
 **Authoring stroke**:
 A continuous pointer gesture that paints or erases entities, or edits an entity shape, as one undoable edit. Surface painting uses the occupied cells present when the stroke begins, so it does not stack repeatedly on entities created during that same stroke.
 

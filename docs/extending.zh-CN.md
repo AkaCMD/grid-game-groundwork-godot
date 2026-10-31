@@ -95,13 +95,17 @@ func allows(session: GGSession, actor_id: StringName,
 
 [GGLevel](../addons/grid_game_groundwork/data/level.gd) 接受版本 1 和 2，由 `GGLevelAuthoring` 打开时迁移至版本 2。定义可内嵌或外置，属性覆盖保持显式记录。`GGLevelAuthoring.save(path)` 先检查结构并保存外部配置，再通过临时文件替换关卡；多资源保存不是单个事务。
 
+编辑预览、绘制、移动、复制和实体编辑在候选关卡上验证，实体放置记录及覆盖值使用副本，共享定义、规则配置与试玩场景保留资源身份。验证钩子应保持只读：通过验证的编辑仅提交一次，拒绝的候选布局保持实时实体与历史不变。[编辑测试](../tests/test_authoring.gd)检查规则执行期间的隔离及重做分支保留。
+
 命令见[开发检查](development.zh-CN.md#检查)、[导出](development.zh-CN.md#导出)和[重新生成示例](development.zh-CN.md#重新生成示例)。玩法通过 `GGSession` 测试，存储修改通过真实的 `GGLevelAuthoring` 保存／重载检查。设计决策见 [docs/adr/](adr/)。
 
 ## 编辑器选择与笔画
 
-[GGEditorSelection](../addons/grid_game_groundwork/editor/selection.gd) 和 [GGEditorStroke](../addons/grid_game_groundwork/editor/stroke.gd) 共用同一 `GGLevelAuthoring`。选择模块通过 `begin_move`、`preview_move`、`finish_move` 暂存整组移动。笔画模块通过 `begin`、`preview`、`sample`、`finish` 接收摄像机射线，保持初始表面和已访问放置点稳定。
+使用 [GGEditorInteraction](../addons/grid_game_groundwork/editor/interaction.gd) 和一个 `GGLevelAuthoring` 管理工具切换、形状编辑上下文与预览失效处理，其 `selection` 和 `stroke` 共用该关卡编辑模块。输入适配器调用 `set_mode`、`set_shape_mode`、`configure_brush`、`set_plane` 和 `open`，由 `height_target` 选择 Q/E 的动作。渲染 `refreshed_level()` 返回的关卡，使选择状态先于视图重建完成协调，包括 Inspector 编辑后的刷新。窗口失焦或编辑器隐藏时调用 `cancel()`。
 
-放置规则由这些模块处理，输入代码提供射线并绘制预览。模块行为直接测试，摄像机投影、焦点和输入传递通过[编辑器测试框架](../tests/editor_harness/plugin.gd)检查。
+[GGEditorSelection](../addons/grid_game_groundwork/editor/selection.gd) 通过 `begin_move`、`preview_move`、`finish_move` 暂存整组移动。[GGEditorStroke](../addons/grid_game_groundwork/editor/stroke.gd) 通过 `begin`、`preview`、`sample`、`finish` 接收摄像机射线，保持初始表面和已访问放置点稳定。两者也可直接配合同一 `GGLevelAuthoring` 使用。
+
+切换规则由交互模块处理，输入代码提供射线并绘制预览。[交互测试](../tests/test_interaction.gd)检查工具切换与预览失效，摄像机投影、焦点和输入传递通过[编辑器测试框架](../tests/editor_harness/plugin.gd)检查。
 
 ## 角色选择与组合移动
 
