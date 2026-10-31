@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://examples/visuals/rolling.tscn" id="4_a3naf"]
 [ext_resource type="Script" uid="uid://2padj6u7npq0" path="res://examples/rules/rolling_rule.gd" id="5_iax1b"]
 [ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="6_5ylu1"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [sub_resource type="Resource" id="Resource_abwvb"]
 script = ExtResource("3_xunl7")
@@ -13,7 +14,8 @@ definition_id = &"floor"
 display_name = "Floor"
 movable = false
 affected_by_gravity = false
-color = Color(0.3764706, 0.46666667, 0.54901963, 1)
+color = Color(0.909804, 0.909804, 0.8745099, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "ground": true
 }
@@ -113,7 +115,7 @@ script = ExtResource("3_xunl7")
 definition_id = &"block"
 display_name = "Block"
 shape = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(0, 1, 0)])
-color = Color(0.20392157, 0.28235295, 0.3764706, 1)
+color = Color(0, 0, 0, 1)
 visual_scene = ExtResource("4_a3naf")
 properties = {
 "player": true
@@ -132,7 +134,8 @@ display_name = "Goal"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(1, 0.84313726, 0, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "goal": true
 }

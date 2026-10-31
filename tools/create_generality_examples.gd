@@ -1,5 +1,12 @@
 extends SceneTree
 
+const GROUND = preload("res://examples/entities/ground.tres")
+const WALL = preload("res://examples/entities/wall.tres")
+const PLAYER = preload("res://examples/entities/player.tres")
+const CRATE = preload("res://examples/entities/crate.tres")
+const GOAL = preload("res://examples/entities/goal.tres")
+const WATER_COLOR = Color(0, 0.27355617, 0.5849056, 1)
+
 func _init() -> void:
 	_rolling()
 	_gravity()
@@ -15,6 +22,7 @@ func definition(id: StringName, color: Color, solid: bool = true, movable: bool 
 	result.movable = movable
 	result.affected_by_gravity = movable
 	result.properties = {}
+	result.visual_scene = load("res://examples/visuals/block.tscn")
 	return result
 
 func place(level: GGLevel, id: StringName, definition: GGEntityDefinition, cell: Vector3i, overrides: Dictionary = {}) -> void:
@@ -27,7 +35,7 @@ func place(level: GGLevel, id: StringName, definition: GGEntityDefinition, cell:
 	level.entities.append(entity)
 
 func floor_tiles(level: GGLevel, width: int, depth: int) -> void:
-	var floor = definition(&"floor", Color("60778c"))
+	var floor = definition(&"floor", GROUND.color)
 	floor.properties = {"ground": true}
 	for x in width:
 		for z in depth:
@@ -47,12 +55,12 @@ func _rolling() -> void:
 	level.title = "Marked rolling block: D, D"
 	level.game_rule = GGRollingRule.new()
 	floor_tiles(level, 5, 3)
-	var block = definition(&"block", Color("344860"), true, true)
+	var block = definition(&"block", PLAYER.color, true, true)
 	block.properties = {"player": true}
 	block.shape.assign([Vector3i.ZERO, Vector3i.UP])
 	block.visual_scene = load("res://examples/visuals/rolling.tscn")
 	place(level, &"block", block, Vector3i(0, 0, 1))
-	var goal = definition(&"goal", Color.GOLD, false)
+	var goal = definition(&"goal", GOAL.color, false)
 	goal.properties = {"goal": true}
 	place(level, &"goal", goal, Vector3i(3, 0, 1))
 	save_example(level, "rolling")
@@ -62,17 +70,17 @@ func _gravity() -> void:
 	level.title = "Gravity: 1 down, 2 up, 3 left, 4 right, 5 forward, 6 back, 0 off"
 	level.game_rule = GGGravityRule.new()
 	level.playtest_scene = load("res://examples/runtime/gravity_host.tscn")
-	var wall = definition(&"boundary", Color("4a6777"))
+	var wall = definition(&"boundary", WALL.color)
 	wall.visual_scene = load("res://examples/visuals/boundary.tscn")
 	for x in range(-1, 4):
 		for y in range(-1, 4):
 			for z in range(-1, 4):
 				if x in [-1, 3] or y in [-1, 3] or z in [-1, 3]:
 					place(level, StringName("wall_%d_%d_%d" % [x, y, z]), wall, Vector3i(x, y, z))
-	var actor = definition(&"actor", Color("56d6c0"), true, true)
+	var actor = definition(&"actor", PLAYER.color, true, true)
 	actor.properties = {"player": true, "can_push": true}
 	place(level, &"actor", actor, Vector3i(1, 1, 1))
-	var crate = definition(&"crate", Color("e6a35e"), true, true)
+	var crate = definition(&"crate", CRATE.color, true, true)
 	crate.properties = {"pushable": true}
 	place(level, &"crate", crate, Vector3i(1, 0, 1))
 	save_example(level, "gravity", "res://examples/runtime/gravity_game.gd")
@@ -89,27 +97,29 @@ func _links() -> void:
 	level.title = "Linked mechanisms: hold the switch, cross the door, enter the portal"
 	level.game_rule = GGLinksRule.new()
 	floor_tiles(level, 9, 4)
-	var actor = definition(&"actor", Color("56d6c0"), true, true)
+	var actor = definition(&"actor", PLAYER.color, true, true)
 	actor.properties = {"player": true, "can_push": true}
 	place(level, &"actor", actor, Vector3i(0, 0, 1))
-	var crate = definition(&"crate", Color("e6a35e"), true, true)
+	var crate = definition(&"crate", CRATE.color, true, true)
 	crate.properties = {"pushable": true}
 	place(level, &"crate", crate, Vector3i(1, 0, 2))
-	var pressure = definition(&"pressure_switch", Color.GOLD, false)
+	var pressure = definition(&"pressure_switch", GOAL.color, false)
 	pressure.properties = {"switch": true}
+	pressure.visual_scene = load("res://examples/visuals/mechanism.tscn")
 	pressure.fields.append(reference_field(&"doors", "Controlled doors", true))
 	place(level, &"switch", pressure, Vector3i(1, 0, 1), {&"doors": [&"door_a", &"door_b"]})
-	var door = definition(&"door", Color("ef6677"))
+	var door = definition(&"door", WALL.color)
 	door.properties = {"door": true}
 	door.visual_scene = load("res://examples/visuals/door.tscn")
 	place(level, &"door_a", door, Vector3i(4, 0, 1))
 	place(level, &"door_b", door, Vector3i(4, 0, 0))
-	var portal = definition(&"portal", Color("ae86ed"), false)
+	var portal = definition(&"portal", WATER_COLOR, false)
 	portal.properties = {"portal": true}
+	portal.visual_scene = load("res://examples/visuals/mechanism.tscn")
 	portal.fields.append(reference_field(&"target", "Portal destination"))
 	place(level, &"portal_entry", portal, Vector3i(5, 0, 1), {&"target": &"portal_exit"})
 	place(level, &"portal_exit", portal, Vector3i(7, 0, 2))
-	var goal = definition(&"goal", Color.LIME_GREEN, false)
+	var goal = definition(&"goal", GOAL.color, false)
 	goal.properties = {"goal": true}
 	place(level, &"goal", goal, Vector3i(7, 0, 1))
 	save_example(level, "links")

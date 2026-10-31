@@ -8,7 +8,7 @@
 
 使用 **Godot 标准版**和 **Compatibility 渲染器**。[项目配置](project.godot)声明使用 Godot 4.7，测试环境见[开发检查](docs/development.zh-CN.md#检查)。
 
-![移动、推动、下落、撤销和重做](docs/media/gameplay.gif)
+![推箱子的推动、下落与撤销重做，以及管道通水、带标记方块翻滚、重力切换和关联机关](docs/media/gameplay.gif)
 
 ## 快速开始
 
@@ -23,7 +23,7 @@
 
 直接运行项目可玩推箱子；打开 `examples/pipes.tscn` 或 `examples/quack.tscn` 后运行当前场景可玩其他示例。推箱子开局按两次 **S**，可将箱子推落到下层平台。
 
-![关卡编辑操作：绘制、Shift 多选、Q/E 升降、整组拖动、Delete、撤销重做与工具快捷键](docs/media/authoring.gif)
+![关卡编辑操作：绘制与擦除、Shift 多选、Q/E 升降、整组拖动、Delete 与撤销重做](docs/media/authoring.gif)
 
 ## 功能一览
 

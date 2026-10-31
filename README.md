@@ -8,7 +8,7 @@ A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mec
 
 Use **Godot Standard** with the **Compatibility renderer**. The [project configuration](project.godot) declares Godot 4.7; see [development checks](docs/development.md#checks) for the test setup.
 
-![Movement, pushing, falling, undo and redo](docs/media/gameplay.gif)
+![Sokoban pushing and falling with undo/redo, pipe flow, marked rolling, changing gravity and linked mechanisms](docs/media/gameplay.gif)
 
 ## Quick start
 
@@ -23,7 +23,7 @@ Playtest includes unsaved edits without changing the authored level. **Save asâ€
 
 To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
-![Level authoring: painting, Shift multi-selection, Q/E height changes, group dragging, Delete, undo/redo, and tool shortcuts](docs/media/authoring.gif)
+![Level authoring: painting and erasing, Shift multi-selection, Q/E height changes, group dragging, Delete, and undo/redo](docs/media/authoring.gif)
 
 ## Features
 

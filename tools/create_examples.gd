@@ -16,8 +16,8 @@ func _init() -> void:
 	goal.affected_by_gravity = false
 	define("pipe", "Straight pipe", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"pipe": true, "pushable": true, "transmits_push": true, "ports": [Vector3i.LEFT, Vector3i.RIGHT]})
 	define("pipe_elbow", "Elbow pipe", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"pipe": true, "pushable": true, "transmits_push": true, "ports": [Vector3i.LEFT, Vector3i(0, 0, -1)]})
-	define("source", "Pipe source", Color(0.4433962, 0.34227517, 0.2007832, 1), false, {"pipe": true, "source": true, "ports": [Vector3i.RIGHT]})
-	define("destination", "Pipe destination", Color(0.4433962, 0.34227517, 0.2007832, 1), false, {"pipe": true, "destination": true, "ports": [Vector3i.LEFT]})
+	define("source", "Pipe source", Color(0.3647059, 0.48627454, 0.28235295, 1), false, {"pipe": true, "source": true, "ports": [Vector3i.RIGHT]})
+	define("destination", "Pipe destination", Color(0.735849, 0.6563319, 0.5900676, 1), false, {"pipe": true, "destination": true, "ports": [Vector3i.LEFT]})
 	for definition in definitions.values():
 		if definition.properties.get("pipe", false):
 			definition.visual_scene = load("res://examples/visuals/pipe.tscn")

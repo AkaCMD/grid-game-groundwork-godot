@@ -489,7 +489,7 @@ script = ExtResource("2_a0r1g")
 definition_id = &"source"
 display_name = "Pipe source"
 movable = false
-color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+color = Color(0.3647059, 0.48627454, 0.28235295, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "pipe": true,
@@ -508,7 +508,7 @@ script = ExtResource("2_a0r1g")
 definition_id = &"destination"
 display_name = "Pipe destination"
 movable = false
-color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
 visual_scene = ExtResource("3_ddox0")
 properties = {
 "destination": true,

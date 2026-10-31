@@ -1,15 +1,31 @@
 @tool
-extends Node3D
+extends "res://examples/visuals/block_visual.gd"
+
+const GROUND = preload("res://examples/entities/ground.tres")
+const GOAL = preload("res://examples/entities/goal.tres")
 
 func configure_entity(definition: GGEntityDefinition, properties: Dictionary) -> void:
+	super.configure_entity(definition, properties)
 	var normals = [Vector3i.RIGHT, Vector3i.LEFT, Vector3i.UP, Vector3i.DOWN, Vector3i.BACK, Vector3i.FORWARD]
-	var colors = [Color.CORAL, Color.GOLD, Color.DODGER_BLUE, Color.LIME_GREEN, Color.VIOLET, Color.WHITE]
+	var pips = [Vector2(-0.16, -0.16), Vector2(0.16, 0.16), Vector2(-0.16, 0.16), Vector2(0.16, -0.16), Vector2.ZERO]
 	for cell in definition.shape:
-		var cube = BoxMesh.new()
-		cube.size = Vector3.ONE * 0.9
-		add_child(GGBoardView.mesh_node(cube, definition.color, Vector3(cell)))
-		for index in 6:
-			var marker = BoxMesh.new()
-			marker.size = Vector3.ONE * 0.45
-			marker.size[normals[index].abs().max_axis_index()] = 0.03
-			add_child(GGBoardView.mesh_node(marker, colors[index], Vector3(cell) + Vector3(normals[index]) * 0.46))
+		for index in normals.size():
+			var normal: Vector3i = normals[index]
+			if definition.shape.has(cell + normal):
+				continue
+			var face_basis = Basis(Quaternion(Vector3.UP, Vector3(normal)))
+			var center = Vector3(cell) + Vector3(normal) * 0.51
+			var target_face = normal == Vector3i.UP
+			var plate = _box(Vector3(0.62, 0.02, 0.62), center, GOAL.color if target_face else GROUND.color)
+			plate.basis = face_basis
+			if target_face:
+				# Match the goal's cross on the face that must finish pointing down.
+				for angle in [-PI / 4.0, PI / 4.0]:
+					var crossbar = _box(Vector3(0.62, 0.015, 0.08), center + Vector3(normal) * 0.018, CRATE_COLOR)
+					crossbar.basis = face_basis * Basis(Vector3.UP, angle)
+			else:
+				var count = index + 1 if index < 2 else index
+				for pip in pips.slice(0, count):
+					var offset = face_basis * Vector3(pip.x, 0.018, pip.y)
+					var dot = _box(Vector3(0.085, 0.015, 0.085), center + offset, CRATE_COLOR)
+					dot.basis = face_basis

@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" path="res://examples/visuals/door.tscn" id="4_xl4fk"]
 [ext_resource type="Script" uid="uid://oeknt2wprgwr" path="res://examples/rules/links_rule.gd" id="5_p4kte"]
 [ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="6_rbqe2"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
+[ext_resource type="PackedScene" path="res://examples/visuals/mechanism.tscn" id="visual_mechanism"]
 
 [sub_resource type="Resource" id="Resource_c470r"]
 script = ExtResource("3_d351x")
@@ -13,7 +15,8 @@ definition_id = &"floor"
 display_name = "Floor"
 movable = false
 affected_by_gravity = false
-color = Color(0.3764706, 0.46666667, 0.54901963, 1)
+color = Color(0.909804, 0.909804, 0.8745099, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "ground": true
 }
@@ -238,7 +241,8 @@ cell = Vector3i(8, -1, 3)
 script = ExtResource("3_d351x")
 definition_id = &"actor"
 display_name = "Actor"
-color = Color(0.3372549, 0.8392157, 0.7529412, 1)
+color = Color(0, 0, 0, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "can_push": true,
 "player": true
@@ -254,7 +258,8 @@ cell = Vector3i(0, 0, 1)
 script = ExtResource("3_d351x")
 definition_id = &"crate"
 display_name = "Crate"
-color = Color(0.9019608, 0.6392157, 0.36862746, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "pushable": true
 }
@@ -280,8 +285,9 @@ display_name = "Pressure Switch"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(1, 0.84313726, 0, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
 fields = Array[ExtResource("2_tkmx4")]([SubResource("Resource_pr5ab")])
+visual_scene = ExtResource("visual_mechanism")
 properties = {
 "switch": true
 }
@@ -301,7 +307,7 @@ definition_id = &"door"
 display_name = "Door"
 movable = false
 affected_by_gravity = false
-color = Color(0.9372549, 0.4, 0.46666667, 1)
+color = Color(0.3647059, 0.48627454, 0.28235295, 1)
 visual_scene = ExtResource("4_xl4fk")
 properties = {
 "door": true
@@ -334,8 +340,9 @@ display_name = "Portal"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(0.68235296, 0.5254902, 0.92941177, 1)
+color = Color(0, 0.27355617, 0.5849056, 1)
 fields = Array[ExtResource("2_tkmx4")]([SubResource("Resource_75kmy")])
+visual_scene = ExtResource("visual_mechanism")
 properties = {
 "portal": true
 }
@@ -362,7 +369,8 @@ display_name = "Goal"
 solid = false
 movable = false
 affected_by_gravity = false
-color = Color(0.19607843, 0.8039216, 0.19607843, 1)
+color = Color(0.735849, 0.6563319, 0.5900676, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "goal": true
 }

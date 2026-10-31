@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://c2sg3lxp2lx51" path="res://examples/rules/gravity_rule.gd" id="5_gdvmm"]
 [ext_resource type="PackedScene" path="res://examples/runtime/gravity_host.tscn" id="6_uelk7"]
 [ext_resource type="Script" uid="uid://dhgxj7xh56eoj" path="res://addons/grid_game_groundwork/data/level.gd" id="7_qdlsf"]
+[ext_resource type="PackedScene" path="res://examples/visuals/block.tscn" id="visual_block"]
 
 [sub_resource type="Resource" id="Resource_d6ggw"]
 script = ExtResource("3_0qjcm")
@@ -14,7 +15,7 @@ definition_id = &"boundary"
 display_name = "Boundary"
 movable = false
 affected_by_gravity = false
-color = Color(0.2901961, 0.40392157, 0.46666667, 1)
+color = Color(0.3647059, 0.48627454, 0.28235295, 1)
 visual_scene = ExtResource("4_bs62m")
 properties = {}
 
@@ -610,7 +611,8 @@ cell = Vector3i(3, 3, 3)
 script = ExtResource("3_0qjcm")
 definition_id = &"actor"
 display_name = "Actor"
-color = Color(0.3372549, 0.8392157, 0.7529412, 1)
+color = Color(0, 0, 0, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "can_push": true,
 "player": true
@@ -626,7 +628,8 @@ cell = Vector3i(1, 1, 1)
 script = ExtResource("3_0qjcm")
 definition_id = &"crate"
 display_name = "Crate"
-color = Color(0.9019608, 0.6392157, 0.36862746, 1)
+color = Color(0.4433962, 0.34227517, 0.2007832, 1)
+visual_scene = ExtResource("visual_block")
 properties = {
 "pushable": true
 }
