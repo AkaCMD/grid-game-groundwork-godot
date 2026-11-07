@@ -182,11 +182,3 @@ func _test_examples() -> void:
 	check(session.status == &"won", "Sokoban example is solvable with a multi-cell crate")
 	check(session.undo() and session.status == &"playing", "Undo reopens a completed puzzle")
 	check(session.redo() and session.status == &"won", "Redo restores Sokoban completion with demonstration crates present")
-	var pipes = load("res://examples/levels/pipes.tres")
-	session = GGSession.new()
-	check(session.start(pipes).is_empty(), "Pipe level loads")
-	for direction in [Vector3i.FORWARD, Vector3i.BACK, Vector3i.RIGHT, Vector3i.FORWARD]:
-		check(session.move(session.player_id(), direction), "Pipe solution step is legal")
-	check(session.status == &"won", "Pipe example is solvable")
-	check(session.undo() and session.status == &"playing", "Undo restores pipe connectivity")
-	check(session.redo() and session.status == &"won", "Redo restores powered destinations")

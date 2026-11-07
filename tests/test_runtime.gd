@@ -38,12 +38,7 @@ func run() -> void:
 	check(authored.entities[73].cell == player_cell, "Running a scene leaves the authored resource unchanged")
 	game.queue_free()
 	await process_frame
-	var pipes = load("res://examples/pipes.tscn").instantiate()
-	root.add_child(pipes)
-	await process_frame
-	check(pipes._view.roots.size() == pipes.level.entities.size(), "Pipe example renders all entities")
-	pipes.queue_free()
-	await process_frame
+	await test_custom_playtest_scene()
 	await test_camera_controls()
 	await test_input_buffer()
 	print("Runtime: %d failures" % failures)
@@ -161,7 +156,7 @@ func test_input_buffer() -> void:
 		await process_frame
 
 func test_camera_controls() -> void:
-	var game = load("res://examples/pipes.tscn").instantiate()
+	var game = load("res://examples/sokoban.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
 	var initial_position: Vector3 = game._camera.position
@@ -191,4 +186,23 @@ func test_camera_controls() -> void:
 	check(game._camera_pivot.is_equal_approx(initial_pivot), "Frame restores the authored board center")
 	check(game.session.snapshot() == initial_state, "Camera controls leave gameplay state unchanged")
 	game.queue_free()
+	await process_frame
+
+func test_custom_playtest_scene() -> void:
+	var level: GGLevel = ResourceLoader.load("res://examples/levels/rolling.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	level.title = "Unsaved rolling layout"
+	level.playtest_scene = load("res://examples/sokoban.tscn")
+	var editor = GGLevelAuthoring.new()
+	editor.open(level)
+	var path = editor.prepare_playtest("user://custom_playtest_scene")
+	check(not path.is_empty(), "Custom playtest preparation accepts unsaved configuration")
+	if path.is_empty(): return
+	var entry = load(path).instantiate()
+	root.add_child(entry)
+	await process_frame
+	var game = entry.get_child(0) as GGGame
+	check(game.scene_file_path == "res://examples/sokoban.tscn", "Playtest launches the configured runtime scene")
+	check(game.level.title == "Unsaved rolling layout" and game.level != level, "The custom scene receives the isolated unsaved level")
+	check(game.session.player_id() == &"block", "The runtime starts the supplied level")
+	entry.queue_free()
 	await process_frame

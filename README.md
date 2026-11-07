@@ -4,11 +4,11 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, pipes, QUACK!!! on ICE, rolling blocks, changing gravity and linked mechanisms.
+A Godot addon for making 3D grid puzzles. Paint levels, playtest, and extend mechanics with GDScript. Includes Sokoban, a rolling block puzzle and QUACK!!! on ICE.
 
 Use **Godot Standard** with the **Compatibility renderer**. The [project configuration](project.godot) declares Godot 4.7; see [development checks](docs/development.md#checks) for the test setup.
 
-![Sokoban pushing and falling with undo/redo, pipe flow, marked rolling, changing gravity and linked mechanisms](docs/media/gameplay.gif)
+![Sokoban pushing and falling with undo and redo, followed by the marked rolling block](docs/media/gameplay.gif)
 
 ## Quick start
 
@@ -21,7 +21,7 @@ Use **Godot Standard** with the **Compatibility renderer**. The [project configu
 
 Playtest includes unsaved edits without changing the authored level. **Save as…** copies the layout but keeps references to shared definitions and rules. Read [saving and shared resources](docs/designer-guide.md#definitions-overrides-and-shapes) before changing their defaults.
 
-To play directly, run the project for Sokoban, or open `examples/pipes.tscn` / `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
+Run the project to play Sokoban. For the other examples, open `examples/rolling.tscn` or `examples/quack.tscn` and run the current scene. In Sokoban, press **S twice** from the start to push a crate onto the lower landing.
 
 ![Level authoring: painting and erasing, Shift multi-selection, Q/E height changes, group dragging, Delete, and undo/redo](docs/media/authoring.gif)
 
@@ -52,10 +52,7 @@ Click the viewport/game to focus it. Editing shortcuts leave text and property i
 | Example | What to try |
 | --- | --- |
 | [Sokoban](examples/sokoban.tscn) | Push ordinary and L-shaped crates, including chains, onto all goals; use elevated platforms and undo falls. |
-| [Pipes](examples/pipes.tscn) | Push straight and elbow pipes to connect every destination to a source through matching ports; connected pipes light up. |
 | [Rolling block](examples/rolling.tscn) | Press **D twice** to roll the marked block onto its goal with the required face down. |
-| [Changing gravity](examples/gravity.tscn) | **1-6** select down/up/left/right/forward/back; **0** turns gravity off. **Q/E** moves along Y. |
-| [Linked mechanisms](examples/links.tscn) | Hold a pressure switch with a crate, cross an open door, and enter a directed portal. [Walkthrough](docs/designer-guide.md#additional-rule-examples). |
 | [QUACK!!! on ICE](examples/quack.tscn) | Click between three ducks, slide to eat bread, drop between platforms and use fed ducks as stoppers. [Rules and seven-move walkthrough](docs/quack-example.md). |
 
 ![QUACK!!! on ICE: three ducks on two platforms](docs/media/quack.png)

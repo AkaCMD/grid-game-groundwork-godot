@@ -19,7 +19,7 @@ A temporary play session used to test an authored level. Changes caused by playi
 A discrete location in the three-dimensional grid.
 
 **Entity**:
-A distinct element of a level occupying one or more cells, such as a player, wall, crate, or pipe.
+A distinct element of a level occupying one or more cells, such as a player, wall, or crate.
 _Avoid_: Object, game object, piece
 
 **Entity definition**:

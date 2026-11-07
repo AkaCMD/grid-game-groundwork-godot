@@ -4,11 +4,11 @@
 
 [English](README.md) | **简体中文**
 
-用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、管道、QUACK!!! on ICE、翻滚方块、重力切换和关联机关六个示例。
+用于制作 3D 网格解谜游戏的 Godot 插件。可视化绘制关卡、试玩，并用 GDScript 扩展玩法。附带推箱子、翻滚方块和 QUACK!!! on ICE 三个示例。
 
 使用 **Godot 标准版**和 **Compatibility 渲染器**。[项目配置](project.godot)声明使用 Godot 4.7，测试环境见[开发检查](docs/development.zh-CN.md#检查)。
 
-![推箱子的推动、下落与撤销重做，以及管道通水、带标记方块翻滚、重力切换和关联机关](docs/media/gameplay.gif)
+![推箱子的推动、下落和撤销重做，以及带标记方块的翻滚](docs/media/gameplay.gif)
 
 ## 快速开始
 
@@ -21,7 +21,7 @@
 
 试玩包含未保存的编辑，不会改变设计好的关卡。**Save as…** 复制布局，但保留对共享定义与规则的引用。修改默认值前，请先阅读[保存与共享资源说明](docs/designer-guide.zh-CN.md#实体定义属性覆盖与形状)。
 
-直接运行项目可玩推箱子；打开 `examples/pipes.tscn` 或 `examples/quack.tscn` 后运行当前场景可玩其他示例。推箱子开局按两次 **S**，可将箱子推落到下层平台。
+直接运行项目可玩推箱子。要玩其他示例，打开 `examples/rolling.tscn` 或 `examples/quack.tscn`，再运行当前场景。推箱子开局按两次 **S**，可将箱子推落到下层平台。
 
 ![关卡编辑操作：绘制与擦除、Shift 多选、Q/E 升降、整组拖动、Delete 与撤销重做](docs/media/authoring.gif)
 
@@ -52,10 +52,7 @@
 | 示例 | 玩法 |
 | --- | --- |
 | [推箱子](examples/sokoban.tscn) | 将普通箱子和 L 形箱子推到全部目标上；支持连推、高低平台与下落回退。 |
-| [管道连接](examples/pipes.tscn) | 推动直管和弯管，通过方向匹配的端口把全部终点接到源头；连通管道会亮起。 |
 | [翻滚方块](examples/rolling.tscn) | 按两次 **D**，将带面标记的长方块以指定朝向滚到目标。 |
-| [重力切换](examples/gravity.tscn) | **1-6** 选择下／上／左／右／前／后重力，**0** 关闭重力；**Q/E** 沿 Y 移动。 |
-| [关联机关](examples/links.tscn) | 用箱子压住开关，穿过开启的门，再进入单向传送门。[解法](docs/designer-guide.zh-CN.md#其他规则示例)。 |
 | [QUACK!!! on ICE](examples/quack.tscn) | 点击切换三只鸭子，滑行吃面包、从上层落到下层，利用吃饱的鸭子挡停其他鸭子。[完整规则与七步解法](docs/quack-example.zh-CN.md)。 |
 
 ![QUACK!!! on ICE：双层平台上的三只鸭子](docs/media/quack.png)

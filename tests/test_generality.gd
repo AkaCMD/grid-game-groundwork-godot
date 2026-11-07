@@ -244,19 +244,19 @@ func _test_rejected_resolution() -> void:
 
 func _test_reference_roundtrip() -> void:
 	var editor = GGLevelAuthoring.new()
-	editor.open(ResourceLoader.load("res://examples/levels/links.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP))
-	var copies = editor.duplicate_entities([&"portal_entry"])
-	check(copies.size() == 1, "A portal can be copied independently")
+	editor.open(ResourceLoader.load("res://tests/fixtures/entity_references.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP))
+	var copies = editor.duplicate_entities([&"source"])
+	check(copies.size() == 1, "An entity with a reference can be copied independently")
 	if copies.is_empty(): return
-	check(editor.find_entity(copies[0]).resolved_properties()[&"target"] == &"portal_exit", "References outside a copied group remain unchanged")
-	check(editor.save("user://copied_portals.tres") == OK, "A level with copied links saves")
-	var loaded = ResourceLoader.load("user://copied_portals.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	check(editor.find_entity(copies[0]).resolved_properties()[&"target"] == &"target", "References outside a copied group remain unchanged")
+	check(editor.save("user://copied_references.tres") == OK, "A level with copied links saves")
+	var loaded = ResourceLoader.load("user://copied_references.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
 	check(loaded.validate().is_empty() and loaded.schema_version == 2, "References and the upgraded schema survive reload")
 	editor.open(loaded)
 	var deleted_id = editor.level.entities.back().entity_id
 	var definition = editor.level.entities.back().definition
-	check(editor.erase(deleted_id), "A copied portal can be deleted")
-	check(editor.paint(definition, Vector3i(8, 0, 3)), "A new portal can be painted after deletion")
+	check(editor.erase(deleted_id), "A copied entity can be deleted")
+	check(editor.paint(definition, Vector3i(8, 0, 3)), "A new entity can be painted after deletion")
 	check(editor.level.entities.back().entity_id != deleted_id, "New entities do not reuse a deleted identity")
 
 class PaletteRule extends GGGameRule:

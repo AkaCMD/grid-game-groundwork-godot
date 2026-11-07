@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="GGLevel" format=3]
+
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/level.gd" id="1"]
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_placement.gd" id="2"]
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/entity_definition.gd" id="3"]
+[ext_resource type="Script" path="res://addons/grid_game_groundwork/data/property_field.gd" id="4"]
+
+[sub_resource type="Resource" id="ReferenceField"]
+script = ExtResource("4")
+key = &"target"
+label = "Target"
+kind = 5
+
+[sub_resource type="Resource" id="SourceDefinition"]
+script = ExtResource("3")
+definition_id = &"source"
+fields = Array[ExtResource("4")]([SubResource("ReferenceField")])
+
+[sub_resource type="Resource" id="TargetDefinition"]
+script = ExtResource("3")
+definition_id = &"target"
+
+[sub_resource type="Resource" id="Source"]
+script = ExtResource("2")
+entity_id = &"source"
+definition = SubResource("SourceDefinition")
+overrides = {&"target": &"target"}
+
+[sub_resource type="Resource" id="Target"]
+script = ExtResource("2")
+entity_id = &"target"
+definition = SubResource("TargetDefinition")
+cell = Vector3i(1, 0, 0)
+
+[sub_resource type="Resource" id="Actor"]
+script = ExtResource("2")
+entity_id = &"actor"
+definition = SubResource("TargetDefinition")
+cell = Vector3i(2, 0, 0)
+
+[resource]
+script = ExtResource("1")
+gravity_enabled = false
+entities = Array[ExtResource("2")]([SubResource("Source"), SubResource("Target"), SubResource("Actor")])

@@ -136,7 +136,6 @@ Under the default rule, place ground explicitly. With gravity, support below any
 | Rule | Goal |
 | --- | --- |
 | Sokoban | Cover every goal cell with a crate; at least one goal is required. Extra crates may remain. |
-| Pipes | Connect every destination to a source through reciprocal ports; connected pipes light up. |
 | QUACK | Consume all bread. [Rules and walkthrough](quack-example.md). |
 | No rule | Test movement and gravity without a victory condition. |
 
@@ -146,12 +145,8 @@ During play, click a player while idle to switch actors; foreground cells can bl
 
 **Z** undoes a complete action, including pushes, falls and mechanic state. **Y** redoes it; **R** restarts, and restart is undoable. History remains available after success/failure. History commands clear buffered moves and wait for the current action to finish. Connect [completion/failure signals](extending.md#visuals-and-lifecycle) for custom progression.
 
-## Additional rule examples
+## Rolling block example
 
-Open these levels in Grid Levels, or run their corresponding scenes under `examples/`. Their configurations use the same definitions and entity overrides as the other examples.
+Open `examples/levels/rolling.tres` in Grid Levels or run `examples/rolling.tscn`. Press **D** twice to roll the block onto the goal. The colored face markers show its orientation. To win, the block must reach the goal with its local up face pointing down.
 
-- **Rolling block** (`rolling.tres`): press **D, D**. Colored face markers distinguish the block's orientation; completion requires its local up face to point down at the goal.
-- **Changing gravity** (`gravity.tres`): **1/2/3/4/5/6** selects down/up/left/right/forward/back, and **0** turns gravity off. **Q/E** moves along Y. Each gravity change and its resulting falls undo together. Translucent boundary cells support entities in every direction.
-- **Linked mechanisms** (`links.tres`): press **S, S, D, W, D, W, D, D, D, W**. The crate holds the switch while the actor passes a door and teleports. Select the switch to edit **Controlled doors**, or a portal to edit **Portal destination**. A blocked destination leaves the entering entity at the source portal.
-
-Set **Level → Playtest scene** when a game supplies custom controls or presentation. The changing-gravity level supplies its own scene; Playtest uses it with the current unsaved layout. World axes and editor camera orientation remain independent of gameplay gravity.
+Set **Level → Playtest scene** when a game supplies custom controls or presentation. Playtest starts that scene with the current unsaved layout. World axes and editor camera orientation remain independent of gameplay gravity.

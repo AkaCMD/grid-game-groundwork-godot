@@ -119,7 +119,7 @@ func allows(session: GGSession, actor_id: StringName,
 
 ## 指令、字段与试玩场景
 
-`session.act(command, arguments)` 开始一次事务。解析器返回 false、重力结算失败或最终状态非法时，恢复先前快照与动画阶段，并保留重做。接受的动作运行 `after_action` 并仅记录一次历史。游玩期间保持规则配置不变，将重力方向、门状态和传送门锁存状态放在会话或实体状态中。[翻滚](../examples/rules/rolling_rule.gd)、[重力](../examples/rules/gravity_rule.gd)和[关联机关](../examples/rules/links_rule.gd)规则使用此接口。
+`session.act(command, arguments)` 开始一次事务。解析器返回 false、重力结算失败或最终状态非法时，恢复先前快照与动画阶段，并保留重做。接受的动作运行 `after_action` 并仅记录一次历史。游玩期间保持规则配置不变，将重力方向、门状态和传送门锁存状态放在会话或实体状态中。翻滚方块规则提供了自定义移动解析器。[翻滚方块规则](../examples/rules/rolling_rule.gd)
 
 默认 `move` 指令仍为水平移动。`step` 在结算期间接受任一轴的单位方向；`settle()` 应用当前重力策略。默认下落求解在整个动作中共用 `resolution_limit` 预算，无法终止时拒绝动作。自定义解析器须限制自己的循环；重力结算期间递归调用 `settle` 会拒绝动作。
 
@@ -129,4 +129,4 @@ func allows(session: GGSession, actor_id: StringName,
 
 ENTITY 和 ENTITIES 值是实体 ID，提供编辑选择器与引用校验。整组复制会重映射组内引用，包括继承的默认引用，同时保留组外引用。删除目标后保留缺失引用，生成身份不依赖当前实体数量。`validate_structure()` 检查类型和资源结构，`validate_placement()` 加入规则检查，`validate()` 再加入引用检查。保存草稿要求结构合法，试玩要求完整校验。编辑态碰撞与支撑策略应和运行时对应策略保持一致。
 
-指定 `GGLevel.playtest_scene` 可使用专用控制和表现。其根节点须提供 `level` 属性或 `configure_level(level)`，启动器在加入场景树前注入隔离关卡。`GGLevelAuthoring.prepare_playtest(directory)` 写入临时快照与启动场景。快照包含规则资源字段和实体引用；脚本与外观场景保留为外部资源。[重力运行场景](../examples/runtime/gravity_game.gd)展示了自定义指令输入，并复用共享历史。
+指定 `GGLevel.playtest_scene` 可使用专用控制和表现。其根节点须提供 `level` 属性或 `configure_level(level)`，启动器在加入场景树前注入隔离关卡。`GGLevelAuthoring.prepare_playtest(directory)` 写入临时快照与启动场景。快照包含规则资源字段和实体引用；脚本与外观场景保留为外部资源。

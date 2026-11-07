@@ -1789,25 +1789,24 @@ func check_generality(panel: GGEditorPanel) -> void:
 	panel._plane_picker.item_selected.emit(1)
 	check(panel.viewport.plane_normal == Vector3i.BACK and panel.stroke.plane_normal == Vector3i.BACK, "The plane picker configures both grid and authoring input")
 	panel._plane_picker.item_selected.emit(0)
-	panel._open(load("res://examples/levels/links.tres"))
-	panel._select(&"portal_entry")
+	panel._open(load("res://tests/fixtures/entity_references.tres"))
+	panel._select(&"source")
 	var picker = panel._fields.get_node("target/Input") as OptionButton
-	check(picker != null, "Selected portal exposes a named target selector")
+	check(picker != null, "The selected entity exposes a named target selector")
 	var target_index = -1
 	for index in picker.item_count:
 		if picker.get_item_metadata(index) == &"actor": target_index = index
 	check(target_index >= 0, "Entity selector includes available targets")
 	if target_index >= 0: picker.item_selected.emit(target_index)
 	panel._apply_entity()
-	check(panel.authoring.find_entity(&"portal_entry").resolved_properties()[&"target"] == &"actor", "Applying the selector commits the chosen entity reference")
+	check(panel.authoring.find_entity(&"source").resolved_properties()[&"target"] == &"actor", "Applying the selector commits the chosen entity reference")
 	panel.authoring.undo()
-	for name in ["rolling", "gravity", "links"]:
-		panel._open(load("res://examples/levels/%s.tres" % name))
-		check(panel._save_to("res://generality_%s.tres" % name), "The editor saves each genericity example")
-		panel._open(ResourceLoader.load("res://generality_%s.tres" % name, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP))
-		panel._playtest()
-		for frame in 30: await get_tree().process_frame
-		check(EditorInterface.is_playing_scene(), "The editor launches each genericity example")
-		EditorInterface.stop_playing_scene()
-		for frame in 10: await get_tree().process_frame
+	panel._open(load("res://examples/levels/rolling.tres"))
+	check(panel._save_to("res://generality_rolling.tres"), "The editor saves the rolling example")
+	panel._open(ResourceLoader.load("res://generality_rolling.tres", "", ResourceLoader.CACHE_MODE_IGNORE_DEEP))
+	panel._playtest()
+	for frame in 30: await get_tree().process_frame
+	check(EditorInterface.is_playing_scene(), "The editor launches the rolling example")
+	EditorInterface.stop_playing_scene()
+	for frame in 10: await get_tree().process_frame
 	print("GENERALITY_EDITOR_SMOKE completed")

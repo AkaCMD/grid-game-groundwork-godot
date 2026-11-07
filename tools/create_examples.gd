@@ -1,5 +1,5 @@
 extends SceneTree
-## Rebuild the shipped example assets using only the public resource model.
+## Rebuild the Sokoban example using only the public resource model.
 var definitions: Dictionary = {}
 
 func _init() -> void:
@@ -14,15 +14,8 @@ func _init() -> void:
 	var goal = define("goal", "Goal", Color(0.735849, 0.6563319, 0.5900676, 1), false, {"goal": true})
 	goal.solid = false
 	goal.affected_by_gravity = false
-	define("pipe", "Straight pipe", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"pipe": true, "pushable": true, "transmits_push": true, "ports": [Vector3i.LEFT, Vector3i.RIGHT]})
-	define("pipe_elbow", "Elbow pipe", Color(0.4433962, 0.34227517, 0.2007832, 1), true, {"pipe": true, "pushable": true, "transmits_push": true, "ports": [Vector3i.LEFT, Vector3i(0, 0, -1)]})
-	define("source", "Pipe source", Color(0.3647059, 0.48627454, 0.28235295, 1), false, {"pipe": true, "source": true, "ports": [Vector3i.RIGHT]})
-	define("destination", "Pipe destination", Color(0.735849, 0.6563319, 0.5900676, 1), false, {"pipe": true, "destination": true, "ports": [Vector3i.LEFT]})
 	for definition in definitions.values():
-		if definition.properties.get("pipe", false):
-			definition.visual_scene = load("res://examples/visuals/pipe.tscn")
-		else:
-			definition.visual_scene = load("res://examples/visuals/block.tscn")
+		definition.visual_scene = load("res://examples/visuals/block.tscn")
 		ResourceSaver.save(definition, "res://examples/entities/%s.tres" % definition.definition_id)
 	var sokoban = arena("Garden of crates")
 	sokoban.game_rule = GGSokobanRule.new()
@@ -36,15 +29,7 @@ func _init() -> void:
 	for height in [1, 2]:
 		add(sokoban, "crate", Vector3i(2, height, 3))
 	save_example(sokoban, "sokoban")
-	var pipes = arena("Connect the current")
-	pipes.game_rule = GGPipeRule.new()
-	add(pipes, "player", Vector3i(2, 0, 4))
-	add(pipes, "source", Vector3i(1, 0, 2))
-	add(pipes, "destination", Vector3i(4, 0, 2))
-	add(pipes, "pipe", Vector3i(2, 0, 3))
-	add(pipes, "pipe", Vector3i(3, 0, 3))
-	save_example(pipes, "pipes")
-	print("Created standalone Sokoban and pipe examples.")
+	print("Created the Sokoban example.")
 	quit()
 
 func add_drop_test_area(level: GGLevel) -> void:

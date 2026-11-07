@@ -11,7 +11,7 @@ python3 tools/check.py --godot /path/to/godot
 python3 tools/check.py --godot /path/to/godot --editor-smoke
 ```
 
-[The runner](../tools/check.py) imports and typechecks scripts, then checks gameplay, authoring/save-load, selection, strokes, QUACK, runtime, the generic model and three extension examples. `--editor-smoke` also checks the editor workflow in a disposable project. Executable lookup uses `--godot`, then `GODOT`, then `godot` on PATH. On Windows, use `python` and set `PYTHONUTF8=1` if output encoding fails.
+[The runner](../tools/check.py) imports and typechecks scripts, then checks gameplay, authoring/save-load, selection, strokes, QUACK, runtime, the generic model and the rolling block example. `--editor-smoke` also checks the editor workflow in a disposable project. Executable lookup uses `--godot`, then `GODOT`, then `godot` on PATH. On Windows, use `python` and set `PYTHONUTF8=1` if output encoding fails.
 
 For screenshots and surface rendering checks, use a graphical display:
 
@@ -46,7 +46,7 @@ godot --headless --path . --script tools/create_quack.gd
 godot --headless --path . --script tools/create_generality_examples.gd
 ```
 
-[create_examples.gd](../tools/create_examples.gd) rebuilds Sokoban and pipes; [create_quack.gd](../tools/create_quack.gd) rebuilds QUACK. [create_generality_examples.gd](../tools/create_generality_examples.gd) rebuilds rolling, gravity and linked mechanisms. Re-run checks afterward. Sprite licensing is in the [third-party notices](../THIRD_PARTY_NOTICES.md#quack-on-ice-sprites).
+[create_examples.gd](../tools/create_examples.gd) rebuilds Sokoban. [create_quack.gd](../tools/create_quack.gd) rebuilds QUACK. [create_generality_examples.gd](../tools/create_generality_examples.gd) rebuilds the rolling block example. Re-run checks afterward. Sprite licensing is in the [third-party notices](../THIRD_PARTY_NOTICES.md#quack-on-ice-sprites).
 
 ## Movement timing
 
