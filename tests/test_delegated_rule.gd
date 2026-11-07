@@ -3,9 +3,24 @@ extends SceneTree
 const Implementation = preload("res://tests/fixtures/delegated_rule_implementation.gd")
 var failures = 0
 
+class SwitchRule extends Resource:
+	func after_step(session: GGSession) -> void:
+		if session.has_entity(&"actor") and Vector3i.RIGHT in session.get_entity_cells(&"actor"):
+			session.set_entity_state(&"actor", &"on_switch", true)
+
+	func after_action(session: GGSession) -> void:
+		if session.get_entity_state(&"actor", &"on_switch", false):
+			session.set_outcome(&"won")
+
+class SlideRule extends Resource:
+	func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i) -> bool:
+		return session.step(actor_id, direction) and session.step(actor_id, direction)
+
 func _init() -> void:
 	_test_configuration()
 	_test_playtest_history()
+	_test_switch()
+	_test_slide()
 	print("Delegated rules: %d failures" % failures)
 	quit(1 if failures else 0)
 
@@ -69,7 +84,38 @@ func _test_playtest_history() -> void:
 	check(session.undo() and session.get_mechanic_state(&"count") == 1, "Undo restores the preceding mechanic state")
 	check(not session.act(&"unknown"), "The rule rejects unhandled commands")
 	check(session.redo() and session.get_mechanic_state(&"count") == 2, "Rejected commands preserve the redo branch")
+	check(session.act_with_result(&"move", {"actor_id": &"actor", "direction": "right"}).code == &"rejected", "Malformed movement arguments are rejected")
 	check(session.move(&"actor", Vector3i.RIGHT), "The built-in move command still works")
+
+func _test_switch() -> void:
+	var level = GGLevel.new()
+	level.gravity_enabled = false
+	level.entities.append(_actor())
+	var rule = GGDelegatedGameRule.new()
+	rule.implementation = SwitchRule.new()
+	level.game_rule = rule
+	var session = GGSession.new()
+	check(session.start(level).is_empty(), "An implementation can supply only lifecycle hooks")
+	check(not session.has_entity(&"missing"), "Missing entities can be detected by ID")
+	check(session.get_entity_cells(&"missing").is_empty(), "Missing entities occupy no cells")
+	check(not session.set_entity_state(&"actor", &"on_switch", true), "Entity state cannot be written outside resolution")
+	check(not session.set_outcome(&"won"), "The outcome cannot be written outside resolution")
+	check(session.move(&"actor", Vector3i.RIGHT), "A normal move can trigger a delegated switch")
+	check(session.get_entity_state(&"actor", &"on_switch", false) and session.status == &"won", "Step and action hooks run in order")
+	check(session.undo() and session.status == &"playing" and not session.get_entity_state(&"actor", &"on_switch", false), "Undo restores the entity state and outcome together")
+	check(session.redo() and session.status == &"won" and session.get_entity_state(&"actor", &"on_switch", false), "Redo restores the complete switch action")
+
+func _test_slide() -> void:
+	var level = GGLevel.new()
+	level.gravity_enabled = false
+	level.entities.append(_actor())
+	var rule = GGDelegatedGameRule.new()
+	rule.implementation = SlideRule.new()
+	level.game_rule = rule
+	var session = GGSession.new()
+	check(session.start(level).is_empty(), "An implementation can supply just a move resolver")
+	check(session.move(&"actor", Vector3i.RIGHT) and session.entities_at(Vector3i(2, 0, 0)) == [&"actor"], "A delegated move can combine two steps")
+	check(session.undo() and session.entities_at(Vector3i.ZERO) == [&"actor"], "A composed move creates one history entry")
 
 func _actor() -> GGEntityPlacement:
 	var actor = GGEntityPlacement.new()

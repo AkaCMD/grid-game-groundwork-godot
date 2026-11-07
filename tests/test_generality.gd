@@ -119,6 +119,7 @@ func _test_action_history() -> void:
 	wall.definition.movable = false
 	level.entities.assign([actor, wall])
 	var session = GGSession.new()
+	check(session.act_with_result(&"move").code == &"unavailable", "Commands require a started session")
 	check(session.start(level).is_empty(), "Directional gravity fixture loads")
 	check(session.has_method("act"), "Games can submit commands to shared action history")
 	if not session.has_method("act"): return
@@ -126,9 +127,10 @@ func _test_action_history() -> void:
 	check(session.call("act", &"gravity", {"direction": Vector3i.RIGHT}), "A game command switches gravity and settles the board")
 	check(session.entities[&"actor"].cell == Vector3i(2, 0, 0), "Sideways gravity lands against a wall")
 	var resolved = session.snapshot()
-	check(not session.act(&"overlap") and session.snapshot() == resolved, "Invalid resolved occupancy rolls back before entering history")
+	var invalid = session.act_with_result(&"overlap")
+	check(invalid.code == &"invalid_state" and not invalid.errors.is_empty() and session.snapshot() == resolved, "Invalid occupancy reports validation errors and rolls back")
 	check(session.undo() and session.snapshot() == initial, "One undo restores gravity and every resulting fall")
-	check(not session.call("act", &"reject", {}) and session.snapshot() == initial, "Rejected custom commands restore all state")
+	check(session.act_with_result(&"reject").code == &"rejected" and session.snapshot() == initial, "Rejected custom commands restore all state")
 	check(session.redo() and session.snapshot() == resolved, "Rejected commands preserve the redo branch")
 
 func _test_rule_authoring_tools() -> void:
@@ -239,8 +241,14 @@ func _test_rejected_resolution() -> void:
 	var session = GGSession.new()
 	check(session.start(level).is_empty(), "A gravity-disabled bounded-resolution fixture loads")
 	var initial = session.snapshot()
-	check(not session.act(&"gravity", {"direction": Vector3i.RIGHT}), "Unbounded gravity rejects the whole action")
+	var result = session.act_with_result(&"gravity", {"direction": Vector3i.RIGHT})
+	check(result.code == &"resolution_failed" and not result.errors.is_empty(), "Unbounded gravity reports a resolution failure")
 	check(session.snapshot() == initial and not session.undo(), "Failed settlement leaves no partial state or history")
+	level.gravity_enabled = true
+	check(not session.start(level).is_empty(), "Unbounded initial gravity prevents the session from starting")
+	check(session.act_with_result(&"gravity", {"direction": Vector3i.ZERO}).code == &"unavailable", "A failed start does not leave a rule available for commands")
+	level.gravity_enabled = false
+	check(session.start(level).is_empty() and session.act(&"gravity", {"direction": Vector3i.ZERO}), "A successful start makes the session available again")
 
 func _test_reference_roundtrip() -> void:
 	var editor = GGLevelAuthoring.new()

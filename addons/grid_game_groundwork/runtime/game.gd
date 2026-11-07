@@ -41,6 +41,25 @@ func _ready() -> void:
 	_build_hud()
 	_update_status()
 
+func submit_command(command: StringName, arguments: Dictionary = {}) -> Dictionary:
+	if not _view or not is_inside_tree():
+		return {"code": &"unavailable", "errors": PackedStringArray()}
+	if _busy:
+		return {"code": &"busy", "errors": PackedStringArray()}
+	return _play_command(command, arguments)
+
+func is_animating() -> bool:
+	return _busy
+
+func undo() -> bool:
+	return _history_action("Undo")
+
+func redo() -> bool:
+	return _history_action("Redo")
+
+func restart() -> bool:
+	return _history_action("Restart")
+
 func _frame_camera() -> void:
 	var bounds = AABB()
 	var first = true
@@ -183,16 +202,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_fast_animation = true
 				if _active_tween and _active_tween.is_valid():
 					_active_tween.set_speed_scale(_animation_speed())
-		elif session.move(session.player_id(), direction):
-			_animate()
+		else:
+			_play_move(direction)
 
-func _history_action(action: String) -> void:
-	if not _view:
-		return
+func _play_move(direction: Vector3i, accelerated: bool = false) -> bool:
+	var arguments = {"actor_id": session.player_id(), "direction": direction}
+	return _play_command(&"move", arguments, accelerated).code == &"accepted"
+
+func _play_command(command: StringName, arguments: Dictionary, accelerated: bool = false) -> Dictionary:
+	var result = session.act_with_result(command, arguments)
+	if result.code == &"accepted":
+		_animate(accelerated)
+	return result
+
+func _history_action(action: String) -> bool:
+	if not _view or not is_inside_tree() or session.is_resolving():
+		return false
 	_move_queue.clear()
 	if _busy:
 		_pending_history = action
-		return
+		return true
 	var changed = true
 	match action:
 		"Undo": changed = session.undo()
@@ -200,6 +229,7 @@ func _history_action(action: String) -> void:
 		"Restart": session.restart()
 	if changed:
 		_animate()
+	return changed
 
 func _animation_speed() -> float:
 	return maxf(1.0, step_duration / maxf(0.01, buffered_step_duration)) if _fast_animation else 1.0
@@ -214,11 +244,11 @@ func _animate(accelerated: bool = false) -> void:
 			_active_tween.set_speed_scale(_animation_speed())
 			await _active_tween.finished
 	_active_tween = null
-	_busy = false
 	if session.status != &"playing":
 		_move_queue.clear()
 	_view.select_actor(session.player_id())
 	_update_status()
+	_busy = false
 	if not _pending_history.is_empty():
 		var action = _pending_history
 		_pending_history = ""
@@ -226,8 +256,7 @@ func _animate(accelerated: bool = false) -> void:
 		return
 	while not _move_queue.is_empty():
 		var direction: Vector3i = _move_queue.pop_front()
-		if session.move(session.player_id(), direction):
-			_animate(true)
+		if _play_move(direction, true):
 			return
 
 func _update_status() -> void:

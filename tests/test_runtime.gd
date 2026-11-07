@@ -7,6 +7,16 @@ class EndingRule extends GGGameRule:
 		if session.entities[&"player"].cell.x >= 2:
 			session.status = ending
 
+class JumpRule extends Resource:
+	var restart_during_resolution: Callable
+	var restart_accepted = true
+
+	func resolve_command(session: GGSession, command: StringName, _arguments: Dictionary) -> bool:
+		if command not in [&"jump", &"rejected_jump"] or not session.step(&"player", Vector3i.RIGHT):
+			return false
+		restart_accepted = restart_during_resolution.call()
+		return command == &"jump" and session.set_outcome(&"won")
+
 var failures = 0
 
 func _init() -> void:
@@ -41,6 +51,7 @@ func run() -> void:
 	await test_custom_playtest_scene()
 	await test_camera_controls()
 	await test_input_buffer()
+	await test_public_commands()
 	print("Runtime: %d failures" % failures)
 	quit(1 if failures else 0)
 
@@ -53,10 +64,48 @@ func press(game: GGGame, key: Key, echo: bool = false) -> void:
 
 func wait_for_idle(game: GGGame) -> void:
 	for frame in range(240):
-		if not game._busy:
+		if not game.is_animating():
 			return
 		await process_frame
 	check(false, "Buffered animation finishes within the frame limit")
+
+func test_public_commands() -> void:
+	var level = GGLevel.new()
+	level.gravity_enabled = false
+	var rule = GGDelegatedGameRule.new()
+	var implementation = JumpRule.new()
+	rule.implementation = implementation
+	level.game_rule = rule
+	var player = GGEntityPlacement.new()
+	player.entity_id = &"player"
+	player.definition = GGEntityDefinition.new()
+	player.definition.properties = {"player": true}
+	level.entities.append(player)
+	var game = GGGame.new()
+	game.level = level
+	implementation.restart_during_resolution = game.restart
+	var outcomes: Array[StringName] = []
+	game.level_completed.connect(func(): outcomes.append(game.submit_command(&"jump").code))
+	check(game.submit_command(&"jump").code == &"unavailable", "A game must enter the tree before receiving commands")
+	root.add_child(game)
+	check(game.submit_command(&"rejected_jump").code == &"rejected" and not game.is_animating(), "Rejected commands report their outcome without animating")
+	check(not implementation.restart_accepted and game.session.entities_at(Vector3i.ZERO) == [&"player"], "A rule cannot restart presentation from within action resolution")
+	check(game.submit_command(&"jump").code == &"accepted" and game.is_animating(), "An accepted custom command starts the board animation")
+	check(game.submit_command(&"jump").code == &"busy", "A programmatic command cannot interrupt animation")
+	check(game.undo(), "Public undo can be queued during animation")
+	await wait_for_idle(game)
+	check(outcomes == [&"busy"], "Completion signals fire inside the active presentation")
+	check(game.session.status == &"playing" and game.session.entities_at(Vector3i.ZERO) == [&"player"], "Queued public undo restores the complete action")
+	check(game.redo(), "Public redo restores the action")
+	await wait_for_idle(game)
+	check(game.session.status == &"won", "Public redo restores the outcome")
+	check(game.restart(), "Public restart starts a history action")
+	await wait_for_idle(game)
+	check(game.session.entities_at(Vector3i.ZERO) == [&"player"], "Public restart restores the original board")
+	root.remove_child(game)
+	check(game.submit_command(&"jump").code == &"unavailable" and not game.restart(), "A detached game declines commands and history requests")
+	game.queue_free()
+	await process_frame
 
 func test_input_buffer() -> void:
 	var level = GGLevel.new()

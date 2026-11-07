@@ -2,6 +2,8 @@ class_name GGSession
 extends RefCounted
 ## Public simulation boundary. No scene-tree or physics dependencies.
 
+const STATE_VALUE_TYPES = [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_STRING_NAME, TYPE_VECTOR3I]
+
 var entities: Dictionary = {}
 var mechanic_state: Dictionary = {}
 var status: StringName = &"playing"
@@ -48,7 +50,9 @@ func start(level: GGLevel) -> PackedStringArray:
 	_settle()
 	_rule.after_action(self)
 	_resolving = false
-	if _resolution_failed: return PackedStringArray(["Initial resolution did not terminate."])
+	if _resolution_failed:
+		_rule = null
+		return PackedStringArray(["Initial resolution did not terminate."])
 	_initial = snapshot()
 	stages.clear()
 	return errors
@@ -63,17 +67,40 @@ func entities_at(cell: Vector3i) -> Array[StringName]:
 			ids.append(id)
 	return ids
 
+func has_entity(entity_id: StringName) -> bool:
+	return entities.has(entity_id)
+
+func get_entity_cells(entity_id: StringName) -> Array[Vector3i]:
+	return GGGrid.cells(entities[entity_id]) if has_entity(entity_id) else []
+
 func get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant:
-	if not entities.has(entity_id):
+	if not has_entity(entity_id):
 		return _copy_value(fallback)
 	return _copy_value(entities[entity_id].properties.get(key, fallback))
+
+func get_entity_state(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant:
+	if not has_entity(entity_id):
+		return _copy_value(fallback)
+	return _copy_value(entities[entity_id].state.get(key, fallback))
+
+func set_entity_state(entity_id: StringName, key: StringName, value: Variant) -> bool:
+	if not _resolving or not has_entity(entity_id) or typeof(value) not in STATE_VALUE_TYPES:
+		return false
+	entities[entity_id].state[key] = value
+	return true
+
+func set_outcome(outcome: StringName) -> bool:
+	if not _resolving or outcome not in [&"won", &"failed"]:
+		return false
+	status = outcome
+	return true
 
 func get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant:
 	return _copy_value(mechanic_state.get(key, fallback))
 
 func set_mechanic_state(key: StringName, value: Variant) -> bool:
 	## Scalar mechanic state can only be updated inside the current resolution.
-	if not _resolving or typeof(value) not in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_STRING_NAME, TYPE_VECTOR3I]:
+	if not _resolving or typeof(value) not in STATE_VALUE_TYPES:
 		return false
 	mechanic_state[key] = value
 	return true
@@ -101,7 +128,14 @@ func move(actor_id: StringName, direction: Vector3i) -> bool:
 	return act(&"move", {"actor_id": actor_id, "direction": direction})
 
 func act(command: StringName, arguments: Dictionary = {}) -> bool:
-	if _resolving or status != &"playing": return false
+	return act_with_result(command, arguments).code == &"accepted"
+
+func is_resolving() -> bool:
+	return _resolving
+
+func act_with_result(command: StringName, arguments: Dictionary = {}) -> Dictionary:
+	if not _rule or _resolving or status != &"playing":
+		return {"code": &"unavailable", "errors": PackedStringArray()}
 	var before = snapshot()
 	var previous_stages = stages
 	stages = []
@@ -109,17 +143,28 @@ func act(command: StringName, arguments: Dictionary = {}) -> bool:
 	_fall_steps = 0
 	_resolving = true
 	var accepted = _rule.resolve_action(self, command, arguments)
-	if accepted and not _resolution_failed: _rule.after_action(self)
-	if accepted and not _resolution_failed: accepted = _rule.validate_state(self).is_empty()
+	if accepted and not _resolution_failed:
+		_rule.after_action(self)
+	var errors = PackedStringArray()
+	if accepted and not _resolution_failed:
+		errors = _rule.validate_state(self)
 	_resolving = false
-	if not accepted or _resolution_failed:
+	var code: StringName = &"accepted"
+	if _resolution_failed:
+		code = &"resolution_failed"
+		errors = PackedStringArray(["Action resolution did not complete."])
+	elif not accepted:
+		code = &"rejected"
+	elif not errors.is_empty():
+		code = &"invalid_state"
+	if code != &"accepted":
 		restore(before)
 		stages = previous_stages
-		return false
-	_history.append(before)
-	_future.clear()
-	stages.append(snapshot())
-	return true
+	else:
+		_history.append(before)
+		_future.clear()
+		stages.append(snapshot())
+	return {"code": code, "errors": errors}
 
 func step(actor_id: StringName, direction: Vector3i) -> bool:
 	## Resolver primitive: one grid step and gravity, without creating history.
@@ -246,7 +291,7 @@ func redo() -> bool:
 	return true
 
 func restart() -> void:
-	if _resolving: return
+	if _resolving or not _rule: return
 	_begin_action()
 	restore(_initial)
 	stages = [snapshot()]

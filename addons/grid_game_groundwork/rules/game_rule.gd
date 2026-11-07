@@ -50,8 +50,10 @@ func initial_state(level: GGLevel) -> Dictionary:
 
 func resolve_action(session: GGSession, command: StringName, arguments: Dictionary) -> bool:
 	if command != &"move": return false
-	var actor_id = StringName(arguments.get("actor_id", &""))
-	var direction: Vector3i = arguments.get("direction", Vector3i.ZERO)
+	var actor: Variant = arguments.get("actor_id", &"")
+	var direction: Variant = arguments.get("direction", Vector3i.ZERO)
+	if not (actor is String or actor is StringName) or not direction is Vector3i: return false
+	var actor_id = StringName(actor)
 	if not session.entities.has(actor_id) or not allows_direction(direction): return false
 	return resolve_move(session, actor_id, direction)
 

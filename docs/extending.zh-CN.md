@@ -65,21 +65,31 @@ func after_action(session: GGSession) -> void:
 
 | 方法 | 约定 |
 | --- | --- |
-| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | 处理通过 `session.act` 提交的自定义指令。返回 true 接受动作，返回 false 回滚。在动作结算期间同步调用会话方法。 |
+| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | 处理自定义指令。返回 true 接受动作，返回 false 回滚。 |
+| `resolve_move(session: RefCounted, actor_id: StringName, direction: Vector3i) -> bool` | 结算通过方向检查的 `move` 指令。调用 `session.step` 可将多步合为一次动作。返回 true 接受动作，返回 false 回滚。 |
+| `after_step(session: RefCounted) -> void` | 在初始重力结算前及每次网格位移后运行，包括每一格下落。 |
+| `after_action(session: RefCounted) -> void` | 在初始重力结算完成后运行，也在解析器接受动作后、最终校验和记录历史前运行。 |
 | `validate_layout(level: Resource) -> PackedStringArray` | 检查候选 `GGLevel`，返回额外的布局错误。返回空数组表示通过。将关卡及其资源视为只读。 |
 
-两个方法可任选其一，也可同时实现。适配器保留内置移动和布局检查。省略 `resolve_command` 时，自定义指令会被拒绝。缺少实现资源或资源未公开任何约定方法时，关卡校验会报告错误。自定义碰撞、推动或重力策略仍可通过 `GGGameRule` 钩子实现。
+至少实现一个钩子。省略 `resolve_move` 时，`move` 使用默认单步移动。省略 `resolve_command` 时，自定义指令会被拒绝。缺少实现资源或资源未公开任何约定方法时，关卡校验会报告错误。自定义碰撞、推动或重力策略仍可通过 `GGGameRule` 钩子实现。
+
+在回调中同步调用会话方法。`step` 或 `settle` 返回前，可能在同一个规则资源上调用 `after_step`。保持规则配置只读，并允许这种嵌套调用。
 
 规则实现可使用以下 [GGSession](../addons/grid_game_groundwork/core/session.gd) 方法。将可变机制状态保存在会话中，使动作历史能够恢复它。
 
 | 方法 | 约定 |
 | --- | --- |
 | `entities_at(cell: Vector3i) -> Array[StringName]` | 返回占据该世界格子的全部实体 ID，包括非实心实体，以及形状中任一部分占据该格子的多格实体。 |
+| `has_entity(entity_id: StringName) -> bool` | 检查当前会话中是否存在该实体。 |
+| `get_entity_cells(entity_id: StringName) -> Array[Vector3i]` | 返回该实体占据的世界格子。实体缺失时返回空数组。 |
 | `get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | 返回解析后的实体属性。实体或键缺失时返回备用值。 |
+| `get_entity_state(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | 返回实体的机制状态值。实体或键缺失时返回备用值。 |
+| `set_entity_state(entity_id: StringName, key: StringName, value: Variant) -> bool` | 在结算期间写入实体的机制状态。实体缺失或无法写入时返回 false。 |
 | `get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant` | 返回当前机制状态值。键缺失时返回备用值。 |
-| `set_mechanic_state(key: StringName, value: Variant) -> bool` | 在结算期间写入状态。接受 null、bool、int、float、String、StringName 和 Vector3i。在结算之外调用或传入不支持的类型时返回 false。 |
+| `set_mechanic_state(key: StringName, value: Variant) -> bool` | 在结算期间写入会话级机制状态。无法写入时返回 false。 |
+| `set_outcome(outcome: StringName) -> bool` | 在结算期间把会话状态设为 `won` 或 `failed`。在结算之外调用或传入其他结果时返回 false。 |
 
-读取方法递归复制数组和字典，值中的对象引用仍然共享。[规则适配测试](../tests/test_delegated_rule.gd) 覆盖资源保存重载、试玩准备和动作历史。
+两个状态写入方法都接受 null、bool、int、float、String、StringName 和 Vector3i。在结算之外调用或传入不支持的类型时返回 false。读取方法递归复制数组和字典，值中的对象引用仍然共享。[规则适配测试](../tests/test_delegated_rule.gd) 覆盖资源保存重载、试玩准备和动作历史。
 
 ## 自定义推动
 
@@ -110,6 +120,8 @@ func allows(session: GGSession, actor_id: StringName,
 给定义的 `visual_scene` 指定 `PackedScene`；未指定时，渲染器生成彩色格子模型和非实心标记。实现 `configure_entity(definition, properties)` 和 `apply_entity_state(state)` 可自定义外观。渲染器按快照定位根节点，玩法坐标应从会话读取。
 
 给 `Node3D` 挂上 [GGGame](../addons/grid_game_groundwork/runtime/game.gd) 并指定 `level`，即可获得摄像机、灯光、控制和简易界面。连接 `level_completed` 和 `level_failed` 可切换关卡。自定义表现时，分别使用 `GGSession` 和 [GGBoardView](../addons/grid_game_groundwork/runtime/board_view.gd)。持久进度由接入项目管理。
+
+自定义控件可调用 `GGGame.submit_command(command, arguments = {})`。动作获接受后，棋盘会播放动画。用 `is_animating()` 查询棋盘是否仍在呈现动作。`undo()`、`redo()` 和 `restart()` 在执行或排队时返回 true。动画期间，最后一个历史请求会清空待执行的移动，并在当前动画结束后执行。规则结算期间发出的历史请求返回 false。
 
 自定义外观可实现 `apply_entity_selection(selected: bool)`。`GGBoardView.set_selected(id)` 调用该钩子，并在状态变化后恢复选择；`select_actor(id)` 还会显示通用选择环。编辑器使用独立的[模型表面反馈](editor-surface-coverage.zh-CN.md)。
 
@@ -142,6 +154,17 @@ func allows(session: GGSession, actor_id: StringName,
 ## 指令、字段与试玩场景
 
 `session.act(command, arguments)` 开始一次事务。解析器返回 false、重力结算失败或最终状态非法时，恢复先前快照与动画阶段，并保留重做。接受的动作运行 `after_action` 并仅记录一次历史。游玩期间保持规则配置不变，将重力方向、门状态和传送门锁存状态放在会话或实体状态中。翻滚方块规则提供了自定义移动解析器。[翻滚方块规则](../examples/rules/rolling_rule.gd)
+
+`session.act_with_result(command, arguments = {})` 和 `GGGame.submit_command` 返回字典，其中 `code` 是 `StringName`，`errors` 是 `PackedStringArray`。只需要布尔结果时可使用 `session.act`。
+
+| 结果码 | 含义 |
+| --- | --- |
+| `accepted` | 动作已记录到历史。 |
+| `rejected` | 规则拒绝了指令。 |
+| `invalid_state` | 动作已回滚，`errors` 包含规则返回的最终校验错误。 |
+| `resolution_failed` | 结算失败，动作已回滚，`errors` 描述失败情况。 |
+| `unavailable` | 当前没有生效规则、会话正在结算，或关卡已有胜负结果。`GGGame` 尚未就绪或不在场景树中时也返回此结果。 |
+| `busy` | `GGGame` 仍在呈现动作，呈现结束后可以重试该指令。 |
 
 默认 `move` 指令仍为水平移动。`step` 在结算期间接受任一轴的单位方向；`settle()` 应用当前重力策略。默认下落求解在整个动作中共用 `resolution_limit` 预算，无法终止时拒绝动作。自定义解析器须限制自己的循环；重力结算期间递归调用 `settle` 会拒绝动作。
 

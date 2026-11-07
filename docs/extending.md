@@ -65,21 +65,31 @@ Choose **New GGDelegatedGameRule** in the level's **Game rule** picker and assig
 
 | Method | Contract |
 | --- | --- |
-| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | Handles custom commands submitted through `session.act`. Return true to accept the action or false to roll it back. Call session methods synchronously while the action is resolving. |
+| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | Handles custom commands. Return true to accept the action or false to roll it back. |
+| `resolve_move(session: RefCounted, actor_id: StringName, direction: Vector3i) -> bool` | Resolves an allowed `move` command. Call `session.step` to compose steps into one action. Return true to accept the action or false to roll it back. |
+| `after_step(session: RefCounted) -> void` | Runs before initial gravity and after each grid displacement, including each cell of a fall. |
+| `after_action(session: RefCounted) -> void` | Runs after initial settlement and after a resolver accepts an action, before the action's final validation and history entry. |
 | `validate_layout(level: Resource) -> PackedStringArray` | Inspects the candidate `GGLevel` and returns additional layout errors. Return an empty array to accept the layout. Treat the level and its resources as read-only. |
 
-Implement either method or both. The adapter keeps built-in movement and layout checks. Without `resolve_command`, custom commands are rejected. Level validation reports a missing implementation or one that exposes neither method. Use the existing `GGGameRule` hooks for custom collision, pushing or gravity policies.
+Implement at least one hook. With `resolve_move` omitted, `move` uses the default single step. With `resolve_command` omitted, custom commands are rejected. Level validation reports a missing implementation or one that exposes no supported hooks. Use the existing `GGGameRule` hooks for custom collision, pushing or gravity policies.
+
+Call session methods synchronously within the callback. A call to `step` or `settle` can invoke `after_step` on the same resource before returning. Keep the rule configuration read-only and allow that nested call.
 
 Use these [GGSession](../addons/grid_game_groundwork/core/session.gd) methods from the implementation. Keep mutable mechanic state in the session so action history can restore it.
 
 | Method | Contract |
 | --- | --- |
 | `entities_at(cell: Vector3i) -> Array[StringName]` | Returns IDs of all entities occupying the world cell, including non-solid entities and any part of a multi-cell shape. |
+| `has_entity(entity_id: StringName) -> bool` | Tests whether the entity exists in the current session. |
+| `get_entity_cells(entity_id: StringName) -> Array[Vector3i]` | Returns the world cells occupied by the entity, or an empty array if it is missing. |
 | `get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | Returns the resolved property or the fallback if the entity or key is missing. |
+| `get_entity_state(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | Returns the entity's mechanic state value or the fallback if the entity or key is missing. |
+| `set_entity_state(entity_id: StringName, key: StringName, value: Variant) -> bool` | Writes a mechanic state value during resolution. Returns false if the entity is missing or the write is unavailable. |
 | `get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant` | Returns the current value or the fallback if the key is missing. |
-| `set_mechanic_state(key: StringName, value: Variant) -> bool` | Writes a value during resolution. Accepts null, bool, int, float, String, StringName and Vector3i. Returns false outside resolution or for an unsupported type. |
+| `set_mechanic_state(key: StringName, value: Variant) -> bool` | Writes a session-wide mechanic state value during resolution. Returns false if the write is unavailable. |
+| `set_outcome(outcome: StringName) -> bool` | Sets the session status to `won` or `failed` during resolution. Returns false outside resolution or for any other outcome. |
 
-The getters copy arrays and dictionaries recursively. Object references inside a value remain shared. [The delegated-rule check](../tests/test_delegated_rule.gd) covers resource persistence, playtest preparation and action history.
+Both state setters accept null, bool, int, float, String, StringName and Vector3i. They return false outside resolution or for an unsupported type. The getters copy arrays and dictionaries recursively. Object references inside a value remain shared. [The delegated-rule check](../tests/test_delegated_rule.gd) covers resource persistence, playtest preparation and action history.
 
 ## Custom pushing
 
@@ -110,6 +120,8 @@ Assign the resource to the game rule's **Push Rule**, or override `GGGameRule.al
 Assign a `PackedScene` to the definition's `visual_scene`; otherwise the renderer builds colored cell meshes and non-solid markers. Implement `configure_entity(definition, properties)` and `apply_entity_state(state)` for custom appearance. The renderer positions roots from snapshots; read gameplay coordinates from the session.
 
 Attach [GGGame](../addons/grid_game_groundwork/runtime/game.gd) to a `Node3D` and assign `level` for camera, lighting, controls and a HUD. Connect `level_completed` and `level_failed` for transitions. Use `GGSession` and [GGBoardView](../addons/grid_game_groundwork/runtime/board_view.gd) separately for custom presentation. Persistent progression belongs to the consuming game.
+
+Use `GGGame.submit_command(command, arguments = {})` from custom controls to start the board animation for an accepted action. Check `is_animating()` to see if the board is still presenting an action. The `undo()`, `redo()` and `restart()` methods return true when they run or are queued. During animation, the latest history request runs after the current animation and clears buffered movement. History requests made during rule resolution return false.
 
 Custom visuals may implement `apply_entity_selection(selected: bool)`. `GGBoardView.set_selected(id)` applies it and restores it after state changes; `select_actor(id)` also shows the generic selection ring. The editor supplies separate [surface feedback](editor-surface-coverage.md).
 
@@ -142,6 +154,17 @@ Resolvers must terminate for malformed layouts. The [QUACK rule](../examples/rul
 ## Commands, fields and playtest scenes
 
 `session.act(command, arguments)` starts one transaction. A false resolver result, failed settlement or invalid resolved state restores the preceding snapshot and animation stages, preserving redo. Successful actions run `after_action` and enter history once. Keep rule configuration immutable during play; store gravity direction, door states and portal latches in session or entity state. The rolling block rule supplies a custom move resolver. [Rolling block rule](../examples/rules/rolling_rule.gd)
+
+`session.act_with_result(command, arguments = {})` and `GGGame.submit_command` return a dictionary with a `code` (`StringName`) and `errors` (`PackedStringArray`). Use `session.act` when you only need a boolean.
+
+| Code | Meaning |
+| --- | --- |
+| `accepted` | The action entered history. |
+| `rejected` | The rule rejected the command. |
+| `invalid_state` | The action rolled back. `errors` contains the rule's final validation messages. |
+| `resolution_failed` | The action rolled back because settlement failed. `errors` describes the failure. |
+| `unavailable` | There is no active rule, a resolution is already in progress, or the session has a terminal outcome. `GGGame` also returns this before it is ready or while outside the scene tree. |
+| `busy` | `GGGame` is still presenting an action. The submitted command can be retried when the presentation finishes. |
 
 The default `move` command remains horizontal. `step` accepts unit directions along any axis during resolution; `settle()` applies the current gravity policy. The default fall solver shares a `resolution_limit` budget across the action and rejects nonterminating settlement. Custom resolvers must bound their own loops. Calling `settle` recursively during gravity resolution rejects the action.
 
