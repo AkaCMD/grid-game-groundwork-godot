@@ -59,6 +59,28 @@ Store mutable state in `session.mechanic_state` or each entity's `state`, using 
 
 Entity records contain `cell`, `turns`, `mirror`, `shape`, `properties` and `state`. Shapes use local `Vector3i` offsets; `GGGrid.cells(entity)` returns world cells. If `after_action` changes occupancy, leave a valid, settled board: the session does not recursively settle changes made by this hook.
 
+## Supply a rule from another language
+
+Choose **New GGDelegatedGameRule** in the level's **Game rule** picker and assign a Godot `Resource` to **Implementation** in the Inspector. Save the implementation's configuration in exported properties and make its code available in both the editor and the playtest process. The [adapter](../addons/grid_game_groundwork/rules/delegated_game_rule.gd) calls the following methods by their exact Godot-visible names.
+
+| Method | Contract |
+| --- | --- |
+| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | Handles custom commands submitted through `session.act`. Return true to accept the action or false to roll it back. Call session methods synchronously while the action is resolving. |
+| `validate_layout(level: Resource) -> PackedStringArray` | Inspects the candidate `GGLevel` and returns additional layout errors. Return an empty array to accept the layout. Treat the level and its resources as read-only. |
+
+Implement either method or both. The adapter keeps built-in movement and layout checks. Without `resolve_command`, custom commands are rejected. Level validation reports a missing implementation or one that exposes neither method. Use the existing `GGGameRule` hooks for custom collision, pushing or gravity policies.
+
+Use these [GGSession](../addons/grid_game_groundwork/core/session.gd) methods from the implementation. Keep mutable mechanic state in the session so action history can restore it.
+
+| Method | Contract |
+| --- | --- |
+| `entities_at(cell: Vector3i) -> Array[StringName]` | Returns IDs of all entities occupying the world cell, including non-solid entities and any part of a multi-cell shape. |
+| `get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | Returns the resolved property or the fallback if the entity or key is missing. |
+| `get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant` | Returns the current value or the fallback if the key is missing. |
+| `set_mechanic_state(key: StringName, value: Variant) -> bool` | Writes a value during resolution. Accepts null, bool, int, float, String, StringName and Vector3i. Returns false outside resolution or for an unsupported type. |
+
+The getters copy arrays and dictionaries recursively. Object references inside a value remain shared. [The delegated-rule check](../tests/test_delegated_rule.gd) covers resource persistence, playtest preparation and action history.
+
 ## Custom pushing
 
 Extend `GGPushRule` and override `allows(session, actor_id, moving_ids, direction)`. The session builds the complete movement plan first; your policy approves or rejects it without side effects.

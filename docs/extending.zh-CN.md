@@ -59,6 +59,28 @@ func after_action(session: GGSession) -> void:
 
 实体记录包含 `cell`、`turns`、`mirror`、`shape`、`properties` 和 `state`。形状使用局部 `Vector3i` 偏移，`GGGrid.cells(entity)` 返回世界占格。`after_action` 修改占格时，必须留下合法且已完成重力结算的棋盘；会话不会递归结算该钩子的修改。
 
+## 接入其他语言的规则
+
+在关卡的 **Game rule** 选择器中选择 **New GGDelegatedGameRule**，然后在 Inspector 中把 Godot `Resource` 赋给 **Implementation**。使用导出属性保存规则配置，并确保编辑器和试玩进程都能调用实现代码。[适配器](../addons/grid_game_groundwork/rules/delegated_game_rule.gd) 按 Godot 中的准确方法名调用以下方法。
+
+| 方法 | 约定 |
+| --- | --- |
+| `resolve_command(session: RefCounted, command: StringName, arguments: Dictionary) -> bool` | 处理通过 `session.act` 提交的自定义指令。返回 true 接受动作，返回 false 回滚。在动作结算期间同步调用会话方法。 |
+| `validate_layout(level: Resource) -> PackedStringArray` | 检查候选 `GGLevel`，返回额外的布局错误。返回空数组表示通过。将关卡及其资源视为只读。 |
+
+两个方法可任选其一，也可同时实现。适配器保留内置移动和布局检查。省略 `resolve_command` 时，自定义指令会被拒绝。缺少实现资源或资源未公开任何约定方法时，关卡校验会报告错误。自定义碰撞、推动或重力策略仍可通过 `GGGameRule` 钩子实现。
+
+规则实现可使用以下 [GGSession](../addons/grid_game_groundwork/core/session.gd) 方法。将可变机制状态保存在会话中，使动作历史能够恢复它。
+
+| 方法 | 约定 |
+| --- | --- |
+| `entities_at(cell: Vector3i) -> Array[StringName]` | 返回占据该世界格子的全部实体 ID，包括非实心实体，以及形状中任一部分占据该格子的多格实体。 |
+| `get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant` | 返回解析后的实体属性。实体或键缺失时返回备用值。 |
+| `get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant` | 返回当前机制状态值。键缺失时返回备用值。 |
+| `set_mechanic_state(key: StringName, value: Variant) -> bool` | 在结算期间写入状态。接受 null、bool、int、float、String、StringName 和 Vector3i。在结算之外调用或传入不支持的类型时返回 false。 |
+
+读取方法递归复制数组和字典，值中的对象引用仍然共享。[规则适配测试](../tests/test_delegated_rule.gd) 覆盖资源保存重载、试玩准备和动作历史。
+
 ## 自定义推动
 
 继承 `GGPushRule`，重写 `allows(session, actor_id, moving_ids, direction)`。会话先构建完整移动计划，由推动策略批准或拒绝，判定过程应无副作用。

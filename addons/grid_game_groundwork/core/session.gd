@@ -20,6 +20,8 @@ var _fall_steps = 0
 var _settling = false
 
 func start(level: GGLevel) -> PackedStringArray:
+	if _resolving:
+		return PackedStringArray(["Cannot start a level during action resolution."])
 	var errors = level.validate()
 	if not errors.is_empty():
 		return errors
@@ -53,6 +55,33 @@ func start(level: GGLevel) -> PackedStringArray:
 
 func snapshot() -> Dictionary:
 	return {"entities": entities.duplicate(true), "mechanic_state": mechanic_state.duplicate(true), "status": status}
+
+func entities_at(cell: Vector3i) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for id in entities:
+		if cell in GGGrid.cells(entities[id]):
+			ids.append(id)
+	return ids
+
+func get_entity_property(entity_id: StringName, key: StringName, fallback: Variant = null) -> Variant:
+	if not entities.has(entity_id):
+		return _copy_value(fallback)
+	return _copy_value(entities[entity_id].properties.get(key, fallback))
+
+func get_mechanic_state(key: StringName, fallback: Variant = null) -> Variant:
+	return _copy_value(mechanic_state.get(key, fallback))
+
+func set_mechanic_state(key: StringName, value: Variant) -> bool:
+	## Scalar mechanic state can only be updated inside the current resolution.
+	if not _resolving or typeof(value) not in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_STRING_NAME, TYPE_VECTOR3I]:
+		return false
+	mechanic_state[key] = value
+	return true
+
+func _copy_value(value: Variant) -> Variant:
+	if value is Array or value is Dictionary:
+		return value.duplicate(true)
+	return value
 
 func restore(state: Dictionary) -> void:
 	entities = state.entities.duplicate(true)
