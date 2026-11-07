@@ -37,15 +37,16 @@ func blocks_entity(session: GGSession, actor_id: StringName, obstacle_id: String
 
 func after_step(session: GGSession) -> void:
 	var occupied = GGGrid.index(session.entities)
-	for duck in session.entities.values():
-		if not duck.properties.get("player", false) or duck.state.get("fed", false):
+	for duck_id in session.entities.keys():
+		var duck: Dictionary = session.entities.get(duck_id, {})
+		if duck.is_empty() or not duck.properties.get("player", false) or duck.state.get("fed", false):
 			continue
 		for cell in GGGrid.cells(duck):
 			for id in occupied.get(cell, []):
-				if session.entities.has(id) and session.entities[id].properties.get("bread", false) and not duck.state.get("fed", false):
-					session.entities.erase(id)
-					duck.state["fed"] = true
-					session.stages.append(session.snapshot())
+				if session.get_entity_property(id, &"bread", false) and not duck.state.get("fed", false):
+					session.set_entity_state(duck_id, &"fed", true)
+					session.remove_entity(id)
+					session.record_stage()
 
 func after_action(session: GGSession) -> void:
 	if session.status == &"failed":
@@ -53,4 +54,4 @@ func after_action(session: GGSession) -> void:
 	for entity in session.entities.values():
 		if entity.properties.get("bread", false):
 			return
-	session.status = &"won"
+	session.set_outcome(&"won")

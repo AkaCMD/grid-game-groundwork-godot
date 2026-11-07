@@ -14,6 +14,7 @@ func _init() -> void:
 	_test_move_preview()
 	_test_snap_to_ground()
 	_test_discard_and_unsaved_playtest()
+	_test_failed_discard_preserves_configuration()
 	_test_external_rule_save()
 	_test_isolated_proposals()
 	_test_rejected_proposal_history()
@@ -320,6 +321,7 @@ func _test_discard_and_unsaved_playtest() -> void:
 	check(played.entities[0].definition.shape.size() == 2, "Playtest includes unsaved external shape edits")
 	check(played.entities[0].resolved_properties().weight == 9.0, "Playtest includes unsaved external default properties")
 	check(not played.game_rule.push_rule is GGStrengthPushRule, "Playtest includes unsaved external rule configuration")
+	check(played.entities[0].definition == played.entities[1].definition and played.palette[3] == played.entities[0].definition and played.palette[3] != definition, "Playtest preserves shared definitions in the isolated level")
 	var disk_definition = ResourceLoader.load(definition_path, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
 	check(disk_definition.shape.size() == 1, "Preparing a playtest does not save authored definitions")
 	check(editor.discard_changes(), "Unsaved level and shared configuration edits can be discarded")
@@ -328,7 +330,23 @@ func _test_discard_and_unsaved_playtest() -> void:
 	check(reopened.entities[0].definition.shape.size() == 1, "Discard restores cached shared shapes")
 	check(reopened.entities[0].resolved_properties().weight == 1.0, "Discard restores cached shared defaults")
 	check(reopened.game_rule.push_rule is GGStrengthPushRule, "Discard restores cached shared game rules")
+	check(reopened == editor.level and reopened.palette[3] == definition and reopened.entities[0].definition == definition and reopened.game_rule == rule, "Discard restores the existing cached resources and their references")
 	check(not editor.dirty, "Discard clears dirty state after restoring cached resources")
+
+func _test_failed_discard_preserves_configuration() -> void:
+	var editor = author()
+	var definition = editor.level.palette[3]
+	var definition_path = "user://discard_existing_definition.tres"
+	check(ResourceSaver.save(definition, definition_path) == OK, "Discard regression fixture saves")
+	definition.take_over_path(definition_path)
+	var missing_path = "user://discard_missing_definition_%d.tres" % Time.get_ticks_usec()
+	editor.level.palette[4].take_over_path(missing_path)
+	check(editor.edit_shape(definition, Vector3i.RIGHT, false), "Discard fixture has an unsaved shared shape")
+	var changes = [0]
+	editor.changed.connect(func(): changes[0] += 1)
+	check(not editor.discard_changes() and editor.last_error.contains(missing_path), "Discard reports the missing external definition")
+	check(definition.shape.has(Vector3i.RIGHT) and editor.dirty and changes[0] == 0, "Failed discard preserves live edits and emits no change")
+	check(editor.undo() and not definition.shape.has(Vector3i.RIGHT), "Failed discard leaves the edit in history")
 
 func _test_external_rule_save() -> void:
 	var editor = author()

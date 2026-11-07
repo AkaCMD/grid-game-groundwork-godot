@@ -31,9 +31,11 @@ func test_tool_and_shape_transitions() -> void:
 	var f = fixture()
 	var interaction: GGEditorInteraction = f.interaction
 	check(interaction.set_mode(GGEditorInteraction.Mode.SELECT) and interaction.can_move(), "Select enables entity movement")
-	interaction.selection.select(f.id)
-	interaction.selection.begin_move()
-	interaction.selection.preview_move(Vector3i(3, 2, 0))
+	interaction.begin_pointer(Vector3.UP, Vector3.RIGHT, 0, f.id)
+	check(interaction.selection.ids() == [f.id], "A Select gesture works without a ray intersection")
+	interaction.release_pointer()
+	interaction.begin_move()
+	interaction.drag_move(Vector3i(3, 2, 0), true)
 	check(not interaction.set_mode(GGEditorInteraction.Mode.ERASE) and interaction.can_move(), "A move preview blocks tool changes")
 	check(interaction.set_shape_mode(true), "Shape entry cancels an outstanding move")
 	check(not interaction.selection.is_moving() and interaction.selection.ids().is_empty(), "Shape entry clears entity selection and its preview")
@@ -55,7 +57,7 @@ func test_height_routing_and_reset() -> void:
 	var f = fixture()
 	var interaction: GGEditorInteraction = f.interaction
 	check(interaction.height_target() == GGEditorInteraction.HeightTarget.PAINT, "Idle Paint routes Q/E to the brush")
-	interaction.stroke.adjust_height(2)
+	interaction.handle_height(2, false, true)
 	interaction.configure_brush(f.definition, 1, true)
 	check(interaction.stroke.height_offset() == 2, "Brush orientation changes preserve the exact paint offset")
 	check(interaction.height_target(true) == GGEditorInteraction.HeightTarget.CAMERA, "Camera gestures take Q/E priority over Paint")
@@ -84,8 +86,8 @@ func test_refresh_invalidates_preview() -> void:
 	var authoring: GGLevelAuthoring = f.authoring
 	interaction.set_mode(GGEditorInteraction.Mode.SELECT)
 	interaction.selection.select(f.id)
-	interaction.selection.begin_move()
-	interaction.selection.preview_move(Vector3i(9, 2, 0))
+	interaction.begin_move()
+	interaction.drag_move(Vector3i(9, 2, 0), true)
 	var entity = authoring.find_entity(f.id)
 	entity.cell = Vector3i(5, 2, 0)
 	authoring.dirty = false
@@ -93,7 +95,7 @@ func test_refresh_invalidates_preview() -> void:
 	var displayed = interaction.refreshed_level()
 	check(displayed == authoring.level and displayed.entities[0].cell == Vector3i(5, 2, 0), "Refresh returns externally edited placements for rendering")
 	check(not interaction.selection.is_moving() and interaction.selection.position() == entity.cell, "Refresh reconciles selection before a renderer can reuse preview origins")
-	check(not interaction.selection.finish_move(true) and entity.cell == Vector3i(5, 2, 0), "A late release cannot commit the invalidated preview")
+	check(not interaction.release_pointer(Vector3i(9, 2, 0)) and entity.cell == Vector3i(5, 2, 0), "A late release cannot commit the invalidated preview")
 	check(not authoring.dirty and authoring._history.size() == history, "Refresh invalidation creates no authoring edit")
 	interaction.selection.begin_move()
 	authoring.level.entities.clear()

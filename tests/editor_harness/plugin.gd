@@ -105,7 +105,7 @@ func run() -> void:
 	print("EDITOR_SMOKE: %d failures" % failures)
 	get_tree().quit(1 if failures else 0)
 
-func inspector_edit(resource: Resource, property: String, value: Variant, panel: GGEditorPanel) -> void:
+func inspector_edit(resource: Resource, property: String, value: Variant, panel: GGEditorPanel, before_refresh: Callable = Callable()) -> void:
 	EditorInterface.edit_resource(resource)
 	await get_tree().process_frame
 	var inspector = EditorInterface.get_inspector()
@@ -115,6 +115,7 @@ func inspector_edit(resource: Resource, property: String, value: Variant, panel:
 	# selection.reconcile or the panel's refresh helpers from the test.
 	inspector.property_edited.emit(property)
 	check(panel._definition_refresh_pending, "Inspector edit schedules the panel refresh without authoring.changed")
+	if before_refresh.is_valid(): before_refresh.call()
 	for frame in range(2): await get_tree().process_frame
 
 func check_inspector_selection_refresh(panel: GGEditorPanel) -> void:
@@ -158,11 +159,10 @@ func check_inspector_selection_refresh(panel: GGEditorPanel) -> void:
 	grabbed = gizmo_press(panel, 0)
 	gizmo_motion(panel, grabbed + Vector3.RIGHT)
 	history_size = panel.authoring._history.size()
-	await inspector_edit(entity, "cell", Vector3i(8, 0, 0), panel)
+	await inspector_edit(entity, "cell", Vector3i(8, 0, 0), panel, func(): gizmo_release(panel, grabbed + Vector3.RIGHT))
 	check(not panel.selection.is_moving() and view._move_gizmo.active_handle == -1, "Inspector refresh cancels a stale selection preview and gizmo drag")
 	check(panel.selection.position() == entity.cell and view.board.roots[entity.entity_id].position == Vector3(entity.cell) and view._move_gizmo.position == Vector3(entity.cell), "Cancelling stale preview retains the externally edited position")
-	gizmo_release(panel, grabbed + Vector3.RIGHT)
-	check(entity.cell == Vector3i(8, 0, 0) and panel.authoring._history.size() == history_size, "Release after Inspector cancellation cannot commit the stale preview")
+	check(entity.cell == Vector3i(8, 0, 0) and panel.authoring._history.size() == history_size, "Release before the deferred Inspector rebuild cannot commit the stale preview")
 	panel.selection.begin_move()
 	panel.selection.preview_move(Vector3i(10, 0, 0))
 	await inspector_edit(entity, "entity_id", &"renamed_selection", panel)

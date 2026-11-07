@@ -89,6 +89,14 @@ func set_entity_state(entity_id: StringName, key: StringName, value: Variant) ->
 	entities[entity_id].state[key] = value
 	return true
 
+func remove_entity(entity_id: StringName) -> bool:
+	return _resolving and entities.erase(entity_id)
+
+func record_stage() -> bool:
+	if not _resolving: return false
+	stages.append(snapshot())
+	return true
+
 func set_outcome(outcome: StringName) -> bool:
 	if not _resolving or outcome not in [&"won", &"failed"]:
 		return false
@@ -188,7 +196,26 @@ func step(actor_id: StringName, direction: Vector3i) -> bool:
 				return false
 	for id in moving:
 		entities[id].cell += direction
-	stages.append(snapshot())
+	return _finish_step()
+
+func displace_entity(entity_id: StringName, cell: Vector3i, orientation: int) -> bool:
+	if not _resolving or status != &"playing" or not has_entity(entity_id):
+		return false
+	if orientation < 0 or orientation >= GGGrid.orientations().size():
+		return false
+	var entity: Dictionary = entities[entity_id]
+	var previous_cell: Vector3i = entity.cell
+	var previous_orientation: int = entity.turns
+	entity.cell = cell
+	entity.turns = orientation
+	if not is_clear(entity_id, GGGrid.cells(entity)):
+		entity.cell = previous_cell
+		entity.turns = previous_orientation
+		return false
+	return _finish_step()
+
+func _finish_step() -> bool:
+	record_stage()
 	_rule.after_step(self)
 	return _settle()
 
@@ -250,7 +277,7 @@ func fall(direction: Vector3i) -> bool:
 		for id in falling: entities[id].cell += direction
 		for id in falling:
 			if entities.has(id) and _rule.is_outside(self, id, direction): _rule.on_fall_out(self, id)
-		stages.append(snapshot())
+		record_stage()
 		_rule.after_step(self)
 		var next_direction = _rule.gravity_direction(self)
 		if next_direction == Vector3i.ZERO: return true

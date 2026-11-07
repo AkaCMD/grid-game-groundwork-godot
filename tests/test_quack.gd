@@ -183,6 +183,7 @@ func test_falling_bread() -> void:
 			check(session.entities.has(&"bread_a") and supported_above_bread and not touched_bread, "Bread blocks a fed duck's fall without being consumed or crossed")
 		else:
 			check(not session.entities.has(&"bread_a") and session.entities[&"duck_a"].state.fed, "Hungry duck eats bread crossed during falling")
+			check(session.stages.any(func(stage): return not stage.entities.has(&"bread_a") and stage.entities[&"duck_a"].state.get("fed", false) and stage.entities[&"duck_a"].cell == Vector3i(0, 1, 1)), "Bread removal and feeding share an animation stage during the fall")
 			check(session.entities[&"duck_a"].cell == Vector3i(0, 0, 1), "Eating while falling finishes gravity but stops horizontal sliding")
 		var after = session.snapshot()
 		check(session.undo() and session.snapshot() == before, "Undo restores all consequences of falling into bread")

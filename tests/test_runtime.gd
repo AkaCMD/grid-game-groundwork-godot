@@ -1,5 +1,7 @@
 extends SceneTree
 
+const CommandScheduler = preload("res://addons/grid_game_groundwork/runtime/command_scheduler.gd")
+
 class EndingRule extends GGGameRule:
 	var ending: StringName = &"won"
 
@@ -39,17 +41,17 @@ func run() -> void:
 	event.physical_keycode = KEY_W
 	event.pressed = true
 	game._unhandled_key_input(event)
-	await create_timer(0.4).timeout
+	await wait_for_idle(game)
 	check(game.session.entities[game.session.player_id()].cell == Vector3i(2, 0, 3), "Keyboard input runs and animates a grid move")
-	check(not game._busy, "Animation releases input after completing")
-	game._history_action("Undo")
-	await create_timer(0.3).timeout
+	check(game.undo(), "Animation releases input after completing")
+	await wait_for_idle(game)
 	check(game.session.entities[game.session.player_id()].cell == Vector3i(2, 0, 4), "Runtime undo control restores the player")
 	check(authored.entities[73].cell == player_cell, "Running a scene leaves the authored resource unchanged")
 	game.queue_free()
 	await process_frame
 	await test_custom_playtest_scene()
 	await test_camera_controls()
+	test_command_scheduler()
 	await test_input_buffer()
 	await test_public_commands()
 	print("Runtime: %d failures" % failures)
@@ -68,6 +70,35 @@ func wait_for_idle(game: GGGame) -> void:
 			return
 		await process_frame
 	check(false, "Buffered animation finishes within the frame limit")
+
+func test_command_scheduler() -> void:
+	var level = GGLevel.new()
+	level.gravity_enabled = false
+	var player = GGEntityPlacement.new()
+	player.entity_id = &"player"
+	player.definition = load("res://examples/entities/player.tres")
+	level.entities.append(player)
+	var session = GGSession.new()
+	check(session.start(level).is_empty(), "The scheduler fixture starts without a scene")
+	var scheduler = CommandScheduler.new()
+	var speeds: Array[bool] = []
+	scheduler.presentation_accelerated.connect(func(): speeds.append(true))
+	scheduler.request_move(session, Vector3i.RIGHT, false)
+	scheduler.request_move(session, Vector3i.RIGHT, true)
+	check(scheduler.is_animating() and not scheduler.is_accelerated() and speeds.is_empty(), "Key repeat keeps the active presentation at normal speed")
+	scheduler.request_move(session, Vector3i.FORWARD, false)
+	check(scheduler.is_accelerated() and speeds.size() == 1, "A fresh queued move accelerates the active presentation")
+	check(session.entities_at(Vector3i.RIGHT) == [&"player"], "Buffered input awaits the completion notification")
+	scheduler.finish_presentation(session, true)
+	check(scheduler.is_accelerated() and session.entities_at(Vector3i.RIGHT + Vector3i.FORWARD) == [&"player"], "The next presentation starts accelerated with only fresh buffered input")
+	scheduler.request_move(session, Vector3i.LEFT, false)
+	check(scheduler.request_history(session, CommandScheduler.History.UNDO), "History can be requested while presenting")
+	check(scheduler.request_history(session, CommandScheduler.History.RESTART), "A newer history request can replace the pending one")
+	scheduler.request_move(session, Vector3i.BACK, false)
+	scheduler.finish_presentation(session, true)
+	check(scheduler.is_animating() and not scheduler.is_accelerated() and session.entities_at(Vector3i.ZERO) == [&"player"], "The latest history request starts a normal-speed presentation")
+	scheduler.finish_presentation(session, true)
+	check(not scheduler.is_animating() and session.entities_at(Vector3i.ZERO) == [&"player"], "History discards buffered movements and suppresses new ones while pending")
 
 func test_public_commands() -> void:
 	var level = GGLevel.new()
@@ -120,46 +151,38 @@ func test_input_buffer() -> void:
 	game.buffered_step_duration = 0.05
 	root.add_child(game)
 	await process_frame
-	var rapid_start = Time.get_ticks_msec()
 	press(game, KEY_D)
 	press(game, KEY_W)
 	press(game, KEY_A)
 	check(game.session.entities[&"player"].cell == Vector3i.RIGHT, "Buffered commands wait for the active action")
 	await wait_for_idle(game)
-	var rapid_elapsed = Time.get_ticks_msec() - rapid_start
 	check(game.session.entities[&"player"].cell == Vector3i(0, 0, -1), "Rapid direction changes execute in input order")
 	check(game._view.roots[&"player"].position == Vector3(0, 0, -1), "Visual position catches up with buffered movement")
-	game._history_action("Undo")
+	press(game, KEY_Z)
 	await wait_for_idle(game)
 	check(game.session.entities[&"player"].cell == Vector3i(1, 0, -1), "Each buffered move remains a separate undoable action")
-	game._history_action("Redo")
+	press(game, KEY_Y)
 	await wait_for_idle(game)
 	check(game.session.entities[&"player"].cell == Vector3i(0, 0, -1), "Buffered movement can be redone")
-	var held_start = Time.get_ticks_msec()
 	press(game, KEY_D)
 	for i in range(12):
 		press(game, KEY_D, true)
-	check(game._move_queue.is_empty(), "Held key repeats do not accumulate buffered movement")
 	await wait_for_idle(game)
-	var held_elapsed = Time.get_ticks_msec() - held_start
-	check(held_elapsed >= 350, "Held key repeats keep the normal animation speed")
-	check(rapid_elapsed < held_elapsed, "Three rapid taps animate faster than one normal move")
+	check(game.session.entities[&"player"].cell == Vector3i(1, 0, -1), "Held key repeats do not accumulate buffered movement")
 	press(game, KEY_D)
 	for i in range(12):
 		press(game, KEY_D)
-	check(game._move_queue.size() == GGGame.INPUT_BUFFER_LIMIT, "Input buffer has a fixed limit")
 	await wait_for_idle(game)
 	check(game.session.entities[&"player"].cell == Vector3i(6, 0, -1), "Excess taps do not cause an unbounded movement backlog")
-	for action in ["Undo", "Redo", "Restart"]:
+	for key in [KEY_Z, KEY_Y, KEY_R]:
 		press(game, KEY_W)
 		press(game, KEY_D)
 		var before_history = game.session.snapshot()
-		game._history_action(action)
-		check(game._move_queue.is_empty(), "History controls discard buffered movement")
+		press(game, key)
 		await wait_for_idle(game)
-		if action == "Undo":
+		if key == KEY_Z:
 			check(game.session.entities[&"player"].cell == Vector3i(6, 0, -1), "Undo pressed during animation runs after the active action")
-		elif action == "Restart":
+		elif key == KEY_R:
 			check(game.session.entities[&"player"].cell == Vector3i.ZERO, "Restart pressed during animation restores the start without stale movement")
 		else:
 			check(game.session.snapshot() == before_history, "Unavailable redo discards stale movement and leaves the current action intact")
@@ -197,8 +220,8 @@ func test_input_buffer() -> void:
 		press(game, KEY_D)
 		await wait_for_idle(game)
 		check(game.session.status == ending, "Buffered moves resolve terminal game rules")
-		check(game.session.entities[&"player"].cell == Vector3i(2, 0, 0) and game._move_queue.is_empty(), "Winning or failing clears remaining buffered movement")
-		game._history_action("Undo")
+		check(game.session.entities[&"player"].cell == Vector3i(2, 0, 0), "Winning or failing clears remaining buffered movement")
+		check(game.undo(), "History remains available after a terminal action")
 		await wait_for_idle(game)
 		check(game.session.status == &"playing" and game.session.entities[&"player"].cell == Vector3i.RIGHT, "Undo after a terminal buffered action restores play without stale input")
 		game.queue_free()
@@ -210,7 +233,6 @@ func test_camera_controls() -> void:
 	await process_frame
 	var initial_position: Vector3 = game._camera.position
 	var initial_pivot: Vector3 = game._camera_pivot
-	var initial_state: Dictionary = game.session.snapshot()
 	var wheel = InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel.pressed = true
@@ -220,7 +242,9 @@ func test_camera_controls() -> void:
 	motion.button_mask = MOUSE_BUTTON_MASK_MIDDLE
 	motion.relative = Vector2(40, 20)
 	var before_orbit: Vector3 = game._camera.position
-	game._busy = true
+	press(game, KEY_W)
+	check(game.is_animating(), "The camera check runs during a real action presentation")
+	var initial_state: Dictionary = game.session.snapshot()
 	game._unhandled_input(motion)
 	check(not game._camera.position.is_equal_approx(before_orbit), "Middle drag orbits even during gameplay animation")
 	check(game._camera_pivot == initial_pivot, "Orbit keeps the board pivot fixed")

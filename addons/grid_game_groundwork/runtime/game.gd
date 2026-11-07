@@ -8,8 +8,10 @@ signal level_failed
 @export_range(0.01, 0.5) var step_duration: float = 0.12
 ## Stage duration when fresh key presses are buffered during movement.
 @export_range(0.01, 0.5) var buffered_step_duration: float = 0.06
-const INPUT_BUFFER_LIMIT = 4
+const CommandScheduler = preload("command_scheduler.gd")
+const INPUT_BUFFER_LIMIT = CommandScheduler.INPUT_BUFFER_LIMIT
 var session = GGSession.new()
+var _commands := CommandScheduler.new()
 var _view: GGBoardView
 var _camera: Camera3D
 var _camera_pivot = Vector3.ZERO
@@ -17,12 +19,8 @@ var _camera_yaw = 0.0
 var _camera_pitch = deg_to_rad(75.2)
 var _camera_zoom = 12.0
 var _label: Label
-var _busy = false
 var _status: StringName
-var _move_queue: Array[Vector3i] = []
-var _pending_history = ""
 var _active_tween: Tween
-var _fast_animation = false
 
 func _ready() -> void:
 	if not level:
@@ -39,26 +37,26 @@ func _ready() -> void:
 	_view.select_actor(session.player_id())
 	_build_camera()
 	_build_hud()
+	_commands.presentation_requested.connect(_animate)
+	_commands.presentation_accelerated.connect(_accelerate_presentation)
 	_update_status()
 
 func submit_command(command: StringName, arguments: Dictionary = {}) -> Dictionary:
 	if not _view or not is_inside_tree():
 		return {"code": &"unavailable", "errors": PackedStringArray()}
-	if _busy:
-		return {"code": &"busy", "errors": PackedStringArray()}
-	return _play_command(command, arguments)
+	return _commands.submit_command(session, command, arguments)
 
 func is_animating() -> bool:
-	return _busy
+	return _commands.is_animating()
 
 func undo() -> bool:
-	return _history_action("Undo")
+	return _history_action(CommandScheduler.History.UNDO)
 
 func redo() -> bool:
-	return _history_action("Redo")
+	return _history_action(CommandScheduler.History.REDO)
 
 func restart() -> bool:
-	return _history_action("Restart")
+	return _history_action(CommandScheduler.History.RESTART)
 
 func _frame_camera() -> void:
 	var bounds = AABB()
@@ -84,10 +82,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _camera:
 		return
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not _busy:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not is_animating():
 			var picked = _view.pick_entity(_camera, event.position, session.snapshot())
-			if session.select_actor(picked):
-				_move_queue.clear()
+			if _commands.select_actor(session, picked):
 				_view.select_actor(session.player_id())
 				get_viewport().set_input_as_handled()
 		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
@@ -164,11 +161,11 @@ func _build_hud() -> void:
 	column.add_child(camera_controls)
 	var row = HBoxContainer.new()
 	column.add_child(row)
-	for action in ["Undo", "Redo", "Restart"]:
+	for action in [["Undo", undo], ["Redo", redo], ["Restart", restart]]:
 		var button = Button.new()
-		button.text = action
+		button.text = action[0]
 		button.focus_mode = Control.FOCUS_NONE
-		button.pressed.connect(_history_action.bind(action))
+		button.pressed.connect(action[1])
 		row.add_child(button)
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -180,7 +177,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if key in [KEY_Z, KEY_Y, KEY_R]:
-		_history_action({KEY_Z: "Undo", KEY_Y: "Redo", KEY_R: "Restart"}[key])
+		match key:
+			KEY_Z: undo()
+			KEY_Y: redo()
+			KEY_R: restart()
 		get_viewport().set_input_as_handled()
 		return
 	var direction = Vector3i.ZERO
@@ -193,71 +193,32 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_E: direction = Vector3i.UP
 	if direction != Vector3i.ZERO:
 		get_viewport().set_input_as_handled()
-		if session.status != &"playing":
-			return
-		if _busy:
-			# OS key repeats must not build a backlog or trigger tap acceleration.
-			if not event.echo and _pending_history.is_empty() and _move_queue.size() < INPUT_BUFFER_LIMIT:
-				_move_queue.append(direction)
-				_fast_animation = true
-				if _active_tween and _active_tween.is_valid():
-					_active_tween.set_speed_scale(_animation_speed())
-		else:
-			_play_move(direction)
+		_commands.request_move(session, direction, event.echo)
 
-func _play_move(direction: Vector3i, accelerated: bool = false) -> bool:
-	var arguments = {"actor_id": session.player_id(), "direction": direction}
-	return _play_command(&"move", arguments, accelerated).code == &"accepted"
-
-func _play_command(command: StringName, arguments: Dictionary, accelerated: bool = false) -> Dictionary:
-	var result = session.act_with_result(command, arguments)
-	if result.code == &"accepted":
-		_animate(accelerated)
-	return result
-
-func _history_action(action: String) -> bool:
-	if not _view or not is_inside_tree() or session.is_resolving():
+func _history_action(action: CommandScheduler.History) -> bool:
+	if not _view or not is_inside_tree():
 		return false
-	_move_queue.clear()
-	if _busy:
-		_pending_history = action
-		return true
-	var changed = true
-	match action:
-		"Undo": changed = session.undo()
-		"Redo": changed = session.redo()
-		"Restart": session.restart()
-	if changed:
-		_animate()
-	return changed
+	return _commands.request_history(session, action)
 
 func _animation_speed() -> float:
-	return maxf(1.0, step_duration / maxf(0.01, buffered_step_duration)) if _fast_animation else 1.0
+	return maxf(1.0, step_duration / maxf(0.01, buffered_step_duration)) if _commands.is_accelerated() else 1.0
 
-func _animate(accelerated: bool = false) -> void:
-	_busy = true
-	_fast_animation = accelerated
-	var duration = minf(step_duration, 0.9 / maxf(1.0, session.stages.size()))
-	for stage in session.stages:
+func _accelerate_presentation() -> void:
+	if _active_tween and _active_tween.is_valid():
+		_active_tween.set_speed_scale(_animation_speed())
+
+func _animate(stages: Array[Dictionary]) -> void:
+	var duration = minf(step_duration, 0.9 / maxf(1.0, stages.size()))
+	for stage in stages:
 		_active_tween = _view.show_state(stage, duration)
 		if _active_tween and _active_tween.is_valid():
 			_active_tween.set_speed_scale(_animation_speed())
 			await _active_tween.finished
 	_active_tween = null
-	if session.status != &"playing":
-		_move_queue.clear()
 	_view.select_actor(session.player_id())
+	# Outcome listeners still observe an active presentation.
 	_update_status()
-	_busy = false
-	if not _pending_history.is_empty():
-		var action = _pending_history
-		_pending_history = ""
-		_history_action(action)
-		return
-	while not _move_queue.is_empty():
-		var direction: Vector3i = _move_queue.pop_front()
-		if _play_move(direction, true):
-			return
+	_commands.finish_presentation(session, is_inside_tree())
 
 func _update_status() -> void:
 	match session.status:

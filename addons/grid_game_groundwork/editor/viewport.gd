@@ -2,11 +2,9 @@
 class_name GGEditorViewport
 extends SubViewportContainer
 
-signal entity_picked(entity_id: StringName, button: int, shift: bool)
+signal brush_picked(entity_id: StringName)
 signal layer_changed(value: int)
 signal hovered(cell: Vector3i)
-signal selection_height_requested(offset: int)
-signal paint_height_requested(offset: int)
 var interaction: GGEditorInteraction
 var selection: GGEditorSelection
 var stroke: GGEditorStroke
@@ -90,9 +88,8 @@ func _ready() -> void:
 	mouse_exited.connect(func():
 		_clear_erase_hover()
 		if _ghost: _ghost.visible = false
-		if is_moving(): return
-		_move_gizmo.highlight(-1)
-		stroke.finish()
+		if not is_moving(): _move_gizmo.highlight(-1)
+		interaction.pointer_exited()
 	)
 
 func show_level(value: GGLevel) -> void:
@@ -176,9 +173,6 @@ func cell_at(point: Vector2) -> Variant:
 func input_cell_at(point: Vector2) -> Variant:
 	return stroke.preview(camera.project_ray_origin(point), camera.project_ray_normal(point), layer)
 
-func _sample_stroke(point: Vector2) -> void:
-	stroke.sample(camera.project_ray_origin(point), camera.project_ray_normal(point), layer, entity_at(point) if _erase_enabled else &"")
-
 func entity_at(point: Vector2) -> StringName:
 	if not level: return &""
 	return _surfaces.pick(board.roots, camera.project_ray_origin(point), camera.project_ray_normal(point))
@@ -256,9 +250,6 @@ func _show_move_preview() -> void:
 		if board.roots.has(id): board.roots[id].position = Vector3(positions[id])
 	_move_gizmo.position = Vector3(selection.position())
 
-func cancel_move() -> void:
-	if selection: selection.finish_move(false)
-
 func rebase_move(cell: Vector3i) -> bool:
 	return is_moving() and _move_gizmo.rebase_drag(_move_pointer, cell)
 
@@ -298,13 +289,13 @@ func _stop_navigation() -> void:
 
 func _exit_tree() -> void:
 	_stop_navigation()
-	if stroke: stroke.finish()
+	if interaction: interaction.cancel()
 
 func _release_right(point: Vector2) -> void:
 	var pick = _right_pressed and not _right_used and Rect2(Vector2.ZERO, size).has_point(point)
 	_end_look()
 	if pick and not is_drawing():
-		entity_picked.emit(entity_at(point), MOUSE_BUTTON_RIGHT, false)
+		brush_picked.emit(entity_at(point))
 
 func _look_camera(relative: Vector2) -> void:
 	# Free look rotates in place; keep the orbit pivot compatible with middle-drag.
@@ -346,7 +337,7 @@ func _input(event: InputEvent) -> void:
 	var key = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
 	if event.pressed and key == KEY_ESCAPE and (is_navigating() or _right_pressed or is_moving()):
 		_stop_navigation()
-		cancel_move()
+		interaction.cancel_move()
 		get_viewport().set_input_as_handled()
 		return
 	if not event.pressed and _navigation_keys.has(key):
@@ -359,13 +350,8 @@ func _input(event: InputEvent) -> void:
 		_navigation_keys.clear()
 		return
 	if key in [KEY_Q, KEY_E]:
-		var target = interaction.height_target(_right_pressed or _looking)
-		if target in [GGEditorInteraction.HeightTarget.PAINT, GGEditorInteraction.HeightTarget.SELECTION]:
-			if event.pressed and not event.echo and not event.shift_pressed:
-				if target == GGEditorInteraction.HeightTarget.PAINT:
-					paint_height_requested.emit(1 if key == KEY_E else -1)
-				else:
-					selection_height_requested.emit(1 if key == KEY_E else -1)
+		var apply_edit = event.pressed and not event.echo and not event.shift_pressed
+		if interaction.handle_height(1 if key == KEY_E else -1, _right_pressed or _looking, apply_edit):
 			get_viewport().set_input_as_handled()
 			return
 	if key in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E]:
@@ -396,16 +382,11 @@ func _input_on_view(event: InputEvent) -> void:
 	if is_moving():
 		if event is InputEventMouseMotion:
 			_move_pointer = event.position
-			if not event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-				cancel_move()
-			else:
-				var target = _move_gizmo.target_at(event.position)
-				if target != null: selection.preview_move(target)
+			var held = bool(event.button_mask & MOUSE_BUTTON_MASK_LEFT)
+			interaction.drag_move(_move_gizmo.target_at(event.position) if held else null, held)
 		elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			_move_pointer = event.position
-			var target = _move_gizmo.target_at(event.position)
-			if target != null: selection.preview_move(target)
-			selection.finish_move(true)
+			interaction.release_pointer(_move_gizmo.target_at(event.position))
 		accept_event()
 		return
 	if event is InputEventMouseButton:
@@ -423,14 +404,15 @@ func _input_on_view(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT and (is_navigating() or _right_pressed):
 			accept_event()
 			return
-		if _move_enabled and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not event.shift_pressed:
+		if _move_enabled and not is_drawing() and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not event.shift_pressed:
 			var handle = _move_gizmo.pick(event.position)
 			if handle != -1 and _move_gizmo.begin_drag(handle, event.position, selection.position()):
-				grab_focus()
-				selection.begin_move()
-				_move_pointer = event.position
-				accept_event()
-				return
+				if interaction.begin_move():
+					grab_focus()
+					_move_pointer = event.position
+					accept_event()
+					return
+				_move_gizmo.end_drag()
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if _right_pressed:
 				_adjust_fly_speed(event)
@@ -440,19 +422,13 @@ func _input_on_view(event: InputEvent) -> void:
 			accept_event()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-			stroke.finish()
+			interaction.release_pointer()
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			grab_focus()
-			stroke.begin()
-			var cell = input_cell_at(event.position)
-			# Entity tools also work when the ray cannot reach the paint plane.
-			if cell != null or _move_enabled or _erase_enabled:
-				var id = entity_at(event.position)
-				_sample_stroke(event.position)
-				entity_picked.emit(id, event.button_index, event.shift_pressed)
-				_update_erase_hover(event.position)
-			else:
-				stroke.finish()
+			var point: Vector2 = event.position
+			var id = entity_at(point) if _move_enabled or _erase_enabled else &""
+			interaction.begin_pointer(camera.project_ray_origin(point), camera.project_ray_normal(point), layer, id, event.shift_pressed)
+			_update_erase_hover(point)
 			accept_event()
 	elif event is InputEventMouseMotion:
 		if _right_pressed:
@@ -483,11 +459,11 @@ func _input_on_view(event: InputEvent) -> void:
 		if cell != null: hovered.emit(cell)
 		elif _ghost: _ghost.visible = false
 		if stroke.is_active():
-			if event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-				_sample_stroke(event.position)
-				_update_erase_hover(event.position)
-			else:
-				stroke.finish()
+			var point: Vector2 = event.position
+			var held = bool(event.button_mask & MOUSE_BUTTON_MASK_LEFT)
+			var id = entity_at(point) if held and _erase_enabled else &""
+			interaction.sample_pointer(camera.project_ray_origin(point), camera.project_ray_normal(point), layer, id, held)
+			if held: _update_erase_hover(point)
 	elif event is InputEventKey and event.pressed and event.physical_keycode == KEY_F:
 		frame_level()
 		accept_event()

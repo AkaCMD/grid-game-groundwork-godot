@@ -18,12 +18,8 @@ func resolve_move(session: GGSession, actor_id: StringName, direction: Vector3i)
 	var pivot = direction * (edge * 2 + 1) + Vector3i.UP * (bottom * 2 - 1)
 	var axis = Vector3i(Vector3(direction).cross(Vector3.UP))
 	var rotation = GGGrid.rotated(0, axis)
-	entity.cell += (pivot + GGGrid.transform_cell(-pivot, rotation)) / 2
-	entity.turns = GGGrid.rotated(entity.turns, axis)
-	if not session.is_clear(actor_id, GGGrid.cells(entity)): return false
-	session.stages.append(session.snapshot())
-	after_step(session)
-	return session.settle()
+	var target: Vector3i = entity.cell + (pivot + GGGrid.transform_cell(-pivot, rotation)) / 2
+	return session.displace_entity(actor_id, target, GGGrid.rotated(entity.turns, axis))
 
 func after_action(session: GGSession) -> void:
 	if session.status != &"playing": return
@@ -33,4 +29,4 @@ func after_action(session: GGSession) -> void:
 	if GGGrid.transform_cell(Vector3i.UP, entity.turns) != winning_up: return
 	var cells = GGGrid.cells(entity)
 	for other in session.entities.values():
-		if other.properties.get("goal", false) and cells.has(other.cell): session.status = &"won"
+		if other.properties.get("goal", false) and cells.has(other.cell): session.set_outcome(&"won")

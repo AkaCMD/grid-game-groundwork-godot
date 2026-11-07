@@ -23,6 +23,7 @@ func _init() -> void:
 	test_height_offset()
 	test_automatic_to_manual_height()
 	test_exact_sample_revalidation()
+	test_non_solid_duplicate_preview()
 	test_lifecycle()
 	test_erase_and_shape()
 	print("Stroke: %d checks, %d failures" % [checks, failures])
@@ -240,6 +241,24 @@ func test_exact_sample_revalidation() -> void:
 	check(stroke.sample(ray, Vector3.DOWN, 0) and editor.level.entities.back().cell == target, "Clearing the collision allows the same sample to be retried")
 	stroke.finish()
 	check(editor.undo() and editor.level.entities.size() == 2, "Retried exact placement remains one undoable stroke")
+
+func test_non_solid_duplicate_preview() -> void:
+	var editor = author()
+	var goal = editor.level.palette[4]
+	check(editor.paint(goal, Vector3i.ZERO), "A non-solid goal can be painted")
+	var stroke = GGEditorStroke.new(editor)
+	stroke.configure(goal, GGEditorStroke.Mode.PAINT)
+	var ray = Vector3(0, 5, 0)
+	check(stroke.preview(ray, Vector3.DOWN, 0) == Vector3i.UP, "Non-solid entities supply a Paint surface")
+	stroke.adjust_height(-1)
+	var target: Vector3i = stroke.preview(ray, Vector3.DOWN, 0)
+	var error = stroke.preview_error(target)
+	check(target == Vector3i.ZERO and not error.is_empty(), "An identical non-solid placement is invalid in the exact preview")
+	editor.dirty = false
+	stroke.begin()
+	check(not stroke.sample(ray, Vector3.DOWN, 0) and editor.last_error == error, "The rejected sample reports the same duplicate as the preview")
+	stroke.finish()
+	check(not editor.dirty and editor.level.entities.size() == 1 and editor.undo() and editor.level.entities.is_empty(), "A rejected duplicate creates no authored edit")
 
 func test_lifecycle() -> void:
 	var editor = author()

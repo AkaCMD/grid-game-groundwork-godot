@@ -65,7 +65,7 @@ func reset_height() -> void:
 	_preview_lift = 0
 
 func preview_error(cell: Vector3i) -> String:
-	if _mode != Mode.PAINT or _shape_mode or (_active and _visited.values().has(cell)): return ""
+	if _mode != Mode.PAINT or _shape_mode or not _definition or (_active and _visited.values().has(cell)): return ""
 	return _authoring.placement_error(_definition, cell, _turns, _mirrored)
 
 func begin() -> void:
@@ -104,7 +104,7 @@ func sample(origin: Vector3, direction: Vector3, height: int, entity_id: StringN
 	_visited[cell] = target
 	if _shape_mode:
 		return _authoring.edit_shape(_definition, cell, _mode == Mode.ERASE)
-	var painted = _authoring.paint_exact(_definition, target, _turns, _mirrored) if _manual_height else _authoring.paint(_definition, target, _turns, _mirrored)
+	var painted = _authoring.paint_exact(_definition, target, _turns, _mirrored)
 	if not painted: _visited.erase(cell)
 	return painted
 
@@ -142,7 +142,7 @@ func _occupied_cells() -> Array[Vector3i]:
 		for entity in _authoring.level.entities:
 			# Paint surfaces are independent of gameplay collision: non-solid
 			# entities such as bread can also be stacked in the editor.
-			cells.append_array(entity.occupied_cells())
+			if entity: cells.append_array(entity.occupied_cells())
 	return cells
 
 func _surface_at(origin: Vector3, direction: Vector3) -> Dictionary:

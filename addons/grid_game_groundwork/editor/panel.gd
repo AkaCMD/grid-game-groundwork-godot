@@ -88,11 +88,10 @@ func _ready() -> void:
 	viewport.stroke = stroke
 	center.add_child(viewport)
 	viewport.custom_minimum_size = Vector2(260, 280) * _scale
-	viewport.entity_picked.connect(_pick_entity)
+	viewport.brush_picked.connect(_pick_brush)
 	viewport.hovered.connect(_hover)
 	viewport.layer_changed.connect(_paint_height_changed)
-	viewport.selection_height_requested.connect(_move_selection_height)
-	viewport.paint_height_requested.connect(_adjust_paint_height)
+	interaction.paint_height_changed.connect(_refresh_paint_height)
 	var hint_row = _row(center)
 	_hint = _line_label(hint_row)
 	_muted_labels.append(_hint)
@@ -533,6 +532,7 @@ func _definition_changed() -> void:
 	if _updating:
 		return
 	authoring.dirty = true
+	interaction.cancel_move()
 	if not _definition_refresh_pending:
 		_definition_refresh_pending = true
 		call_deferred("_refresh_definition_if_pending")
@@ -602,16 +602,13 @@ func _choose_definition(index: int) -> void:
 		_palette.select(index)
 		_refresh_view()
 
-func _pick_entity(id: StringName, button: int, shift: bool) -> void:
+func _pick_brush(id: StringName) -> void:
 	if interaction.shape_mode: return
-	if button == MOUSE_BUTTON_RIGHT:
-		var entity = authoring.find_entity(id)
-		if entity:
-			_choose_definition(authoring.level.palette.find(entity.definition))
-			_turns.value = entity.quarter_turns
-			_mirror.button_pressed = entity.mirrored
-	elif _mode == 2:
-		selection.select(id, shift)
+	var entity = authoring.find_entity(id)
+	if entity:
+		_choose_definition(authoring.level.palette.find(entity.definition))
+		_turns.value = entity.quarter_turns
+		_mirror.button_pressed = entity.mirrored
 
 func _configure_stroke() -> void:
 	interaction.configure_brush(_definition, int(_turns.value), _mirror.button_pressed)
@@ -621,10 +618,9 @@ func _paint_height_changed(value: int) -> void:
 	_floor_height.set_value_no_signal(value)
 	_refresh_hover()
 
-func _adjust_paint_height(offset: int) -> void:
-	if stroke.adjust_height(offset):
-		_update_context()
-		_refresh_hover()
+func _refresh_paint_height() -> void:
+	_update_context()
+	_refresh_hover()
 
 func _refresh_hover() -> void:
 	# Tool changes must resolve the current ray through the shared stroke,
@@ -681,9 +677,6 @@ func _sync_coordinates() -> void:
 	if selection.active_id() != &"":
 		var cell = selection.position()
 		for axis in range(3): _coords[axis].set_value_no_signal(cell[axis])
-
-func _move_selection_height(offset: int) -> void:
-	selection.translate(Vector3i(0, offset, 0))
 
 func _snap_selected_to_ground() -> void:
 	selection.snap_to_ground(viewport.rebase_move)

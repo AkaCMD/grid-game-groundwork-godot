@@ -76,8 +76,8 @@ func is_outside(session: GGSession, entity_id: StringName, direction: Vector3i) 
 	return true
 
 func on_fall_out(session: GGSession, entity_id: StringName) -> void:
-	if session.entities[entity_id].properties.get("player", false): session.status = &"failed"
-	session.entities.erase(entity_id)
+	if session.get_entity_property(entity_id, &"player", false): session.set_outcome(&"failed")
+	session.remove_entity(entity_id)
 
 func validate_state(session: GGSession) -> PackedStringArray:
 	for id in session.entities:

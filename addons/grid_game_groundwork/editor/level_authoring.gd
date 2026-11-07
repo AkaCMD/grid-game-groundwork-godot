@@ -6,6 +6,7 @@ extends RefCounted
 signal changed
 signal stroke_ended
 signal level_opened
+const LevelConfiguration = preload("res://addons/grid_game_groundwork/editor/level_configuration.gd")
 var level: GGLevel
 var dirty = false
 var placement_normal = Vector3i.UP
@@ -26,17 +27,10 @@ func open(value: GGLevel) -> void:
 	changed.emit()
 
 func discard_changes() -> bool:
-	# Authoring edits cached resources in place, including shared definitions.
-	# Reload external configuration before navigating away so discarded edits
-	# cannot leak into another level through ResourceLoader's cache.
-	var resources = {}
-	_collect_configuration(level, {}, resources)
-	for path in resources:
-		var saved = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP)
-		if saved == null:
-			last_error = "Could not reload %s while discarding edits." % path
-			return false
-		_copy_configuration(saved, {}, true)
+	var configuration = LevelConfiguration.new(level)
+	if not configuration.restore_saved():
+		last_error = configuration.last_error
+		return false
 	_history.clear()
 	_future.clear()
 	end_stroke()
@@ -44,30 +38,8 @@ func discard_changes() -> bool:
 	changed.emit()
 	return true
 
-func _collect_configuration(value: Variant, visited: Dictionary, resources: Dictionary) -> void:
-	if value is Script or value is PackedScene:
-		return
-	if value is Resource:
-		if visited.has(value):
-			return
-		visited[value] = true
-		for property in value.get_property_list():
-			if property.usage & PROPERTY_USAGE_STORAGE:
-				_collect_configuration(value.get(property.name), visited, resources)
-		var path: String = value.resource_path
-		if not path.is_empty() and not path.contains("::") and path.get_extension() in ["tres", "res"]:
-			resources[path] = value
-	elif value is Array:
-		for item in value:
-			_collect_configuration(item, visited, resources)
-	elif value is Dictionary:
-		for item in value.values():
-			_collect_configuration(item, visited, resources)
-
 func contains_configuration(resource: Resource) -> bool:
-	var visited = {}
-	_collect_configuration(level, visited, {})
-	return visited.has(resource)
+	return LevelConfiguration.new(level).contains(resource)
 
 func save_playtest(path: String) -> Error:
 	var errors = level.validate()
@@ -76,7 +48,7 @@ func save_playtest(path: String) -> Error:
 		return ERR_INVALID_DATA
 	# Bundle live definitions and rule configuration, including unsaved external
 	# resources, so the separate game process sees exactly the current design.
-	var isolated: GGLevel = _copy_configuration(level, {})
+	var isolated: GGLevel = LevelConfiguration.new(level).isolated_level()
 	var error = ResourceSaver.save(isolated, path)
 	last_error = "" if error == OK else "Could not prepare playtest (error %d)." % error
 	return error
@@ -105,35 +77,6 @@ func set_playtest_scene(scene: PackedScene) -> void:
 	_record()
 	level.playtest_scene = scene
 	_notify()
-
-func _copy_configuration(value: Variant, copies: Dictionary, restore_cached: bool = false) -> Variant:
-	# Keep script identities and scene assets external. Bundling scripts would
-	# redefine their global class names when the temporary level is loaded.
-	if value is Script or value is PackedScene:
-		return value
-	if value is Resource:
-		if copies.has(value):
-			return copies[value]
-		var copied = value.duplicate(false)
-		var path: String = value.resource_path
-		if restore_cached and not path.is_empty() and not path.contains("::"):
-			copied = ResourceLoader.load(path)
-		copies[value] = copied
-		for property in value.get_property_list():
-			if property.usage & PROPERTY_USAGE_STORAGE:
-				copied.set(property.name, _copy_configuration(value.get(property.name), copies, restore_cached))
-		return copied
-	if value is Array:
-		var copied = value.duplicate()
-		for index in copied.size():
-			copied[index] = _copy_configuration(value[index], copies, restore_cached)
-		return copied
-	if value is Dictionary:
-		var copied = {}
-		for key in value:
-			copied[key] = _copy_configuration(value[key], copies, restore_cached)
-		return copied
-	return value
 
 func snapshot() -> Dictionary:
 	var shapes = {}
@@ -200,6 +143,9 @@ func _proposal_error(candidates: Array[GGEntityPlacement]) -> String:
 func _commit_placements(candidates: Array[GGEntityPlacement], finish_stroke: bool = true) -> bool:
 	last_error = _proposal_error(candidates)
 	if not last_error.is_empty(): return false
+	return _apply_placements(candidates, finish_stroke)
+
+func _apply_placements(candidates: Array[GGEntityPlacement], finish_stroke: bool) -> bool:
 	if finish_stroke: end_stroke()
 	_record()
 	for candidate in candidates:
@@ -224,23 +170,25 @@ func _translated(entities: Array[GGEntityPlacement], offset: Vector3i) -> Array[
 	return candidates
 
 func placement_cell(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> Variant:
-	if definition.shape.is_empty(): return null
-	var candidate = GGEntityPlacement.new()
-	candidate.definition = definition
+	var candidate = _paint_candidate(definition, cell, turns, mirrored, overrides)
+	return candidate.cell if _lift_paint(candidate).is_empty() else null
+
+func _lift_paint(candidate: GGEntityPlacement) -> String:
+	var cell = candidate.cell
+	var error = _proposal_error([candidate])
+	if error.is_empty() or candidate.definition.shape.is_empty(): return error
+	for lift in _lift_offsets([candidate]).slice(1):
+		candidate.cell = cell + placement_normal * lift
+		if _proposal_error([candidate]).is_empty(): return ""
 	candidate.cell = cell
-	candidate.orientation = turns
-	candidate.mirrored = mirrored
-	candidate.overrides = overrides
-	for lift in _lift_offsets([candidate]):
-		var target = cell + placement_normal * lift
-		if placement_error(definition, target, turns, mirrored, overrides).is_empty(): return target
-	return null
+	return error
 
 func _lift_offsets(candidates: Array[GGEntityPlacement]) -> Array:
 	# Only occupied cells can end a collision interval. Sparse distant terrain
 	# must not turn a rejected placement into a walk through empty space.
 	var offsets = {0: true}
 	for entity in level.entities:
+		if not entity: continue
 		for used in entity.occupied_cells():
 			for candidate in candidates:
 				for cell in candidate.occupied_cells():
@@ -252,38 +200,37 @@ func _lift_offsets(candidates: Array[GGEntityPlacement]) -> Array:
 	return result
 
 func paint(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
-	var target = placement_cell(definition, cell, turns, mirrored, overrides)
-	if target == null:
-		last_error = placement_error(definition, cell, turns, mirrored, overrides)
-		return false
-	return _paint_at(definition, target, turns, mirrored, overrides)
+	return _paint(_paint_candidate(definition, cell, turns, mirrored, overrides), true)
 
 func placement_error(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> String:
+	return _paint_error(_paint_candidate(definition, cell, turns, mirrored, overrides), false)
+
+func paint_exact(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
+	return _paint(_paint_candidate(definition, cell, turns, mirrored, overrides), false)
+
+func _paint_candidate(definition: GGEntityDefinition, cell: Vector3i, turns: int, mirrored: bool, overrides: Dictionary) -> GGEntityPlacement:
 	var candidate = GGEntityPlacement.new()
 	candidate.entity_id = _next_id(definition.definition_id)
 	candidate.definition = definition
 	candidate.cell = cell
-	candidate.quarter_turns = turns
+	candidate.orientation = turns
 	candidate.mirrored = mirrored
-	candidate.overrides = overrides
-	return _proposal_error([candidate])
+	candidate.overrides = overrides.duplicate(true)
+	return candidate
 
-func paint_exact(definition: GGEntityDefinition, cell: Vector3i, turns: int = 0, mirrored: bool = false, overrides: Dictionary = {}) -> bool:
-	return _paint_at(definition, cell, turns, mirrored, overrides)
+func _paint(candidate: GGEntityPlacement, lift: bool) -> bool:
+	last_error = _paint_error(candidate, lift)
+	return last_error.is_empty() and _apply_placements([candidate], false)
 
-func _paint_at(definition: GGEntityDefinition, target: Vector3i, turns: int, mirrored: bool, overrides: Dictionary) -> bool:
-	last_error = ""
+func _paint_error(candidate: GGEntityPlacement, lift: bool) -> String:
+	if lift:
+		var error = _lift_paint(candidate)
+		if not error.is_empty(): return error
+	# A duplicate is refused at the chosen cell, even in automatic mode.
 	for existing in level.entities:
-		if existing and not existing.resolved_properties().get("solid", true) and existing.definition == definition and existing.cell == target and existing.quarter_turns == turns:
-			return false
-	var entity = GGEntityPlacement.new()
-	entity.entity_id = _next_id(definition.definition_id)
-	entity.definition = definition
-	entity.cell = target
-	entity.quarter_turns = turns
-	entity.mirrored = mirrored
-	entity.overrides = overrides.duplicate(true)
-	return _commit_placements([entity], false)
+		if existing and existing.definition == candidate.definition and existing.cell == candidate.cell and existing.orientation == candidate.orientation and not existing.resolved_properties().get("solid", true):
+			return "%s is already placed at %s." % [candidate.definition.display_name, candidate.cell]
+	return "" if lift else _proposal_error([candidate])
 
 func _next_id(prefix: StringName) -> StringName:
 	return StringName("%s_%s" % [prefix, ResourceUID.id_to_text(ResourceUID.create_id()).trim_prefix("uid://")])
@@ -498,26 +445,10 @@ func save(path: String) -> Error:
 	if not errors.is_empty():
 		last_error = "\n".join(errors)
 		return ERR_INVALID_DATA
-	# Save live external configuration, including definitions and nested game
-	# rules. Built-in resources are serialized by their containing resource.
-	var resources = {}
-	_collect_configuration(level, {}, resources)
-	for external_path in resources:
-		if resources[external_path] == level:
-			continue
-		var configuration_error = ResourceSaver.save(resources[external_path], external_path)
-		if configuration_error != OK:
-			last_error = "Could not save referenced configuration: " + external_path
-			return configuration_error
-	var temporary = path.get_basename() + ".saving.tres"
-	var error = ResourceSaver.save(level, temporary)
+	var configuration = LevelConfiguration.new(level)
+	var error = configuration.save(path)
+	last_error = configuration.last_error
 	if error == OK:
-		error = DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(path))
-	if error == OK:
-		level.take_over_path(path)
 		dirty = false
-		last_error = ""
 		changed.emit()
-	else:
-		last_error = "Could not save %s (error %d)." % [path, error]
 	return error
